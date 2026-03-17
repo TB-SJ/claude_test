@@ -71,6 +71,11 @@
   .income-dollar { color:#475569; font-size:17px; font-weight:600; }
   .income-input { background:transparent; border:none; outline:none; font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; width:100%; }
   .income-sub { font-size:10px; color:#334155; margin-top:4px; }
+  .income-adjust { display:flex; align-items:center; gap:6px; margin-top:10px; }
+  .adj-btn { background:#1a1a3a; border:1px solid #2d2d5e; border-radius:8px; color:#94a3b8; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; font-weight:600; transition:background 0.15s; flex-shrink:0; }
+  .adj-btn:hover { background:#2d2d5e; color:#e2e8f0; }
+  .adj-input { background:#0a0a15; border:1px solid #1e1e3a; border-radius:8px; padding:5px 8px; color:#94a3b8; font-size:12px; width:0; flex:1; outline:none; text-align:center; min-width:0; }
+  .adj-input:focus { border-color:#6366f1; color:#e2e8f0; }
   .total-amount { font-size:30px; font-weight:700; font-family:'Space Grotesk',sans-serif; color:#a5b4fc; }
 
   /* Summary */
@@ -577,6 +582,11 @@ function buildDashboard() {
           value="${incomeRec?.full_time||''}" oninput="liveIncome()" onblur="saveIncome()" />
       </div>
       <div class="income-sub">Monthly salary</div>
+      <div class="income-adjust">
+        <button class="adj-btn" onclick="adjustIncome('ft',-1)">−</button>
+        <input class="adj-input" type="number" id="adj-ft" placeholder="amount" min="0" />
+        <button class="adj-btn" onclick="adjustIncome('ft',1)">+</button>
+      </div>
     </div>
     <div class="income-card">
       <div class="income-label">🐾 Rover Income</div>
@@ -585,6 +595,11 @@ function buildDashboard() {
           value="${incomeRec?.rover||''}" oninput="liveIncome()" onblur="saveIncome()" />
       </div>
       <div class="income-sub">Variable — adjust anytime</div>
+      <div class="income-adjust">
+        <button class="adj-btn" onclick="adjustIncome('rv',-1)">−</button>
+        <input class="adj-input" type="number" id="adj-rv" placeholder="amount" min="0" />
+        <button class="adj-btn" onclick="adjustIncome('rv',1)">+</button>
+      </div>
     </div>
     <div class="income-card total">
       <div class="income-label" style="color:#6366f1;font-weight:600">✦ TOTAL INCOME</div>
@@ -635,6 +650,14 @@ function renderSummary() {
 }
 
 // ── Income ──
+function adjustIncome(field, sign) {
+  const adj = parseFloat(document.getElementById("adj-"+field)?.value) || 0;
+  if (!adj) return;
+  const mainEl = document.getElementById("inc-"+field);
+  mainEl.value = Math.max(0, (parseFloat(mainEl.value)||0) + sign * adj);
+  liveIncome();
+  saveIncome();
+}
 function liveIncome() {
   const ft=parseFloat(document.getElementById("inc-ft")?.value)||0;
   const rv=parseFloat(document.getElementById("inc-rv")?.value)||0;
