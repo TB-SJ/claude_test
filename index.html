@@ -512,20 +512,27 @@ sb.auth.onAuthStateChange(async(event, session)=>{
 
 // ── Data Loading ──
 async function loadAll() {
+  // Supabase free-tier projects pause after inactivity and can take ~30s to wake up
+  const wakeTimer = setTimeout(() =>
+    setLoadingStep("Waking up database… (first load on free tier can take ~30s)"), 5000);
   const timeout = new Promise((_,reject) =>
-    setTimeout(() => reject(new Error("Request timed out — Supabase may be unavailable or paused.")), 12000)
+    setTimeout(() => reject(new Error("Database is taking too long — it may still be waking up. Please retry in a moment.")), 60000)
   );
-  await Promise.race([
-    (async() => {
-      setLoadingStep("Loading income…");
-      await loadIncome();
-      setLoadingStep("Loading bills…");
-      await loadBills();
-      setLoadingStep("Loading expenses…");
-      await loadExpenses();
-    })(),
-    timeout
-  ]);
+  try {
+    await Promise.race([
+      (async() => {
+        setLoadingStep("Loading income…");
+        await loadIncome();
+        setLoadingStep("Loading bills…");
+        await loadBills();
+        setLoadingStep("Loading expenses…");
+        await loadExpenses();
+      })(),
+      timeout
+    ]);
+  } finally {
+    clearTimeout(wakeTimer);
+  }
 }
 async function loadIncome() {
   const {data,error}=await sb.from("budget_income").select("*").eq("user_id",user.id).maybeSingle();
