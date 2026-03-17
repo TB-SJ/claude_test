@@ -229,6 +229,19 @@
     .modal-actions { flex-direction:column-reverse; }
     .btn-danger { margin-right:0; }
   }
+
+  /* Month navigation */
+  .month-nav { display:flex; align-items:center; gap:6px; }
+  .month-nav-btn { background:#1e1e3a; border:1px solid #2d2d5e; color:#94a3b8; border-radius:8px; padding:4px 10px; font-size:16px; cursor:pointer; line-height:1; transition:background 0.15s; }
+  .month-nav-btn:hover { background:#2d2d5e; color:#e2e8f0; }
+  .month-nav-btn:disabled { opacity:0.3; cursor:default; }
+
+  /* Limits modal */
+  .limits-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; margin-top:12px; }
+  .limit-field { display:flex; flex-direction:column; gap:4px; }
+  .limit-label { font-size:11px; color:#475569; font-weight:600; text-transform:uppercase; letter-spacing:0.3px; }
+  .limit-bar-wrap { height:6px; background:#1e1e3a; border-radius:99px; overflow:hidden; margin-top:4px; }
+  .limit-bar-fill { height:100%; border-radius:99px; transition:width 0.4s ease; }
 </style>
 </head>
 <body>
@@ -265,7 +278,11 @@
   <div class="header">
     <div>
       <div class="logo">💰 Personal <span>Budget</span></div>
-      <div class="month-label" id="month-label"></div>
+      <div class="month-nav">
+        <button class="month-nav-btn" id="month-prev-btn" onclick="changeMonth(-1)" title="Previous month">‹</button>
+        <div class="month-label" id="month-label"></div>
+        <button class="month-nav-btn" id="month-next-btn" onclick="changeMonth(1)" title="Next month">›</button>
+      </div>
     </div>
     <div class="header-right">
       <span class="user-email" id="user-email-display"></span>
@@ -317,7 +334,7 @@
     <!-- EXPENSES -->
     <div id="tab-expenses" class="tab" style="padding-top:24px">
       <div class="card">
-        <div class="card-title">⚡ Add Expense</div>
+        <div class="card-title" id="add-exp-label">⚡ Add Expense</div>
         <div class="expense-form-grid">
           <div class="inp-dollar"><span class="dollar-sign">$</span><input class="inp inp-lg" type="number" id="e-amount" placeholder="0.00" onkeydown="if(event.key==='Enter')addExpense()" /></div>
           <input class="inp" type="text" id="e-note" placeholder="Note / description" onkeydown="if(event.key==='Enter')addExpense()" />
@@ -328,7 +345,7 @@
       </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div class="card-title" style="margin-bottom:0">This Month's Expenses</div>
+          <div class="card-title" style="margin-bottom:0" id="exp-month-label">This Month's Expenses</div>
           <div id="exp-total" style="font-size:20px;font-weight:700;color:#f472b6;font-family:'Space Grotesk',sans-serif"></div>
         </div>
         <div id="expenses-list"></div>
@@ -357,6 +374,19 @@
       <button class="btn-danger" onclick="deleteFromModal()">🗑 Delete</button>
       <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEditExpense()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Spending Limits Modal -->
+<div id="limits-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLimitsModal()">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title">🎯 Monthly Spending Limits</div>
+    <div style="font-size:13px;color:#475569;margin-bottom:4px">Set a monthly cap per category. Leave blank for no limit.</div>
+    <div class="limits-grid" id="limits-grid"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeLimitsModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLimitsFromModal()">Save Limits</button>
     </div>
   </div>
 </div>
@@ -397,7 +427,8 @@ const DEFAULT_BILLS = [
 ];
 
 // ── Helpers ──
-const monthKey = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; })();
+let monthKey = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; })();
+const TODAY_MONTH = monthKey;
 function getMonthLabel(k) { const [y,m]=k.split("-"); return `${MONTHS[parseInt(m)-1]} ${y}`; }
 function fmt(n) { return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -408,6 +439,18 @@ function showToast(msg,type="success") {
 
 // ── State ──
 let user=null, incomeRec=null, bills=[], expenses={}, chartMonth=monthKey, editingBillId=null, editingExpId=null, editingDueId=null, billsCatFilter='all';
+
+// ── Month navigation ──
+function changeMonth(dir) {
+  const [y,m] = monthKey.split('-').map(Number);
+  const d = new Date(y, m - 1 + dir, 1);
+  monthKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('month-label').textContent = getMonthLabel(monthKey);
+  // Disable "next" once we reach the current real month
+  const nextBtn = document.getElementById('month-next-btn');
+  if (nextBtn) nextBtn.disabled = monthKey >= TODAY_MONTH;
+  renderAll();
+}
 
 // ── Auth ──
 function switchAuthTab(tab) {
@@ -489,6 +532,7 @@ async function initApp(sessionUser) {
   document.getElementById("main-app").style.display="block";
   document.getElementById("user-email-display").textContent=user.email;
   document.getElementById("month-label").textContent=getMonthLabel(monthKey);
+  const nb=document.getElementById('month-next-btn'); if(nb) nb.disabled=monthKey>=TODAY_MONTH;
   document.getElementById("e-date").value=new Date().toISOString().split("T")[0];
   populateCats();
 
@@ -546,12 +590,8 @@ async function loadAll() {
   try {
     await Promise.race([
       (async() => {
-        setLoadingStep("Loading income…");
-        await loadIncome();
-        setLoadingStep("Loading bills…");
-        await loadBills();
-        setLoadingStep("Loading expenses…");
-        await loadExpenses();
+        setLoadingStep("Loading data…");
+        await Promise.all([loadIncome(), loadBills(), loadExpenses()]);
       })(),
       timeout
     ]);
@@ -567,9 +607,19 @@ async function loadIncome() {
 async function loadBills() {
   const {data,error}=await sb.from("budget_bills").select("*").eq("user_id",user.id).order("sort_order");
   if(error) { console.error("Bills load error:", error.message); return; }
-  if(data&&data.length>0){ bills=data; }
-  else {
-    const ins=DEFAULT_BILLS.map(b=>({...b,user_id:user.id}));
+  if(data&&data.length>0){
+    // Migrate legacy paid amounts: if paid_history is empty but paid > 0, move paid → current month
+    const toMigrate=data.filter(b=>(b.paid||0)>0&&!Object.keys(b.paid_history||{}).length);
+    if(toMigrate.length){
+      await Promise.all(toMigrate.map(b=>{
+        const hist={[monthKey]:b.paid};
+        return sb.from("budget_bills").update({paid_history:hist}).eq("id",b.id).eq("user_id",user.id);
+      }));
+      data.forEach(b=>{ if(toMigrate.find(m=>m.id===b.id)) b.paid_history={[monthKey]:b.paid}; });
+    }
+    bills=data;
+  } else {
+    const ins=DEFAULT_BILLS.map(b=>({...b,user_id:user.id,paid_history:{}}));
     const {data:seeded,error:seedErr}=await sb.from("budget_bills").insert(ins).select();
     if(seedErr) { console.error("Seed error:", seedErr.message); return; }
     bills=seeded||[];
@@ -583,9 +633,10 @@ async function loadExpenses() {
 }
 
 // ── Derived ──
+function currentBillPaid(b){ return ((b.paid_history||{})[monthKey]) ?? (b.paid||0); }
 function totalIncome(){ return (incomeRec?.full_time||0)+(incomeRec?.rover||0); }
 function totalBudgeted(){ return bills.reduce((s,b)=>s+(b.budgeted||0),0); }
-function totalPaid(){ return bills.reduce((s,b)=>s+(b.paid||0),0); }
+function totalPaid(){ return bills.reduce((s,b)=>s+currentBillPaid(b),0); }
 function monthExps(){ return expenses[monthKey]||[]; }
 function totalMonthExp(){ return monthExps().reduce((s,e)=>s+parseFloat(e.amount||0),0); }
 
@@ -714,8 +765,8 @@ function renderBills() {
   const bs=document.getElementById("budget-section"); if(bs) bs.style.display=billsCatFilter==="fixed"?"none":"";
 
   const setTxt=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  setTxt("fixed-summary",`Budgeted: ${fmt(allFixed.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(allFixed.reduce((s,b)=>s+b.paid,0))}`);
-  setTxt("budget-summary",`Budgeted: ${fmt(allBudget.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(allBudget.reduce((s,b)=>s+b.paid,0))}`);
+  setTxt("fixed-summary",`Budgeted: ${fmt(allFixed.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(allFixed.reduce((s,b)=>s+currentBillPaid(b),0))}`);
+  setTxt("budget-summary",`Budgeted: ${fmt(allBudget.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(allBudget.reduce((s,b)=>s+currentBillPaid(b),0))}`);
   const fl=document.getElementById("fixed-bills-list");
   if(fl) fl.innerHTML=fixed.length?fixed.map(billRow).join(""):`<div class="empty-state" style="padding:20px 0">${q?"No bills match your search":"No fixed bills"}</div>`;
   const bl=document.getElementById("budget-bills-list");
@@ -736,9 +787,10 @@ function buildDueBadge(b){
 }
 
 function billRow(b) {
-  const isPaid=b.paid>=b.budgeted&&b.paid>0;
+  const paid=currentBillPaid(b);
+  const isPaid=paid>=b.budgeted&&paid>0;
   const isBudget=b.category==="budget";
-  const rem=(b.budgeted||0)-(b.paid||0);
+  const rem=(b.budgeted||0)-paid;
   const rc=rem<=0?"#f87171":rem<(b.budgeted*0.2)?"#f59e0b":"#34d399";
   const dueBadge=buildDueBadge(b);
   const nameCell=editingBillId===b.id
@@ -753,7 +805,7 @@ function billRow(b) {
     <div>
       <div class="field-label">PAID / SPENT</div>
       <div class="inp-dollar"><span class="dollar-sign">$</span>
-        <input class="inp" style="color:#10b981;font-weight:600;${isPaid?'border-color:#10b981':''}" type="number" value="${b.paid||''}" placeholder="0"
+        <input class="inp" style="color:#10b981;font-weight:600;${isPaid?'border-color:#10b981':''}" type="number" value="${paid||''}" placeholder="0"
           oninput="liveBill('${b.id}','paid',this.value)" onblur="commitBill('${b.id}','paid',this.value)" /></div>
       <div class="adjust-row">
         <button class="adj-btn minus" onclick="adjustPaid('${b.id}',-1)" title="Subtract">−</button>
@@ -775,17 +827,29 @@ async function finishBillName(id){
   editingBillId=null; renderBills();
 }
 function liveBill(id,field,val){
-  bills=bills.map(b=>b.id===id?{...b,[field]:parseFloat(val)||0}:b); renderSummary();
+  if(field==='paid'){
+    bills=bills.map(b=>b.id===id?{...b,paid_history:{...(b.paid_history||{}),[monthKey]:parseFloat(val)||0}}:b);
+  } else {
+    bills=bills.map(b=>b.id===id?{...b,[field]:parseFloat(val)||0}:b);
+  }
+  renderSummary();
 }
 async function commitBill(id,field,val){
   const v=parseFloat(val)||0;
-  bills=bills.map(b=>b.id===id?{...b,[field]:v}:b);
-  await sb.from("budget_bills").update({[field]:v}).eq("id",id).eq("user_id",user.id);
+  if(field==='paid'){
+    const hist={...(bills.find(b=>b.id===id)?.paid_history||{}),[monthKey]:v};
+    bills=bills.map(b=>b.id===id?{...b,paid_history:hist}:b);
+    await sb.from("budget_bills").update({paid_history:hist}).eq("id",id).eq("user_id",user.id);
+  } else {
+    bills=bills.map(b=>b.id===id?{...b,[field]:v}:b);
+    await sb.from("budget_bills").update({[field]:v}).eq("id",id).eq("user_id",user.id);
+  }
   const b=bills.find(x=>x.id===id);
   if(b){
-    const pb=document.getElementById("pb-"+id); if(pb) pb.style.display=(b.paid>=b.budgeted&&b.paid>0)?"":"none";
+    const paid=currentBillPaid(b);
+    const pb=document.getElementById("pb-"+id); if(pb) pb.style.display=(paid>=b.budgeted&&paid>0)?"":"none";
     const remEl=document.getElementById("rem-"+id);
-    if(remEl){ const r=(b.budgeted||0)-(b.paid||0); remEl.textContent=fmt(r); remEl.style.color=r<=0?"#f87171":r<(b.budgeted*0.2)?"#f59e0b":"#34d399"; }
+    if(remEl){ const r=(b.budgeted||0)-paid; remEl.textContent=fmt(r); remEl.style.color=r<=0?"#f87171":r<(b.budgeted*0.2)?"#f59e0b":"#34d399"; }
   }
   renderBills(); renderSummary();
 }
@@ -823,9 +887,10 @@ async function adjustPaid(id,sign){
   if(!delta||delta<=0) return showToast("Enter an amount to adjust","error");
   const bill=bills.find(b=>b.id===id);
   if(!bill) return;
-  const newPaid=Math.max(0,(bill.paid||0)+sign*delta);
-  bills=bills.map(b=>b.id===id?{...b,paid:newPaid}:b);
-  await sb.from("budget_bills").update({paid:newPaid}).eq("id",id).eq("user_id",user.id);
+  const newPaid=Math.max(0,currentBillPaid(bill)+sign*delta);
+  const hist={...(bill.paid_history||{}),[monthKey]:newPaid};
+  bills=bills.map(b=>b.id===id?{...b,paid_history:hist}:b);
+  await sb.from("budget_bills").update({paid_history:hist}).eq("id",id).eq("user_id",user.id);
   if(adjEl) adjEl.value='';
   renderBills(); renderSummary();
   showToast(`${sign>0?'Added':'Subtracted'} ${fmt(delta)}`);
@@ -848,6 +913,8 @@ async function saveDueDay(id,val){
 // ── Expenses ──
 function renderExpenses(){
   const exps=monthExps();
+  const lbl=document.getElementById("exp-month-label"); if(lbl) lbl.textContent=`${getMonthLabel(monthKey)} Expenses`;
+  const addLbl=document.getElementById("add-exp-label"); if(addLbl) addLbl.textContent=monthKey===TODAY_MONTH?'⚡ Add Expense':`⚡ Add Expense — ${getMonthLabel(monthKey)}`;
   const totEl=document.getElementById("exp-total"); if(totEl) totEl.textContent=fmt(totalMonthExp());
   const list=document.getElementById("expenses-list"); if(!list) return;
   if(!exps.length){ list.innerHTML=`<div class="empty-state">No expenses logged yet this month</div>`; return; }
@@ -871,14 +938,19 @@ async function addExpense(){
   const note=document.getElementById("e-note").value;
   const cat=document.getElementById("e-category").value;
   const date=document.getElementById("e-date").value||new Date().toISOString().split("T")[0];
-  const btn=document.getElementById("e-add-btn"); btn.disabled=true;
-  const {data,error}=await sb.from("budget_expenses").insert({user_id:user.id,amount:amt,note,category:cat,date,month_key:monthKey}).select().maybeSingle();
-  btn.disabled=false;
-  if(error) return showToast("Error saving expense","error");
+  // Optimistic: add immediately with temp id
+  const tempId='temp-'+Date.now();
   if(!expenses[monthKey]) expenses[monthKey]=[];
-  expenses[monthKey].unshift(data);
+  expenses[monthKey].unshift({id:tempId,user_id:user.id,amount:amt,note,category:cat,date,month_key:monthKey});
   document.getElementById("e-amount").value=""; document.getElementById("e-note").value="";
-  renderExpenses(); renderSummary(); showToast("Expense added!");
+  renderExpenses(); renderSummary();
+  const {data,error}=await sb.from("budget_expenses").insert({user_id:user.id,amount:amt,note,category:cat,date,month_key:monthKey}).select().maybeSingle();
+  if(error){
+    expenses[monthKey]=expenses[monthKey].filter(e=>e.id!==tempId);
+    renderExpenses(); renderSummary(); return showToast("Error saving expense","error");
+  }
+  expenses[monthKey]=expenses[monthKey].map(e=>e.id===tempId?data:e);
+  saveCache(); showToast("Expense added!");
 }
 async function quickAdd(){
   const amt=parseFloat(document.getElementById("q-amt")?.value);
@@ -886,15 +958,19 @@ async function quickAdd(){
   const note=document.getElementById("q-note")?.value||"";
   const cat=document.getElementById("q-cat")?.value||"Other";
   const date=new Date().toISOString().split("T")[0];
-  const btn=document.getElementById("q-btn"); if(btn) btn.disabled=true;
-  const {data,error}=await sb.from("budget_expenses").insert({user_id:user.id,amount:amt,note,category:cat,date,month_key:monthKey}).select().maybeSingle();
-  if(btn) btn.disabled=false;
-  if(error) return showToast("Error saving expense","error");
+  const tempId='temp-'+Date.now();
   if(!expenses[monthKey]) expenses[monthKey]=[];
-  expenses[monthKey].unshift(data);
+  expenses[monthKey].unshift({id:tempId,user_id:user.id,amount:amt,note,category:cat,date,month_key:monthKey});
   const qa=document.getElementById("q-amt"); if(qa) qa.value="";
   const qn=document.getElementById("q-note"); if(qn) qn.value="";
-  renderExpenses(); renderSummary(); showToast("Expense added!");
+  renderExpenses(); renderSummary();
+  const {data,error}=await sb.from("budget_expenses").insert({user_id:user.id,amount:amt,note,category:cat,date,month_key:monthKey}).select().maybeSingle();
+  if(error){
+    expenses[monthKey]=expenses[monthKey].filter(e=>e.id!==tempId);
+    renderExpenses(); renderSummary(); return showToast("Error saving expense","error");
+  }
+  expenses[monthKey]=expenses[monthKey].map(e=>e.id===tempId?data:e);
+  saveCache(); showToast("Expense added!");
 }
 async function deleteExpense(id){
   const mk=Object.keys(expenses).find(k=>expenses[k].some(e=>e.id===id));
@@ -931,6 +1007,37 @@ async function saveEditExpense(){
 }
 async function deleteFromModal(){ const id=editingExpId; closeEditModal(); await deleteExpense(id); }
 
+// ── Category Limits ──
+function getLimits(){ try{ return JSON.parse(localStorage.getItem('budget_limits_'+(user?.id||'')))||{}; }catch(e){ return {}; } }
+function saveLimits(lim){ localStorage.setItem('budget_limits_'+(user?.id||''),JSON.stringify(lim)); }
+
+function openLimitsModal(){
+  const lim=getLimits();
+  document.getElementById('limits-modal').style.display='flex';
+  const grid=document.getElementById('limits-grid');
+  grid.innerHTML=EXPENSE_CATEGORIES.map(c=>{
+    const col=CAT_COLORS[c]||'#818cf8';
+    return `<div class="limit-field">
+      <label class="limit-label" style="color:${col}">${c}</label>
+      <div class="inp-dollar"><span class="dollar-sign">$</span>
+        <input class="inp" type="number" id="lim-${c.replace(/\W/g,'_')}" placeholder="No limit" value="${lim[c]||''}" min="0" />
+      </div>
+    </div>`;
+  }).join('');
+}
+function closeLimitsModal(){ document.getElementById('limits-modal').style.display='none'; }
+function saveLimitsFromModal(){
+  const lim={};
+  EXPENSE_CATEGORIES.forEach(c=>{
+    const v=parseFloat(document.getElementById('lim-'+c.replace(/\W/g,'_'))?.value);
+    if(v>0) lim[c]=v;
+  });
+  saveLimits(lim);
+  closeLimitsModal();
+  renderHistory();
+  showToast("Limits saved!");
+}
+
 // ── History ──
 function renderHistory(){
   const allMonths=[...new Set([monthKey,...Object.keys(expenses)])].sort().reverse();
@@ -945,9 +1052,18 @@ function renderHistory(){
   exps.forEach(e=>{ cats[e.category]=(cats[e.category]||0)+parseFloat(e.amount||0); });
   const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
   const maxV=sorted[0][1];
+  const lim=getLimits();
   const chartHTML=sorted.map(([cat,amt])=>{
     const col=CAT_COLORS[cat]||"#818cf8";
-    return `<div class="chart-bar-row"><div class="chart-bar-label"><span class="chart-cat" style="color:${col}">${esc(cat)}</span><span class="chart-val">${fmt(amt)}</span></div><div class="chart-track"><div class="chart-fill" style="width:${(amt/maxV)*100}%;background:${col}"></div></div></div>`;
+    const limit=lim[cat];
+    let limitBar='';
+    if(limit){
+      const pct=Math.min((amt/limit)*100,100);
+      const over=amt>limit;
+      const barCol=over?'#f87171':amt>limit*0.8?'#f59e0b':col;
+      limitBar=`<div class="limit-bar-wrap"><div class="limit-bar-fill" style="width:${pct}%;background:${barCol}"></div></div><div style="font-size:11px;color:${over?'#f87171':'#475569'};margin-top:2px">${fmt(amt)} of ${fmt(limit)} limit${over?' ⚠️ over':''}</div>`;
+    }
+    return `<div class="chart-bar-row"><div class="chart-bar-label"><span class="chart-cat" style="color:${col}">${esc(cat)}</span><span class="chart-val">${fmt(amt)}</span></div><div class="chart-track"><div class="chart-fill" style="width:${(amt/maxV)*100}%;background:${col}"></div></div>${limitBar}</div>`;
   }).join("");
   const txHTML=exps.map(e=>{
     const col=CAT_COLORS[e.category]||"#818cf8";
@@ -955,13 +1071,31 @@ function renderHistory(){
   }).join("");
   hc.innerHTML=`
     <div class="card">
-      <div class="card-title" style="margin-bottom:4px">Spending by Category</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+        <div class="card-title">Spending by Category</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="openLimitsModal()">🎯 Set Limits</button>
+          <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
       <div style="font-size:24px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:#f472b6;margin-bottom:20px">${fmt(total)} <span style="font-size:13px;color:#475569;font-weight:400">total · ${getMonthLabel(chartMonth)}</span></div>
       ${chartHTML}
     </div>
     <div class="card"><div class="card-title">Transaction History — ${getMonthLabel(chartMonth)}</div>${txHTML}</div>`;
 }
 function setChartMonth(mk){ chartMonth=mk; renderHistory(); }
+
+function exportCSV(){
+  const exps=expenses[chartMonth]||[];
+  if(!exps.length) return showToast("No expenses to export","error");
+  const rows=[['Date','Category','Amount','Note'],...exps.map(e=>[e.date||'',e.category,Number(e.amount||0).toFixed(2),(e.note||'').replace(/"/g,'""')])];
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`expenses-${chartMonth}.csv`;
+  a.click();
+  showToast("Exported!");
+}
 
 // ── Tab switching ──
 function switchTab(name,btn){
