@@ -115,6 +115,28 @@
   .bill-actions { display:flex; align-items:center; gap:6px; justify-content:flex-end; }
   .add-bill-row { display:grid; grid-template-columns:1fr 130px 140px auto; gap:10px; }
 
+  /* Bills toolbar */
+  .bills-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+  .bills-toolbar .inp { flex:1; min-width:180px; }
+  .filter-pills { display:flex; gap:6px; flex-wrap:wrap; }
+  .filter-pill { padding:6px 14px; border-radius:20px; border:1px solid #1e1e3a; cursor:pointer; font-size:12px; font-weight:500; background:#111120; color:#64748b; transition:all 0.2s; white-space:nowrap; min-height:34px; }
+  .filter-pill.active { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border-color:transparent; }
+
+  /* Due date badge */
+  .due-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; margin-top:5px; padding:3px 8px; border-radius:20px; background:#1e1e3a; color:#475569; cursor:pointer; user-select:none; }
+  .due-badge:hover { color:#94a3b8; }
+  .due-badge.due-soon { background:#431407; color:#fb923c; }
+  .due-badge.overdue { background:#450a0a; color:#f87171; }
+  .due-select { background:#0a0a15; border:1px solid #6366f1; border-radius:8px; padding:3px 8px; color:#e2e8f0; font-size:11px; outline:none; cursor:pointer; margin-top:5px; }
+
+  /* Adjust controls */
+  .adjust-row { display:flex; align-items:center; gap:4px; margin-top:6px; }
+  .adjust-inp { background:#0a0a15; border:1px solid #1e1e3a; border-radius:8px; padding:4px 8px; color:#e2e8f0; font-size:12px; outline:none; width:68px; text-align:center; }
+  .adjust-inp:focus { border-color:#6366f1; }
+  .adj-btn { background:#1e1e3a; border:none; color:#94a3b8; border-radius:6px; padding:0 10px; cursor:pointer; font-size:16px; font-weight:700; min-width:30px; min-height:30px; transition:background 0.15s,color 0.15s; line-height:1; }
+  .adj-btn.minus:hover { background:#450a0a; color:#f87171; }
+  .adj-btn.plus:hover { background:#064e3b; color:#34d399; }
+
   /* Expense form */
   .expense-form-grid { display:grid; grid-template-columns:130px 1fr 165px 150px auto; gap:10px; align-items:center; }
 
@@ -260,11 +282,19 @@
 
     <!-- BILLS -->
     <div id="tab-bills" class="tab" style="padding-top:24px">
-      <div>
+      <div class="bills-toolbar">
+        <input class="inp" type="text" id="bills-search" placeholder="🔍 Search bills &amp; budgets…" oninput="renderBills()" />
+        <div class="filter-pills">
+          <button class="filter-pill active" onclick="setBillFilter('all',this)">All</button>
+          <button class="filter-pill" onclick="setBillFilter('fixed',this)">Fixed Bills</button>
+          <button class="filter-pill" onclick="setBillFilter('budget',this)">Budget</button>
+        </div>
+      </div>
+      <div id="fixed-section">
         <div class="section-header">🔒 Fixed Bills <span class="section-sub" id="fixed-summary"></span></div>
         <div id="fixed-bills-list"></div>
       </div>
-      <div style="margin-top:20px">
+      <div id="budget-section" style="margin-top:20px">
         <div class="section-header">📊 Budget Categories <span class="section-sub" id="budget-summary"></span></div>
         <div id="budget-bills-list"></div>
       </div>
@@ -372,7 +402,7 @@ function showToast(msg,type="success") {
 }
 
 // ── State ──
-let user=null, incomeRec=null, bills=[], expenses={}, chartMonth=monthKey, editingBillId=null, editingExpId=null;
+let user=null, incomeRec=null, bills=[], expenses={}, chartMonth=monthKey, editingBillId=null, editingExpId=null, editingDueId=null, billsCatFilter='all';
 
 // ── Auth ──
 function switchAuthTab(tab) {
@@ -583,31 +613,68 @@ async function saveIncome() {
 
 // ── Bills ──
 function renderBills() {
-  const fixed=bills.filter(b=>b.category==="fixed");
-  const budget=bills.filter(b=>b.category==="budget");
+  const q=(document.getElementById("bills-search")?.value||"").toLowerCase().trim();
+  let filtered=bills;
+  if(q) filtered=filtered.filter(b=>b.name.toLowerCase().includes(q));
+  if(billsCatFilter!=="all") filtered=filtered.filter(b=>b.category===billsCatFilter);
+
+  const allFixed=bills.filter(b=>b.category==="fixed");
+  const allBudget=bills.filter(b=>b.category==="budget");
+  const fixed=filtered.filter(b=>b.category==="fixed");
+  const budget=filtered.filter(b=>b.category==="budget");
+
+  // Show/hide sections based on category filter
+  const fs=document.getElementById("fixed-section"); if(fs) fs.style.display=billsCatFilter==="budget"?"none":"";
+  const bs=document.getElementById("budget-section"); if(bs) bs.style.display=billsCatFilter==="fixed"?"none":"";
+
   const setTxt=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  setTxt("fixed-summary",`Budgeted: ${fmt(fixed.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(fixed.reduce((s,b)=>s+b.paid,0))}`);
-  setTxt("budget-summary",`Budgeted: ${fmt(budget.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(budget.reduce((s,b)=>s+b.paid,0))}`);
-  const fl=document.getElementById("fixed-bills-list"); if(fl) fl.innerHTML=fixed.map(billRow).join("");
-  const bl=document.getElementById("budget-bills-list"); if(bl) bl.innerHTML=budget.map(billRow).join("");
+  setTxt("fixed-summary",`Budgeted: ${fmt(allFixed.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(allFixed.reduce((s,b)=>s+b.paid,0))}`);
+  setTxt("budget-summary",`Budgeted: ${fmt(allBudget.reduce((s,b)=>s+b.budgeted,0))} · Paid: ${fmt(allBudget.reduce((s,b)=>s+b.paid,0))}`);
+  const fl=document.getElementById("fixed-bills-list");
+  if(fl) fl.innerHTML=fixed.length?fixed.map(billRow).join(""):`<div class="empty-state" style="padding:20px 0">${q?"No bills match your search":"No fixed bills"}</div>`;
+  const bl=document.getElementById("budget-bills-list");
+  if(bl) bl.innerHTML=budget.length?budget.map(billRow).join(""):`<div class="empty-state" style="padding:20px 0">${q?"No budgets match your search":"No budget categories"}</div>`;
 }
+function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+
+function buildDueBadge(b){
+  if(editingDueId===b.id){
+    const opts=['<option value="">No due date</option>'];
+    for(let i=1;i<=31;i++) opts.push(`<option value="${i}"${b.due_day==i?' selected':''}>${ordinal(i)}</option>`);
+    return `<select class="due-select" id="due-sel-${b.id}" onchange="saveDueDay('${b.id}',this.value)" onblur="cancelDueEdit()">${opts.join('')}</select>`;
+  }
+  if(!b.due_day) return `<div class="due-badge" onclick="startDueEdit('${b.id}')">+ set due date</div>`;
+  const today=new Date().getDate(), diff=b.due_day-today;
+  const cls=diff<0?'overdue':diff<=3?'due-soon':'';
+  return `<div class="due-badge ${cls}" onclick="startDueEdit('${b.id}')">📅 Due ${ordinal(b.due_day)}</div>`;
+}
+
 function billRow(b) {
   const isPaid=b.paid>=b.budgeted&&b.paid>0;
   const isBudget=b.category==="budget";
   const rem=(b.budgeted||0)-(b.paid||0);
   const rc=rem<=0?"#f87171":rem<(b.budgeted*0.2)?"#f59e0b":"#34d399";
+  const dueBadge=buildDueBadge(b);
   const nameCell=editingBillId===b.id
-    ?`<input class="bill-name-input" id="ebn-${b.id}" value="${esc(b.name)}" onblur="finishBillName('${b.id}')" onkeydown="if(event.key==='Enter')finishBillName('${b.id}')" />`
-    :`<div class="bill-name" onclick="startBillName('${b.id}')" title="Click to rename">${esc(b.name)}</div>`;
+    ?`<div><input class="bill-name-input" id="ebn-${b.id}" value="${esc(b.name)}" onblur="finishBillName('${b.id}')" onkeydown="if(event.key==='Enter')finishBillName('${b.id}')" />${dueBadge}</div>`
+    :`<div><div class="bill-name" onclick="startBillName('${b.id}')" title="Click to rename">${esc(b.name)}</div>${dueBadge}</div>`;
   const remCol=isBudget?`<div><div class="field-label">REMAINING</div><div id="rem-${b.id}" style="font-size:15px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:${rc}">${fmt(rem)}</div></div>`:'';
   return `<div class="bill-row ${isBudget?'has-remaining':''}">
     ${nameCell}
     <div><div class="field-label">BUDGETED</div><div class="inp-dollar"><span class="dollar-sign">$</span>
       <input class="inp" style="color:#f59e0b;font-weight:600" type="number" value="${b.budgeted||''}" placeholder="0"
         oninput="liveBill('${b.id}','budgeted',this.value)" onblur="commitBill('${b.id}','budgeted',this.value)" /></div></div>
-    <div><div class="field-label">PAID / SPENT</div><div class="inp-dollar"><span class="dollar-sign">$</span>
-      <input class="inp" style="color:#10b981;font-weight:600;${isPaid?'border-color:#10b981':''}" type="number" value="${b.paid||''}" placeholder="0"
-        oninput="liveBill('${b.id}','paid',this.value)" onblur="commitBill('${b.id}','paid',this.value)" /></div></div>
+    <div>
+      <div class="field-label">PAID / SPENT</div>
+      <div class="inp-dollar"><span class="dollar-sign">$</span>
+        <input class="inp" style="color:#10b981;font-weight:600;${isPaid?'border-color:#10b981':''}" type="number" value="${b.paid||''}" placeholder="0"
+          oninput="liveBill('${b.id}','paid',this.value)" onblur="commitBill('${b.id}','paid',this.value)" /></div>
+      <div class="adjust-row">
+        <button class="adj-btn minus" onclick="adjustPaid('${b.id}',-1)" title="Subtract">−</button>
+        <input class="adjust-inp" id="adj-${b.id}" type="number" placeholder="0" min="0" />
+        <button class="adj-btn plus" onclick="adjustPaid('${b.id}',1)" title="Add">+</button>
+      </div>
+    </div>
     ${remCol}
     <div class="bill-actions">
       <span id="pb-${b.id}" style="${isPaid?'':'display:none'}">✅</span>
@@ -653,6 +720,43 @@ async function addBill(){
   bills.push(data);
   document.getElementById("new-bill-name").value=""; document.getElementById("new-bill-amount").value="";
   renderBills(); renderSummary(); showToast("Bill added!");
+}
+
+// ── Bill filter / search ──
+function setBillFilter(f,btn){
+  billsCatFilter=f;
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderBills();
+}
+
+// ── Adjust paid/spent ──
+async function adjustPaid(id,sign){
+  const adjEl=document.getElementById('adj-'+id);
+  const delta=parseFloat(adjEl?.value);
+  if(!delta||delta<=0) return showToast("Enter an amount to adjust","error");
+  const bill=bills.find(b=>b.id===id);
+  if(!bill) return;
+  const newPaid=Math.max(0,(bill.paid||0)+sign*delta);
+  bills=bills.map(b=>b.id===id?{...b,paid:newPaid}:b);
+  await sb.from("budget_bills").update({paid:newPaid}).eq("id",id).eq("user_id",user.id);
+  if(adjEl) adjEl.value='';
+  renderBills(); renderSummary();
+  showToast(`${sign>0?'Added':'Subtracted'} ${fmt(delta)}`);
+}
+
+// ── Due dates ──
+function startDueEdit(id){
+  editingDueId=id; renderBills();
+  setTimeout(()=>{ const el=document.getElementById('due-sel-'+id); if(el) el.focus(); },10);
+}
+function cancelDueEdit(){ editingDueId=null; renderBills(); }
+async function saveDueDay(id,val){
+  const day=val?parseInt(val):null;
+  bills=bills.map(b=>b.id===id?{...b,due_day:day}:b);
+  const {error}=await sb.from("budget_bills").update({due_day:day}).eq("id",id).eq("user_id",user.id);
+  if(error) showToast("Add a 'due_day' (int) column to budget_bills in Supabase","error");
+  editingDueId=null; renderBills();
 }
 
 // ── Expenses ──
