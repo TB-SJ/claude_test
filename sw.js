@@ -2,7 +2,7 @@
 // Enables "Add to Home Screen" installation on mobile.
 // Uses network-first for all requests so data is always fresh.
 
-const CACHE = 'budget-v2';
+const CACHE = 'budget-v3';
 const APP_SHELL = ['/', '/index.html', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', e => {

@@ -1525,6 +1525,10 @@ async function disconnectAccount(connId) {
   showToast('Account disconnected');
 }
 
+// ── Global error catcher (helps diagnose issues) ──
+window.addEventListener('error', e => showToast('Error: ' + e.message, 'error'));
+window.addEventListener('unhandledrejection', e => showToast('Error: ' + (e.reason?.message || e.reason), 'error'));
+
 // ── Service Worker ──
 if('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
