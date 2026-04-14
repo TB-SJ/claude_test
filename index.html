@@ -489,6 +489,7 @@ function showToast(msg,type="success") {
 
 // ── State ──
 let user=null, incomeRec=null, bills=[], expenses={}, chartMonth=monthKey, editingBillId=null, editingExpId=null, editingDueId=null, billsCatFilter='all';
+let _signingOut = false; // prevents onAuthStateChange from re-initializing during sign-out
 
 // ── Month navigation ──
 function changeMonth(dir) {
@@ -545,11 +546,19 @@ async function doResetPassword() {
   else{msg.className="auth-msg ok"; msg.textContent="Password reset email sent!";}
 }
 async function doSignOut() {
-  try { await sb.auth.signOut(); } catch(e) { console.warn('signOut error:', e); }
-  user=null; incomeRec=null; bills=[]; expenses={}; plaidTransactions=[]; plaidConnections=[];
+  _signingOut = true;
+  const btn = document.querySelector('.signout-btn');
+  if(btn) { btn.textContent='Signing out…'; btn.disabled=true; }
+  try { await sb.auth.signOut(); } catch(e) {
+    // Network failed — force-clear the local session so the user is signed out locally
+    try { localStorage.removeItem('personal-budget-auth'); } catch(_) {}
+  }
+  _signingOut = false;
+  user=null; incomeRec=null; bills=[]; expenses={}; plaidTransactions=[]; plaidConnections=[]; csvPendingTransactions=[];
   clearCache();
   document.getElementById("main-app").style.display="none";
   document.getElementById("auth-screen").style.display="flex";
+  if(btn) { btn.textContent='Sign Out'; btn.disabled=false; }
 }
 
 function setLoadingStep(msg) {
@@ -618,6 +627,7 @@ async function initApp(sessionUser) {
 
 // Use onAuthStateChange as the single source of auth events
 sb.auth.onAuthStateChange(async(event, session)=>{
+  if(_signingOut) return; // ignore all events while sign-out is in progress
   if(event === 'SIGNED_OUT') {
     clearCache();
     user=null; incomeRec=null; bills=[]; expenses={};
@@ -1229,9 +1239,13 @@ async function loadTransactions() {
   const container = document.getElementById('plaid-transactions');
   if(!container) return;
   try {
-    const [{ data:txData, error:txErr }, { data:conns, error:connErr }] = await Promise.all([
-      sb.from('budget_transactions').select('*').eq('user_id',user.id).eq('reviewed',false).order('date',{ascending:false}).limit(300),
-      sb.from('budget_connections').select('id,institution_name,created_at').eq('user_id',user.id),
+    const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Database is waking up — please retry in a moment')),20000));
+    const [{ data:txData, error:txErr }, { data:conns, error:connErr }] = await Promise.race([
+      Promise.all([
+        sb.from('budget_transactions').select('*').eq('user_id',user.id).eq('reviewed',false).order('date',{ascending:false}).limit(300),
+        sb.from('budget_connections').select('id,institution_name,created_at').eq('user_id',user.id),
+      ]),
+      timeout
     ]);
     if(txErr) throw new Error(txErr.message);
     if(connErr) throw new Error(connErr.message);
