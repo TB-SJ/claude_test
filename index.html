@@ -1268,18 +1268,34 @@ function buildTxRow(tx, source) {
   const amtLabel = isCredit ? '+'+fmt(Math.abs(tx.amount)) : fmt(tx.amount);
   const importFn = source==='csv' ? `importCSVTransaction('${tx.id}')` : `importPlaidTransaction('${tx.id}')`;
   const ignoreFn = source==='csv' ? `ignoreCSVTransaction('${tx.id}')` : `ignorePlaidTransaction('${tx.id}')`;
-  const catFn    = source==='csv' ? `updateCSVTxCategory('${tx.id}',this.value)` : `updatePlaidTxCategory('${tx.id}',this.value)`;
+
+  let controlHtml, actionHtml;
+  if (source === 'csv') {
+    // Combined destination selector: expense categories + bills
+    const currentDest = tx.dest || ('exp:' + (tx.category || 'Other'));
+    const billOpts = bills.length
+      ? `<optgroup label="Apply to Bill">${bills.map(b=>`<option value="bill:${b.id}"${currentDest==='bill:'+b.id?' selected':''}>${esc(b.name)}</option>`).join('')}</optgroup>`
+      : '';
+    controlHtml = `<select class="inp" style="font-size:12px;padding:6px 10px;height:34px" onchange="setCSVTxDest('${tx.id}',this.value)">
+      <optgroup label="Add as Expense">${EXPENSE_CATEGORIES.map(c=>`<option value="exp:${c}"${currentDest==='exp:'+c?' selected':''}>${c}</option>`).join('')}</optgroup>
+      ${billOpts}
+    </select>`;
+    actionHtml = `<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${importFn}">Import</button>
+      <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${ignoreFn}">Ignore</button>`;
+  } else {
+    controlHtml = `<select class="inp" style="font-size:12px;padding:6px 10px;height:34px" onchange="updatePlaidTxCategory('${tx.id}',this.value)">
+      ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}"${c===tx.category?' selected':''}>${c}</option>`).join('')}
+    </select>`;
+    actionHtml = `${!isCredit?`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${importFn}">Import</button>`:''}
+      <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${ignoreFn}">${isCredit?'Dismiss':'Ignore'}</button>`;
+  }
+
   return `<div class="tx-row" id="tx-${tx.id}">
     <div class="tx-date">${tx.date}</div>
     <div><div class="tx-name">${esc(displayName)}</div>${tx.merchant_name&&tx.name&&tx.name!==tx.merchant_name?`<div class="tx-sub">${esc(tx.name)}</div>`:''}</div>
     <div class="tx-amount" style="color:${amtColor}">${amtLabel}</div>
-    <select class="inp" style="font-size:12px;padding:6px 10px;height:34px" onchange="${catFn}">
-      ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}"${c===tx.category?' selected':''}>${c}</option>`).join('')}
-    </select>
-    <div style="display:flex;gap:6px;flex-shrink:0">
-      ${!isCredit?`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${importFn}">Import</button>`:''}
-      <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${ignoreFn}">${isCredit?'Dismiss':'Ignore'}</button>
-    </div>
+    ${controlHtml}
+    <div style="display:flex;gap:6px;flex-shrink:0">${actionHtml}</div>
   </div>`;
 }
 
@@ -1292,6 +1308,13 @@ function renderTransactions() {
   const csvRowsHtml = csvCount
     ? csvPendingTransactions.map(tx=>buildTxRow(tx,'csv')).join('')
     : '';
+  const allNegative = csvCount > 0 && csvPendingTransactions.every(t => t.amount < 0);
+  const signWarn = allNegative
+    ? `<div style="background:#1e1e3a;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;font-size:12px;color:#fbbf24;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        ⚠️ All amounts are negative — if your bank exports spending as positive numbers, uncheck "Spending is shown as negative" and re-import, or:
+        <button class="btn-secondary" style="font-size:11px;padding:4px 10px;min-height:unset" onclick="flipAllCSVSigns()">Flip Signs Now</button>
+      </div>`
+    : '';
   const csvSection = `
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;${csvCount?'margin-bottom:14px':''}">
@@ -1302,12 +1325,12 @@ function renderTransactions() {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${csvCount?`
             <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="ignoreAllCSV()">Ignore All</button>
-            <button class="btn btn-primary" style="font-size:12px;padding:8px 14px;min-height:unset" onclick="importAllCSV()">Import All Expenses</button>
+            <button class="btn btn-primary" style="font-size:12px;padding:8px 14px;min-height:unset" onclick="importAllCSV()">Import All</button>
           `:''}
           <button class="btn btn-primary" style="font-size:13px;padding:8px 16px;min-height:unset" onclick="openCSVImport()">📂 Import CSV</button>
         </div>
       </div>
-      ${csvCount?`<div style="font-size:12px;color:#475569;margin-bottom:10px">${csvCount} transaction${csvCount!==1?'s':''} to review</div>${csvRowsHtml}`:''}
+      ${csvCount?`<div style="font-size:12px;color:#475569;margin-bottom:10px">${csvCount} transaction${csvCount!==1?'s':''} to review — choose "Add as Expense" or a bill from the dropdown</div>${signWarn}${csvRowsHtml}`:''}
     </div>`;
 
   // ── Plaid section ──
@@ -1456,7 +1479,8 @@ function confirmCSVMapping() {
     const date=parseCSVDate(dateStr);
     if(!date||amount===0) continue;
     const mk=date.substring(0,7);
-    txs.push({id:'csv-'+Date.now()+'-'+txs.length,name:desc,merchant_name:desc,amount,date,month_key:mk,category:mapCSVCategory(desc),source:'csv'});
+    const cat=mapCSVCategory(desc);
+    txs.push({id:'csv-'+Date.now()+'-'+txs.length,name:desc,merchant_name:desc,amount,date,month_key:mk,category:cat,dest:'exp:'+cat,source:'csv'});
   }
   if(!txs.length) return showToast('No valid transactions found — check column mapping','error');
   closeCSVModal();
@@ -1492,21 +1516,44 @@ function mapCSVCategory(desc) {
   return 'Other';
 }
 
-function updateCSVTxCategory(id,category){
-  csvPendingTransactions=csvPendingTransactions.map(t=>t.id===id?{...t,category}:t);
+function setCSVTxDest(id, val) {
+  csvPendingTransactions = csvPendingTransactions.map(t => {
+    if (t.id !== id) return t;
+    const updated = {...t, dest: val};
+    if (val.startsWith('exp:')) updated.category = val.slice(4);
+    return updated;
+  });
+}
+function flipAllCSVSigns() {
+  csvPendingTransactions = csvPendingTransactions.map(t => ({...t, amount: -t.amount}));
+  renderTransactions();
 }
 async function importCSVTransaction(id){
   const tx=csvPendingTransactions.find(t=>t.id===id);
-  if(!tx||tx.amount<=0) return showToast('Skipping — looks like a credit/refund','error');
-  const {data,error}=await sb.from('budget_expenses').insert({
-    user_id:user.id,amount:tx.amount,note:tx.name||'',
-    category:tx.category,date:tx.date,month_key:tx.month_key,
-  }).select().maybeSingle();
-  if(error) return showToast('Error importing','error');
-  if(data){if(!expenses[tx.month_key])expenses[tx.month_key]=[];expenses[tx.month_key].unshift(data);}
+  if(!tx || Math.abs(tx.amount)===0) return;
+  const amount=Math.abs(tx.amount);
+  if(tx.dest && tx.dest.startsWith('bill:')) {
+    // Apply payment to a bill
+    const billId=tx.dest.slice(5);
+    const bill=bills.find(b=>b.id===billId);
+    if(!bill) return showToast('Bill not found','error');
+    const existing=parseFloat((bill.paid_history||{})[tx.month_key])||0;
+    const hist={...(bill.paid_history||{}),[tx.month_key]:existing+amount};
+    const {error}=await sb.from('budget_bills').update({paid_history:hist}).eq('id',billId).eq('user_id',user.id);
+    if(error) return showToast('Error updating bill','error');
+    bills=bills.map(b=>b.id===billId?{...b,paid_history:hist}:b);
+  } else {
+    // Add as expense
+    const category=tx.dest&&tx.dest.startsWith('exp:')?tx.dest.slice(4):(tx.category||'Other');
+    const {data,error}=await sb.from('budget_expenses').insert({
+      user_id:user.id,amount,note:tx.name||'',category,date:tx.date,month_key:tx.month_key,
+    }).select().maybeSingle();
+    if(error) return showToast('Error importing','error');
+    if(data){if(!expenses[tx.month_key])expenses[tx.month_key]=[];expenses[tx.month_key].unshift(data);}
+  }
   csvPendingTransactions=csvPendingTransactions.filter(t=>t.id!==id);
   const row=document.getElementById('tx-'+id); if(row) row.style.opacity='0';
-  setTimeout(()=>{renderTransactions();renderExpenses();renderSummary();saveCache();},300);
+  setTimeout(()=>{renderTransactions();renderExpenses();renderSummary();renderBills();saveCache();},300);
   showToast('Imported!');
 }
 function ignoreCSVTransaction(id){
@@ -1515,15 +1562,34 @@ function ignoreCSVTransaction(id){
   setTimeout(()=>renderTransactions(),300);
 }
 async function importAllCSV(){
-  const toImport=csvPendingTransactions.filter(t=>t.amount>0);
-  if(!toImport.length) return showToast('No expenses to import','error');
-  const rows=toImport.map(tx=>({user_id:user.id,amount:tx.amount,note:tx.name||'',category:tx.category,date:tx.date,month_key:tx.month_key}));
-  const {data,error}=await sb.from('budget_expenses').insert(rows).select();
-  if(error) return showToast('Error importing','error');
-  (data||[]).forEach(d=>{if(!expenses[d.month_key])expenses[d.month_key]=[];expenses[d.month_key].unshift(d);});
-  csvPendingTransactions=csvPendingTransactions.filter(t=>t.amount<=0);
-  renderTransactions();renderExpenses();renderSummary();saveCache();
-  showToast(toImport.length+' transactions imported!');
+  const toImport=csvPendingTransactions.filter(t=>Math.abs(t.amount)>0);
+  if(!toImport.length) return showToast('No transactions to import','error');
+  const billRows=toImport.filter(t=>t.dest&&t.dest.startsWith('bill:'));
+  const expRows=toImport.filter(t=>!t.dest||t.dest.startsWith('exp:'));
+  // Batch insert expense rows
+  if(expRows.length){
+    const rows=expRows.map(tx=>({
+      user_id:user.id,amount:Math.abs(tx.amount),note:tx.name||'',
+      category:tx.dest&&tx.dest.startsWith('exp:')?tx.dest.slice(4):(tx.category||'Other'),
+      date:tx.date,month_key:tx.month_key,
+    }));
+    const {data,error}=await sb.from('budget_expenses').insert(rows).select();
+    if(error) return showToast('Error importing expenses','error');
+    (data||[]).forEach(d=>{if(!expenses[d.month_key])expenses[d.month_key]=[];expenses[d.month_key].unshift(d);});
+  }
+  // Update paid_history for bill rows
+  for(const tx of billRows){
+    const billId=tx.dest.slice(5);
+    const bill=bills.find(b=>b.id===billId);
+    if(!bill) continue;
+    const existing=parseFloat((bill.paid_history||{})[tx.month_key])||0;
+    const hist={...(bill.paid_history||{}),[tx.month_key]:existing+Math.abs(tx.amount)};
+    await sb.from('budget_bills').update({paid_history:hist}).eq('id',billId).eq('user_id',user.id);
+    bills=bills.map(b=>b.id===billId?{...b,paid_history:hist}:b);
+  }
+  csvPendingTransactions=[];
+  renderTransactions();renderExpenses();renderSummary();renderBills();saveCache();
+  showToast((expRows.length+billRows.length)+' transactions imported!');
 }
 function ignoreAllCSV(){
   csvPendingTransactions=[];
