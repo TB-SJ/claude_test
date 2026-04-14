@@ -405,6 +405,29 @@
   </div>
 </div>
 
+<!-- CSV Import Modal -->
+<input type="file" id="csv-file-input" accept=".csv,.CSV" style="display:none" onchange="handleCSVFileChange(this)" />
+<div id="csv-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeCSVModal()">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-title">📂 Map CSV Columns</div>
+    <div style="font-size:13px;color:#475569;margin-bottom:16px" id="csv-row-count"></div>
+    <div class="modal-grid">
+      <div class="modal-field"><label class="modal-label">Date Column *</label><select class="inp" id="csv-col-date"></select></div>
+      <div class="modal-field"><label class="modal-label">Description Column *</label><select class="inp" id="csv-col-desc"></select></div>
+      <div class="modal-field"><label class="modal-label">Amount Column</label><select class="inp" id="csv-col-amt"></select></div>
+      <div class="modal-field"><label class="modal-label">Credit Column (if separate)</label><select class="inp" id="csv-col-credit"></select></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:10px;margin-top:16px;cursor:pointer;font-size:13px;color:#94a3b8">
+      <input type="checkbox" id="csv-flip-sign" checked style="width:16px;height:16px;accent-color:#6366f1;flex-shrink:0" />
+      Spending is shown as negative in my CSV (most banks work this way)
+    </label>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeCSVModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCSVMapping()">Preview Transactions</button>
+    </div>
+  </div>
+</div>
+
 <!-- Spending Limits Modal -->
 <div id="limits-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLimitsModal()">
   <div class="modal" style="max-width:560px">
@@ -1223,10 +1246,57 @@ async function loadTransactions() {
   }
 }
 
+// Shared row builder for both Plaid and CSV transactions
+function buildTxRow(tx, source) {
+  const displayName = tx.merchant_name || tx.name || 'Unknown';
+  const isCredit = tx.amount < 0;
+  const amtColor = isCredit ? '#34d399' : '#f472b6';
+  const amtLabel = isCredit ? '+'+fmt(Math.abs(tx.amount)) : fmt(tx.amount);
+  const importFn = source==='csv' ? `importCSVTransaction('${tx.id}')` : `importPlaidTransaction('${tx.id}')`;
+  const ignoreFn = source==='csv' ? `ignoreCSVTransaction('${tx.id}')` : `ignorePlaidTransaction('${tx.id}')`;
+  const catFn    = source==='csv' ? `updateCSVTxCategory('${tx.id}',this.value)` : `updatePlaidTxCategory('${tx.id}',this.value)`;
+  return `<div class="tx-row" id="tx-${tx.id}">
+    <div class="tx-date">${tx.date}</div>
+    <div><div class="tx-name">${esc(displayName)}</div>${tx.merchant_name&&tx.name&&tx.name!==tx.merchant_name?`<div class="tx-sub">${esc(tx.name)}</div>`:''}</div>
+    <div class="tx-amount" style="color:${amtColor}">${amtLabel}</div>
+    <select class="inp" style="font-size:12px;padding:6px 10px;height:34px" onchange="${catFn}">
+      ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}"${c===tx.category?' selected':''}>${c}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      ${!isCredit?`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${importFn}">Import</button>`:''}
+      <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="${ignoreFn}">${isCredit?'Dismiss':'Ignore'}</button>
+    </div>
+  </div>`;
+}
+
 function renderTransactions() {
   const container = document.getElementById('plaid-transactions');
   if(!container) return;
 
+  // ── CSV section ──
+  const csvCount = csvPendingTransactions.length;
+  const csvRowsHtml = csvCount
+    ? csvPendingTransactions.map(tx=>buildTxRow(tx,'csv')).join('')
+    : '';
+  const csvSection = `
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;${csvCount?'margin-bottom:14px':''}">
+        <div>
+          <div class="card-title" style="margin-bottom:4px">📂 Import from CSV</div>
+          <div style="font-size:12px;color:#475569">Download a statement CSV from your bank and import it here</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${csvCount?`
+            <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="ignoreAllCSV()">Ignore All</button>
+            <button class="btn btn-primary" style="font-size:12px;padding:8px 14px;min-height:unset" onclick="importAllCSV()">Import All Expenses</button>
+          `:''}
+          <button class="btn btn-primary" style="font-size:13px;padding:8px 16px;min-height:unset" onclick="openCSVImport()">📂 Import CSV</button>
+        </div>
+      </div>
+      ${csvCount?`<div style="font-size:12px;color:#475569;margin-bottom:10px">${csvCount} transaction${csvCount!==1?'s':''} to review</div>${csvRowsHtml}`:''}
+    </div>`;
+
+  // ── Plaid section ──
   const connsHtml = plaidConnections.length
     ? plaidConnections.map(c=>`
         <div class="connection-row">
@@ -1239,33 +1309,12 @@ function renderTransactions() {
         </div>`).join('')
     : `<div class="empty-state" style="padding:20px 0">No accounts connected yet. Click <b>+ Connect Account</b> to link your bank.</div>`;
 
-  const pending = plaidTransactions.filter(tx=>!tx.reviewed);
-  const txHtml = pending.length
-    ? pending.map(tx=>{
-        const col = CAT_COLORS[tx.category]||'#818cf8';
-        const displayName = tx.merchant_name || tx.name || 'Unknown';
-        const isCredit = tx.amount < 0; // Plaid: negative = refund/credit
-        const amtColor = isCredit ? '#34d399' : '#f472b6';
-        const amtLabel = isCredit ? '+'+fmt(Math.abs(tx.amount)) : '-'+fmt(tx.amount);
-        return `<div class="tx-row" id="tx-${tx.id}">
-          <div class="tx-date">${tx.date}</div>
-          <div>
-            <div class="tx-name">${esc(displayName)}</div>
-            ${tx.merchant_name&&tx.name!==tx.merchant_name?`<div class="tx-sub">${esc(tx.name||'')}</div>`:''}
-          </div>
-          <div class="tx-amount" style="color:${amtColor}">${amtLabel}</div>
-          <select class="inp" style="font-size:12px;padding:6px 10px;height:34px" id="tx-cat-${tx.id}" onchange="updateTxCategory('${tx.id}',this.value)">
-            ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}"${c===tx.category?' selected':''}>${c}</option>`).join('')}
-          </select>
-          <div style="display:flex;gap:6px;flex-shrink:0">
-            ${!isCredit?`<button class="btn btn-primary" style="font-size:12px;padding:6px 12px;min-height:unset;white-space:nowrap" onclick="importTransaction('${tx.id}')">Import</button>`:''}
-            <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="ignoreTransaction('${tx.id}')">${isCredit?'Dismiss':'Ignore'}</button>
-          </div>
-        </div>`;
-      }).join('')
-    : `<div class="empty-state">All caught up! No pending transactions. 🎉</div>`;
+  const plaidPending = plaidTransactions.filter(tx=>!tx.reviewed);
+  const plaidRowsHtml = plaidPending.length
+    ? plaidPending.map(tx=>buildTxRow(tx,'plaid')).join('')
+    : `<div class="empty-state">No pending Plaid transactions. 🎉</div>`;
 
-  container.innerHTML = `
+  container.innerHTML = csvSection + `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <div class="card-title" style="margin-bottom:0">🏦 Connected Accounts</div>
@@ -1276,52 +1325,196 @@ function renderTransactions() {
     <div class="card" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <div>
-          <div class="card-title" style="margin-bottom:4px">📥 Pending Review</div>
-          <div style="font-size:12px;color:#475569">${pending.length} transaction${pending.length!==1?'s':''} to review — <b style="color:#94a3b8">Import</b> to add to expenses, or <b style="color:#94a3b8">Ignore</b> to dismiss</div>
+          <div class="card-title" style="margin-bottom:4px">📥 Plaid — Pending Review</div>
+          <div style="font-size:12px;color:#475569">${plaidPending.length} transaction${plaidPending.length!==1?'s':''} to review</div>
         </div>
         ${plaidConnections.length?`<button class="btn-secondary" style="font-size:12px;padding:6px 14px;min-height:unset;flex-shrink:0" id="sync-btn" onclick="syncTransactions()">🔄 Sync</button>`:''}
       </div>
-      <div>${txHtml}</div>
+      <div>${plaidRowsHtml}</div>
     </div>`;
 }
 
-async function updateTxCategory(id, category) {
+// ── Plaid transaction actions ──
+async function updatePlaidTxCategory(id, category) {
   plaidTransactions = plaidTransactions.map(tx=>tx.id===id?{...tx,category}:tx);
   await sb.from('budget_transactions').update({category}).eq('id',id).eq('user_id',user.id);
 }
-
-async function importTransaction(id) {
+async function importPlaidTransaction(id) {
   const tx = plaidTransactions.find(t=>t.id===id);
-  if(!tx) return;
-  if(tx.amount <= 0) { showToast('Skipping — looks like a credit/refund','error'); return; }
-  const {data, error} = await sb.from('budget_expenses').insert({
-    user_id:   user.id,
-    amount:    tx.amount,
-    note:      tx.merchant_name || tx.name || '',
-    category:  tx.category,
-    date:      tx.date,
-    month_key: tx.month_key,
+  if(!tx||tx.amount<=0) return showToast('Skipping — looks like a credit/refund','error');
+  const {data,error} = await sb.from('budget_expenses').insert({
+    user_id:user.id, amount:tx.amount, note:tx.merchant_name||tx.name||'',
+    category:tx.category, date:tx.date, month_key:tx.month_key,
   }).select().maybeSingle();
-  if(error) return showToast('Error importing transaction','error');
+  if(error) return showToast('Error importing','error');
   await sb.from('budget_transactions').update({reviewed:true}).eq('id',id).eq('user_id',user.id);
-  if(data) {
-    if(!expenses[tx.month_key]) expenses[tx.month_key]=[];
-    expenses[tx.month_key].unshift(data);
-  }
-  plaidTransactions = plaidTransactions.filter(t=>t.id!==id);
-  const row = document.getElementById('tx-'+id);
-  if(row) row.style.opacity='0';
-  setTimeout(()=>{ renderTransactions(); renderExpenses(); renderSummary(); saveCache(); }, 300);
+  if(data){if(!expenses[tx.month_key])expenses[tx.month_key]=[];expenses[tx.month_key].unshift(data);}
+  plaidTransactions=plaidTransactions.filter(t=>t.id!==id);
+  const row=document.getElementById('tx-'+id); if(row) row.style.opacity='0';
+  setTimeout(()=>{renderTransactions();renderExpenses();renderSummary();saveCache();},300);
   showToast('Transaction imported!');
 }
-
-async function ignoreTransaction(id) {
+async function ignorePlaidTransaction(id) {
   await sb.from('budget_transactions').update({reviewed:true}).eq('id',id).eq('user_id',user.id);
-  plaidTransactions = plaidTransactions.filter(t=>t.id!==id);
-  const row = document.getElementById('tx-'+id);
-  if(row) row.style.opacity='0';
-  setTimeout(()=>renderTransactions(), 300);
+  plaidTransactions=plaidTransactions.filter(t=>t.id!==id);
+  const row=document.getElementById('tx-'+id); if(row) row.style.opacity='0';
+  setTimeout(()=>renderTransactions(),300);
   showToast('Transaction dismissed');
+}
+
+// ── CSV Import ──
+let csvPendingTransactions = [];
+let _csvRawRows = [], _csvHeaders = [];
+
+function openCSVImport() { document.getElementById('csv-file-input').click(); }
+
+function handleCSVFileChange(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => processCSVText(e.target.result);
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function csvParseRow(line) {
+  const result=[]; let field='', inQ=false;
+  for(let i=0;i<=line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){if(inQ&&line[i+1]==='"'){field+='"';i++;}else inQ=!inQ;}
+    else if((ch===','||i===line.length)&&!inQ){result.push(field.trim());field='';}
+    else field+=(ch||'');
+  }
+  return result;
+}
+
+function processCSVText(text) {
+  const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim());
+  if(lines.length<2) return showToast('CSV appears empty','error');
+  _csvHeaders=csvParseRow(lines[0]);
+  _csvRawRows=lines.slice(1).map(csvParseRow).filter(r=>r.some(f=>f));
+  if(!_csvRawRows.length) return showToast('No data rows found','error');
+  openCSVModal(detectCSVColumns(_csvHeaders));
+}
+
+function detectCSVColumns(headers) {
+  const h=headers.map(s=>s.toLowerCase());
+  const find=(...terms)=>{for(const t of terms){const i=h.findIndex(s=>s.includes(t));if(i>=0)return i;}return 0;};
+  return {
+    date:   find('date','posted','transaction'),
+    desc:   find('description','payee','merchant','name','memo','narrative','details'),
+    amount: find('amount','debit','withdrawal','charge'),
+    credit: h.findIndex(s=>s.includes('credit')||s.includes('deposit')),
+  };
+}
+
+function openCSVModal(m) {
+  const hOpts=_csvHeaders.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('');
+  const none='<option value="-1">— none —</option>';
+  ['csv-col-date','csv-col-desc'].forEach(id=>{ document.getElementById(id).innerHTML=hOpts; });
+  ['csv-col-amt','csv-col-credit'].forEach(id=>{ document.getElementById(id).innerHTML=none+hOpts; });
+  document.getElementById('csv-col-date').value   = m.date>=0   ? m.date   : 0;
+  document.getElementById('csv-col-desc').value   = m.desc>=0   ? m.desc   : 0;
+  document.getElementById('csv-col-amt').value    = m.amount>=0 ? m.amount : -1;
+  document.getElementById('csv-col-credit').value = m.credit>=0 ? m.credit : -1;
+  document.getElementById('csv-row-count').textContent = _csvRawRows.length+' rows detected in your file';
+  document.getElementById('csv-modal').style.display='flex';
+}
+function closeCSVModal() { document.getElementById('csv-modal').style.display='none'; }
+
+function confirmCSVMapping() {
+  const dateCol  =parseInt(document.getElementById('csv-col-date').value);
+  const descCol  =parseInt(document.getElementById('csv-col-desc').value);
+  const amtCol   =parseInt(document.getElementById('csv-col-amt').value);
+  const creditCol=parseInt(document.getElementById('csv-col-credit').value);
+  const flip     =document.getElementById('csv-flip-sign').checked;
+
+  const txs=[];
+  for(const row of _csvRawRows){
+    const dateStr=(row[dateCol]||'').trim();
+    const desc   =(row[descCol]||'').trim()||'Unknown';
+    let amount=0;
+    if(amtCol>=0) amount=parseFloat((row[amtCol]||'').replace(/[$,\s]/g,''))||0;
+    if(creditCol>=0){
+      const cr=parseFloat((row[creditCol]||'').replace(/[$,\s]/g,''))||0;
+      if(cr) amount=amount?amount-cr:-cr;
+    }
+    if(flip) amount=-amount;
+    const date=parseCSVDate(dateStr);
+    if(!date||amount===0) continue;
+    const mk=date.substring(0,7);
+    txs.push({id:'csv-'+Date.now()+'-'+txs.length,name:desc,merchant_name:desc,amount,date,month_key:mk,category:mapCSVCategory(desc),source:'csv'});
+  }
+  if(!txs.length) return showToast('No valid transactions found — check column mapping','error');
+  closeCSVModal();
+  csvPendingTransactions=txs;
+  renderTransactions();
+  showToast(txs.length+' transactions ready to review');
+}
+
+function parseCSVDate(str) {
+  if(!str) return null;
+  str=str.trim().replace(/"/g,'');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const mdy=str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(mdy) return `${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`;
+  const mdy2=str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if(mdy2) return `${mdy2[3]}-${mdy2[1].padStart(2,'0')}-${mdy2[2].padStart(2,'0')}`;
+  const d=new Date(str); return isNaN(d.getTime())?null:d.toISOString().split('T')[0];
+}
+
+const CSV_KEYWORD_MAP=[
+  [['restaurant','pizza','burger','taco','sushi','cafe','coffee','starbucks','mcdonald','subway','chipotle','doordash','grubhub','ubereats','chick-fil','dine','bakery'],'Food & Drink'],
+  [['walmart','target','amazon','ebay','costco','tj maxx','marshalls','best buy','home depot','lowes','ikea','kroger','whole foods','trader joe','aldi','sam\'s'],'Shopping'],
+  [['uber','lyft','shell','bp','chevron','exxon','mobil','marathon','sunoco','gas','autozone','jiffy lube','parking','toll','transit','mta','bart'],'Transportation'],
+  [['netflix','spotify','hulu','disney','hbo','apple','youtube','xbox','playstation','steam','ticket','cinema','movie','concert'],'Entertainment'],
+  [['cvs','walgreens','rite aid','pharmacy','doctor','dentist','hospital','urgent care','medical','health','vision','optical'],'Health'],
+  [['airline','hotel','airbnb','vrbo','expedia','booking','marriott','hilton','hyatt','delta','united','southwest','travel','flight'],'Travel'],
+  [['salon','haircut','spa','gym','planet fitness','barber','nail','massage'],'Personal Care'],
+  [['electric','water','internet','phone','at&t','verizon','comcast','xfinity','utilities','home depot','lowes','rent','mortgage'],'Home'],
+];
+function mapCSVCategory(desc) {
+  const d=desc.toLowerCase();
+  for(const [kws,cat] of CSV_KEYWORD_MAP){if(kws.some(k=>d.includes(k)))return cat;}
+  return 'Other';
+}
+
+function updateCSVTxCategory(id,category){
+  csvPendingTransactions=csvPendingTransactions.map(t=>t.id===id?{...t,category}:t);
+}
+async function importCSVTransaction(id){
+  const tx=csvPendingTransactions.find(t=>t.id===id);
+  if(!tx||tx.amount<=0) return showToast('Skipping — looks like a credit/refund','error');
+  const {data,error}=await sb.from('budget_expenses').insert({
+    user_id:user.id,amount:tx.amount,note:tx.name||'',
+    category:tx.category,date:tx.date,month_key:tx.month_key,
+  }).select().maybeSingle();
+  if(error) return showToast('Error importing','error');
+  if(data){if(!expenses[tx.month_key])expenses[tx.month_key]=[];expenses[tx.month_key].unshift(data);}
+  csvPendingTransactions=csvPendingTransactions.filter(t=>t.id!==id);
+  const row=document.getElementById('tx-'+id); if(row) row.style.opacity='0';
+  setTimeout(()=>{renderTransactions();renderExpenses();renderSummary();saveCache();},300);
+  showToast('Imported!');
+}
+function ignoreCSVTransaction(id){
+  csvPendingTransactions=csvPendingTransactions.filter(t=>t.id!==id);
+  const row=document.getElementById('tx-'+id); if(row) row.style.opacity='0';
+  setTimeout(()=>renderTransactions(),300);
+}
+async function importAllCSV(){
+  const toImport=csvPendingTransactions.filter(t=>t.amount>0);
+  if(!toImport.length) return showToast('No expenses to import','error');
+  const rows=toImport.map(tx=>({user_id:user.id,amount:tx.amount,note:tx.name||'',category:tx.category,date:tx.date,month_key:tx.month_key}));
+  const {data,error}=await sb.from('budget_expenses').insert(rows).select();
+  if(error) return showToast('Error importing','error');
+  (data||[]).forEach(d=>{if(!expenses[d.month_key])expenses[d.month_key]=[];expenses[d.month_key].unshift(d);});
+  csvPendingTransactions=csvPendingTransactions.filter(t=>t.amount<=0);
+  renderTransactions();renderExpenses();renderSummary();saveCache();
+  showToast(toImport.length+' transactions imported!');
+}
+function ignoreAllCSV(){
+  csvPendingTransactions=[];
+  renderTransactions();
+  showToast('All dismissed');
 }
 
 async function disconnectAccount(connId) {
