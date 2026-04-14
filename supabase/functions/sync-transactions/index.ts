@@ -8,8 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID")!;
 const PLAID_SECRET    = Deno.env.get("PLAID_SECRET")!;
-const PLAID_ENV       = Deno.env.get("PLAID_ENV") ?? "development";
-const PLAID_BASE      = `https://${PLAID_ENV}.plaid.com`;
+const PLAID_BASE      = "https://development.plaid.com";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
