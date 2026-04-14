@@ -296,7 +296,7 @@
 <div id="main-app">
   <div class="header">
     <div>
-      <div class="logo">💰 Personal <span>Budget</span></div>
+      <div class="logo">💰 Personal <span>Budget</span> <span style="font-size:10px;font-weight:400;color:#475569;vertical-align:middle">v5</span></div>
       <div class="month-nav">
         <button class="month-nav-btn" id="month-prev-btn" onclick="changeMonth(-1)" title="Previous month">‹</button>
         <div class="month-label" id="month-label"></div>
@@ -1609,11 +1609,10 @@ async function disconnectAccount(connId) {
 window.addEventListener('error', e => showToast('Error: ' + e.message, 'error'));
 window.addEventListener('unhandledrejection', e => showToast('Error: ' + (e.reason?.message || e.reason), 'error'));
 
-// ── Service Worker ──
+// ── Service Worker (disabled — kill-switch deployed) ──
+// Trigger the kill-switch SW one final time so it can unregister itself and wipe caches.
 if('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 </script>
 </body>
