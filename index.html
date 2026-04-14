@@ -522,8 +522,9 @@ async function doResetPassword() {
   else{msg.className="auth-msg ok"; msg.textContent="Password reset email sent!";}
 }
 async function doSignOut() {
-  await sb.auth.signOut();
-  user=null; incomeRec=null; bills=[]; expenses={};
+  try { await sb.auth.signOut(); } catch(e) { console.warn('signOut error:', e); }
+  user=null; incomeRec=null; bills=[]; expenses={}; plaidTransactions=[]; plaidConnections=[];
+  clearCache();
   document.getElementById("main-app").style.display="none";
   document.getElementById("auth-screen").style.display="flex";
 }
@@ -1204,15 +1205,22 @@ async function syncTransactions() {
 async function loadTransactions() {
   const container = document.getElementById('plaid-transactions');
   if(!container) return;
-
-  const [{ data:txData, error:txErr }, { data:conns }] = await Promise.all([
-    sb.from('budget_transactions').select('*').eq('user_id',user.id).eq('reviewed',false).order('date',{ascending:false}).limit(300),
-    sb.from('budget_connections').select('id,institution_name,created_at').eq('user_id',user.id),
-  ]);
-  if(txErr){ showToast('Error loading transactions','error'); return; }
-  plaidTransactions = txData || [];
-  plaidConnections  = conns  || [];
-  renderTransactions();
+  try {
+    const [{ data:txData, error:txErr }, { data:conns, error:connErr }] = await Promise.all([
+      sb.from('budget_transactions').select('*').eq('user_id',user.id).eq('reviewed',false).order('date',{ascending:false}).limit(300),
+      sb.from('budget_connections').select('id,institution_name,created_at').eq('user_id',user.id),
+    ]);
+    if(txErr) throw new Error(txErr.message);
+    if(connErr) throw new Error(connErr.message);
+    plaidTransactions = txData || [];
+    plaidConnections  = conns  || [];
+    renderTransactions();
+  } catch(e) {
+    container.innerHTML=`<div class="card"><div class="empty-state" style="color:#f87171;padding:40px 0">
+      Failed to load transactions<br><span style="font-size:12px;color:#475569">${esc(e.message)}</span><br>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="loadTransactions()">Retry</button>
+    </div></div>`;
+  }
 }
 
 function renderTransactions() {
