@@ -209,15 +209,23 @@
     .expense-row > div:nth-child(4) { display:none; }
     .user-email { display:none; }
     .modal-grid { grid-template-columns:1fr; }
+    /* tx-row: name + amount on row 1, full-width select row 2, full-width buttons row 3 */
+    .tx-row { grid-template-columns:1fr auto; gap:6px 8px; align-items:start; }
+    .tx-row .tx-date { display:none; }
+    .tx-row > select { grid-column:1 / -1; }
+    .tx-row > div:last-child { grid-column:1 / -1; justify-content:flex-end; flex-wrap:wrap; }
+    .bills-toolbar .inp { min-width:0; }
   }
 
   /* ── Mobile (≤ 420px) ── */
   @media (max-width:420px) {
+    #app { padding:0 10px 40px; }
     .header { padding:10px 12px; }
     .logo { font-size:17px; }
     .nav-btn { padding:7px 10px; font-size:12px; }
     .signout-btn { padding:7px 10px; font-size:11px; }
-    .card { padding:16px; }
+    .card { padding:14px; }
+    .auth-card { padding:28px 20px; }
     .income-grid { grid-template-columns:1fr; }
     .income-card.total { grid-column:unset; }
     .summary-grid { grid-template-columns:1fr 1fr; gap:8px; }
@@ -227,8 +235,11 @@
     .add-bill-row { grid-template-columns:1fr; }
     .add-bill-row .btn { grid-column:unset; }
     .bill-row, .bill-row.has-remaining { grid-template-columns:1fr; }
+    .modal { padding:20px 16px; }
     .modal-actions { flex-direction:column-reverse; }
     .btn-danger { margin-right:0; }
+    .tx-row > div:last-child { justify-content:stretch; }
+    .tx-row > div:last-child > button { flex:1; }
   }
 
   /* Month navigation */
@@ -256,11 +267,6 @@
   .tx-name { font-size:13px; font-weight:500; color:#e2e8f0; }
   .tx-sub { font-size:11px; color:#475569; margin-top:2px; }
   .tx-amount { font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
-  @media (max-width:680px) {
-    .tx-row { grid-template-columns:1fr auto; gap:8px; }
-    .tx-row .tx-date, .tx-row > select { display:none; }
-    .tx-row > div:last-child { flex-direction:column; gap:4px; }
-  }
 </style>
 </head>
 <body>
