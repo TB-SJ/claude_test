@@ -337,6 +337,7 @@
           <button class="filter-pill" onclick="setBillFilter('fixed',this)">Fixed Bills</button>
           <button class="filter-pill" onclick="setBillFilter('budget',this)">Budget</button>
         </div>
+        <button class="btn-secondary" style="font-size:12px;padding:6px 14px;min-height:36px;white-space:nowrap" onclick="downloadBillsCSV()">⬇ Export CSV</button>
       </div>
       <div id="fixed-section">
         <div class="section-header">🔒 Fixed Bills <span class="section-sub" id="fixed-summary"></span></div>
@@ -945,6 +946,16 @@ function setBillFilter(f,btn){
   document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderBills();
+}
+
+function downloadBillsCSV() {
+  const rows = [['Name','Budgeted Amount'], ...bills.map(b=>[b.name, (b.budgeted||0).toFixed(2)])];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv),
+    download: `budget-${monthKey}.csv`,
+  });
+  a.click();
 }
 
 // ── Adjust paid/spent ──
