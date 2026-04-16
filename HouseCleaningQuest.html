@@ -3,36 +3,38 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>House Cleaning Quest</title>
+<title>Cleaning Hero Academy</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0f0a;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-height:100vh}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0a0f0a}::-webkit-scrollbar-thumb{background:#1e3a1e;border-radius:3px}
+body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-height:100vh}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0a0a14}::-webkit-scrollbar-thumb{background:#2d1e5e;border-radius:3px}
 
 #app{max-width:800px;margin:0 auto;padding:16px 16px 60px}
 
 /* Header */
-.header{text-align:center;padding:24px 0 16px}
-.logo{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#fff}
-.logo span{color:#22c55e}
-.subtitle{font-size:13px;color:#475569;margin-top:4px}
+.header{text-align:center;padding:28px 0 8px}
+.logo{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;color:#fff;letter-spacing:-0.5px}
+.logo span{background:linear-gradient(135deg,#e879f9,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{font-size:13px;color:#7c6f9b;margin-top:4px;font-style:italic}
+.day-theme{margin-top:10px;font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:#c084fc;letter-spacing:0.3px}
+.day-theme .realm-icon{font-size:22px;margin-right:4px}
 
 /* Stats Bar */
 .stats-bar{display:flex;gap:12px;justify-content:center;margin:16px 0;flex-wrap:wrap}
-.stat-badge{background:#111a11;border:1px solid #1e2e1e;border-radius:12px;padding:10px 18px;text-align:center;min-width:100px}
-.stat-value{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:#22c55e}
-.stat-label{font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
-.stat-badge.streak .stat-value{color:#f59e0b}
+.stat-badge{background:#110f1f;border:1px solid #2a1f4e;border-radius:12px;padding:10px 18px;text-align:center;min-width:100px}
+.stat-value{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:#e879f9}
+.stat-label{font-size:11px;color:#7c6f9b;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+.stat-badge.streak .stat-value{color:#fb923c}
 .stat-badge.level .stat-value{color:#818cf8}
 
 /* Progress Card */
-.card{background:#111a11;border:1px solid #1e2e1e;border-radius:16px;padding:20px 24px;margin-bottom:16px}
-.card-title{font-size:13px;font-weight:600;color:#64748b;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px}
-.progress-wrap{background:#0a0f0a;border-radius:10px;height:28px;overflow:hidden;position:relative}
-.progress-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,#16a34a,#22c55e);transition:width 0.5s ease;min-width:0}
+.card{background:#110f1f;border:1px solid #2a1f4e;border-radius:16px;padding:20px 24px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:600;color:#7c6f9b;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px}
+.progress-wrap{background:#0a0a14;border-radius:10px;height:28px;overflow:hidden;position:relative}
+.progress-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,#a855f7,#e879f9);transition:width 0.5s ease;min-width:0}
 .progress-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5)}
-.victory-banner{display:none;text-align:center;padding:12px;margin-top:12px;background:linear-gradient(135deg,#16a34a22,#f59e0b22);border:1px solid #22c55e44;border-radius:12px;font-weight:700;color:#22c55e;font-size:18px;animation:pulse 1.5s infinite}
+.victory-banner{display:none;text-align:center;padding:12px;margin-top:12px;background:linear-gradient(135deg,#a855f722,#f472b622);border:1px solid #e879f944;border-radius:12px;font-weight:700;color:#e879f9;font-size:18px;animation:pulse 1.5s infinite}
 .victory-banner.show{display:block}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
 
@@ -41,51 +43,52 @@ body{background:#0a0f0a;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .quests-grid{display:grid;grid-template-columns:1fr;gap:10px}
 @media(min-width:560px){.quests-grid{grid-template-columns:1fr 1fr}}
 
-.quest-card{background:#111a11;border:1px solid #1e2e1e;border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all 0.2s;user-select:none}
-.quest-card:hover{border-color:#22c55e44;transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,0.3)}
-.quest-card.completed{opacity:0.45;border-color:#1e2e1e}
+.quest-card{background:#110f1f;border:1px solid #2a1f4e;border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all 0.2s;user-select:none}
+.quest-card:hover{border-color:#e879f944;transform:translateY(-2px);box-shadow:0 4px 20px rgba(168,85,247,0.15)}
+.quest-card.completed{opacity:0.4;border-color:#2a1f4e}
 .quest-card.completed:hover{transform:none;box-shadow:none}
 .quest-card.completed .quest-name{text-decoration:line-through}
 
 .quest-emoji{font-size:32px;flex-shrink:0;width:44px;text-align:center}
 .quest-info{flex:1;min-width:0}
-.quest-realm{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px}
+.quest-realm{font-size:10px;font-weight:600;color:#7c6f9b;text-transform:uppercase;letter-spacing:0.5px}
 .quest-name{font-size:14px;font-weight:600;color:#e2e8f0;margin-top:2px}
 .quest-right{text-align:right;flex-shrink:0}
-.quest-points{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#22c55e}
+.quest-points{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#c084fc}
 .quest-diff{font-size:10px;font-weight:600;border-radius:6px;padding:2px 8px;margin-top:4px;display:inline-block}
-.diff-easy{background:#22c55e22;color:#22c55e}
-.diff-medium{background:#f59e0b22;color:#f59e0b}
-.diff-hard{background:#ef444422;color:#ef4444}
+.diff-easy{background:#22c55e22;color:#4ade80}
+.diff-medium{background:#f59e0b22;color:#fbbf24}
+.diff-hard{background:#ef444422;color:#f87171}
 
-.quest-check{width:26px;height:26px;border-radius:50%;border:2px solid #2e4a2e;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
-.quest-card.completed .quest-check{background:#22c55e;border-color:#22c55e}
+.quest-check{width:26px;height:26px;border-radius:50%;border:2px solid #3b2d6e;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.quest-card.completed .quest-check{background:linear-gradient(135deg,#a855f7,#e879f9);border-color:#e879f9}
 .quest-card.completed .quest-check::after{content:'✓';color:#fff;font-weight:700;font-size:14px}
 
 /* Achievements */
 .achievements-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
-.achievement{background:#0a0f0a;border:1px solid #1e2e1e;border-radius:12px;padding:14px 10px;text-align:center;transition:all 0.2s}
-.achievement.unlocked{border-color:#f59e0b44;background:#111a11}
+.achievement{background:#0a0a14;border:1px solid #2a1f4e;border-radius:12px;padding:14px 10px;text-align:center;transition:all 0.2s}
+.achievement.unlocked{border-color:#fbbf2444;background:#1a1530}
 .achievement.unlocked .ach-icon{filter:none}
 .ach-icon{font-size:28px;filter:grayscale(1) brightness(0.4)}
-.ach-name{font-size:11px;font-weight:600;color:#475569;margin-top:6px}
-.achievement.unlocked .ach-name{color:#f59e0b}
+.ach-name{font-size:11px;font-weight:600;color:#7c6f9b;margin-top:6px}
+.achievement.unlocked .ach-name{color:#fbbf24}
 
 /* Toast */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;padding:14px 28px;border-radius:14px;font-weight:700;font-size:14px;z-index:999;transition:transform 0.4s ease;box-shadow:0 8px 30px rgba(0,0,0,0.4)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff;padding:14px 28px;border-radius:14px;font-weight:700;font-size:14px;z-index:999;transition:transform 0.4s ease;box-shadow:0 8px 30px rgba(168,85,247,0.4)}
 .toast.show{transform:translateX(-50%) translateY(0)}
 
 /* Reset button */
 .reset-wrap{text-align:center;margin-top:24px}
-.reset-btn{background:transparent;border:1px solid #2e1e1e;color:#64748b;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:12px}
+.reset-btn{background:transparent;border:1px solid #2a1f4e;color:#7c6f9b;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:12px}
 .reset-btn:hover{border-color:#ef4444;color:#ef4444}
 </style>
 </head>
 <body>
 <div id="app">
   <div class="header">
-    <div class="logo">🏰 House Cleaning <span>Quest</span></div>
-    <div class="subtitle">Transform your chores into epic adventures</div>
+    <div class="logo">✨ Cleaning Hero <span>Academy</span></div>
+    <div class="subtitle">~ Your training arc begins now, senpai ~</div>
+    <div class="day-theme" id="day-theme"></div>
   </div>
   <div class="stats-bar">
     <div class="stat-badge level"><div class="stat-value" id="s-level">1</div><div class="stat-label">Level</div></div>
@@ -93,11 +96,11 @@ body{background:#0a0f0a;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
     <div class="stat-badge streak"><div class="stat-value" id="s-streak">🔥 0</div><div class="stat-label">Streak</div></div>
   </div>
   <div class="card">
-    <div class="card-title">⚔️ Daily Victory Progress</div>
+    <div class="card-title">⚡ Daily Power Level</div>
     <div class="progress-wrap"><div class="progress-fill" id="prog-fill"></div><div class="progress-text" id="prog-text">0 / 100 XP</div></div>
-    <div class="victory-banner" id="victory">🎉 DAILY VICTORY ACHIEVED! 🎉</div>
+    <div class="victory-banner" id="victory">🌸 SUGOI! DAILY MISSION COMPLETE! 🌸</div>
   </div>
-  <div class="quests-title">📜 Today's Quests</div>
+  <div class="quests-title">📜 Today's Missions</div>
   <div class="quests-grid" id="quests-grid"></div>
   <div class="card" style="margin-top:20px">
     <div class="card-title">🏆 Achievements</div>
@@ -112,50 +115,74 @@ const REALMS = [
   {name:'Kitchen',emoji:'🍳'},{name:'Bathroom',emoji:'🛁'},{name:'Floors',emoji:'🧹'},
   {name:'Yard',emoji:'🌿'},{name:'Bedroom',emoji:'🛏️'},{name:'Living Room',emoji:'🛋️'},{name:'Laundry',emoji:'👕'}
 ];
+// Day-of-week realm schedule (Sun=0 ... Sat=6)
+const DAY_REALMS = [
+  {day:0,realm:'Yard',title:"Sunday: Outdoor Spirit Training"},
+  {day:1,realm:'Kitchen',title:"Monday: Kitchen Dojo"},
+  {day:2,realm:'Floors',title:"Tuesday: Floor Battlegrounds"},
+  {day:3,realm:'Bathroom',title:"Wednesday: Bathhouse Purification"},
+  {day:4,realm:'Living Room',title:"Thursday: Living Room Arena"},
+  {day:5,realm:'Bedroom',title:"Friday: Bedroom Sanctuary"},
+  {day:6,realm:'Laundry',title:"Saturday: Laundry Gauntlet"},
+];
 const TASKS = [
   // Kitchen
-  {id:'k1',realm:'Kitchen',name:'Vanquish the Dirty Dishes',diff:'Easy',pts:10},
-  {id:'k2',realm:'Kitchen',name:'Purify the Countertops',diff:'Easy',pts:10},
-  {id:'k3',realm:'Kitchen',name:'Conquer the Stovetop Grease',diff:'Medium',pts:25},
-  {id:'k4',realm:'Kitchen',name:'Cleanse the Refrigerator',diff:'Hard',pts:50},
-  {id:'k5',realm:'Kitchen',name:'Sweep the Kitchen Floor',diff:'Easy',pts:10},
-  {id:'k6',realm:'Kitchen',name:'Empty the Trash Dungeon',diff:'Easy',pts:10},
+  {id:'k1',realm:'Kitchen',name:'Dish Tornado Jutsu — Wash All Dishes!',diff:'Easy',pts:10},
+  {id:'k2',realm:'Kitchen',name:'Counter Purification Beam',diff:'Easy',pts:10},
+  {id:'k3',realm:'Kitchen',name:'Defeat the Stovetop Grease Demon',diff:'Medium',pts:25},
+  {id:'k4',realm:'Kitchen',name:'Fridge Boss Battle — Full Cleanout!',diff:'Hard',pts:50},
+  {id:'k5',realm:'Kitchen',name:'Swift Sweep no Jutsu — Kitchen Floor',diff:'Easy',pts:10},
+  {id:'k6',realm:'Kitchen',name:'Banish the Trash Monster',diff:'Easy',pts:10},
+  {id:'k7',realm:'Kitchen',name:'Microwave Radiation Cleanse',diff:'Easy',pts:10},
+  {id:'k8',realm:'Kitchen',name:'Organize the Pantry Scrolls',diff:'Medium',pts:25},
   // Bathroom
-  {id:'b1',realm:'Bathroom',name:'Scrub the Porcelain Throne',diff:'Medium',pts:25},
-  {id:'b2',realm:'Bathroom',name:'Polish the Mirror of Truth',diff:'Easy',pts:10},
-  {id:'b3',realm:'Bathroom',name:'Purify the Shower Realm',diff:'Medium',pts:25},
-  {id:'b4',realm:'Bathroom',name:'Mop the Bathroom Tiles',diff:'Easy',pts:10},
-  {id:'b5',realm:'Bathroom',name:'Deep Clean the Sink Basin',diff:'Medium',pts:25},
+  {id:'b1',realm:'Bathroom',name:'Toilet Thunder Strike — Scrub Clean!',diff:'Medium',pts:25},
+  {id:'b2',realm:'Bathroom',name:'Mirror Reflection Technique',diff:'Easy',pts:10},
+  {id:'b3',realm:'Bathroom',name:'Shower Steam Purification Ritual',diff:'Medium',pts:25},
+  {id:'b4',realm:'Bathroom',name:'Tile Mopping Kata',diff:'Easy',pts:10},
+  {id:'b5',realm:'Bathroom',name:'Sink Basin Spirit Cleanse',diff:'Medium',pts:25},
+  {id:'b6',realm:'Bathroom',name:'Towel Restock Formation',diff:'Easy',pts:10},
+  {id:'b7',realm:'Bathroom',name:'Grout Darkness Banishment',diff:'Hard',pts:50},
   // Floors
-  {id:'f1',realm:'Floors',name:'Vacuum the Great Halls',diff:'Medium',pts:25},
-  {id:'f2',realm:'Floors',name:'Mop the Stone Passages',diff:'Medium',pts:25},
-  {id:'f3',realm:'Floors',name:'Sweep the Entryway',diff:'Easy',pts:10},
-  {id:'f4',realm:'Floors',name:'Banish Carpet Stains',diff:'Hard',pts:50},
-  {id:'f5',realm:'Floors',name:'Dust the Baseboards',diff:'Medium',pts:25},
+  {id:'f1',realm:'Floors',name:'Vacuum Vortex — All Rooms!',diff:'Medium',pts:25},
+  {id:'f2',realm:'Floors',name:'Mop Wave Technique',diff:'Medium',pts:25},
+  {id:'f3',realm:'Floors',name:'Entryway Sweep Strike',diff:'Easy',pts:10},
+  {id:'f4',realm:'Floors',name:'Carpet Stain Final Boss',diff:'Hard',pts:50},
+  {id:'f5',realm:'Floors',name:'Baseboard Dust Exorcism',diff:'Medium',pts:25},
+  {id:'f6',realm:'Floors',name:'Hallway Speed Sweep Challenge',diff:'Easy',pts:10},
+  {id:'f7',realm:'Floors',name:'Rug Shaking Power Move',diff:'Easy',pts:10},
   // Yard
-  {id:'y1',realm:'Yard',name:'Tame the Wild Lawn',diff:'Hard',pts:50},
-  {id:'y2',realm:'Yard',name:'Sweep the Castle Walkway',diff:'Easy',pts:10},
-  {id:'y3',realm:'Yard',name:'Tend the Garden Beds',diff:'Medium',pts:25},
-  {id:'y4',realm:'Yard',name:'Banish Weeds from the Realm',diff:'Medium',pts:25},
-  {id:'y5',realm:'Yard',name:'Clear Fallen Leaves',diff:'Easy',pts:10},
+  {id:'y1',realm:'Yard',name:'Lawn Titan Takedown — Mow It All!',diff:'Hard',pts:50},
+  {id:'y2',realm:'Yard',name:'Walkway Sweep Dash',diff:'Easy',pts:10},
+  {id:'y3',realm:'Yard',name:'Garden Spirit Tending',diff:'Medium',pts:25},
+  {id:'y4',realm:'Yard',name:'Weed Slayer Mode: ACTIVATED',diff:'Medium',pts:25},
+  {id:'y5',realm:'Yard',name:'Fallen Leaf Roundup',diff:'Easy',pts:10},
+  {id:'y6',realm:'Yard',name:'Hose Down the Patio Arena',diff:'Medium',pts:25},
+  {id:'y7',realm:'Yard',name:'Trim the Hedge Guardians',diff:'Hard',pts:50},
   // Bedroom
-  {id:'d1',realm:'Bedroom',name:'Make the Royal Bed',diff:'Easy',pts:10},
-  {id:'d2',realm:'Bedroom',name:'Organize the Wardrobe Vault',diff:'Medium',pts:25},
-  {id:'d3',realm:'Bedroom',name:'Dust All Surfaces',diff:'Easy',pts:10},
-  {id:'d4',realm:'Bedroom',name:'Declutter the Nightstand',diff:'Easy',pts:10},
-  {id:'d5',realm:'Bedroom',name:'Deep Clean Under the Bed',diff:'Hard',pts:50},
+  {id:'d1',realm:'Bedroom',name:'Bed Making Transformation Sequence',diff:'Easy',pts:10},
+  {id:'d2',realm:'Bedroom',name:'Wardrobe Inventory Arc',diff:'Medium',pts:25},
+  {id:'d3',realm:'Bedroom',name:'Surface Dust Flash Step',diff:'Easy',pts:10},
+  {id:'d4',realm:'Bedroom',name:'Nightstand Declutter Combo',diff:'Easy',pts:10},
+  {id:'d5',realm:'Bedroom',name:'Under-Bed Shadow Realm Cleanup',diff:'Hard',pts:50},
+  {id:'d6',realm:'Bedroom',name:'Pillow Fluff Power-Up',diff:'Easy',pts:10},
+  {id:'d7',realm:'Bedroom',name:'Closet Organization Final Form',diff:'Medium',pts:25},
   // Living Room
-  {id:'l1',realm:'Living Room',name:'Fluff and Arrange Cushions',diff:'Easy',pts:10},
-  {id:'l2',realm:'Living Room',name:'Dust the Entertainment Shrine',diff:'Medium',pts:25},
-  {id:'l3',realm:'Living Room',name:'Wipe Down All Surfaces',diff:'Easy',pts:10},
-  {id:'l4',realm:'Living Room',name:'Organize the Bookshelf Tower',diff:'Medium',pts:25},
-  {id:'l5',realm:'Living Room',name:'Clean the Windows of Vision',diff:'Hard',pts:50},
+  {id:'l1',realm:'Living Room',name:'Cushion Revival Technique',diff:'Easy',pts:10},
+  {id:'l2',realm:'Living Room',name:'Entertainment Shrine Dusting',diff:'Medium',pts:25},
+  {id:'l3',realm:'Living Room',name:'Surface Wipe Barrage',diff:'Easy',pts:10},
+  {id:'l4',realm:'Living Room',name:'Bookshelf Sorting Arc',diff:'Medium',pts:25},
+  {id:'l5',realm:'Living Room',name:'Window Crystal Clear Vision',diff:'Hard',pts:50},
+  {id:'l6',realm:'Living Room',name:'Remote Control Rescue Mission',diff:'Easy',pts:10},
+  {id:'l7',realm:'Living Room',name:'Cable Management no Jutsu',diff:'Medium',pts:25},
   // Laundry
-  {id:'w1',realm:'Laundry',name:'Wash a Load of Garments',diff:'Easy',pts:10},
-  {id:'w2',realm:'Laundry',name:'Fold the Clean Linens',diff:'Easy',pts:10},
-  {id:'w3',realm:'Laundry',name:'Iron the Wrinkled Armors',diff:'Medium',pts:25},
-  {id:'w4',realm:'Laundry',name:'Sort the Laundry Hoard',diff:'Easy',pts:10},
-  {id:'w5',realm:'Laundry',name:'Deep Clean the Washing Machine',diff:'Hard',pts:50},
+  {id:'w1',realm:'Laundry',name:'Washing Machine Summoning',diff:'Easy',pts:10},
+  {id:'w2',realm:'Laundry',name:'Folding Technique: Master Level',diff:'Easy',pts:10},
+  {id:'w3',realm:'Laundry',name:'Iron Armor Pressing Ritual',diff:'Medium',pts:25},
+  {id:'w4',realm:'Laundry',name:'Laundry Sorting Gauntlet',diff:'Easy',pts:10},
+  {id:'w5',realm:'Laundry',name:'Washing Machine Deep Purification',diff:'Hard',pts:50},
+  {id:'w6',realm:'Laundry',name:'Dryer Lint Trap Rescue',diff:'Easy',pts:10},
+  {id:'w7',realm:'Laundry',name:'Stain Removal Special Attack',diff:'Medium',pts:25},
 ];
 const DAILY_GOAL = 100;
 const XP_PER_LEVEL = 200;
@@ -163,18 +190,18 @@ const STORAGE_KEY = 'hcq_state';
 
 /* ========== ACHIEVEMENTS ========== */
 const ACHIEVEMENTS = [
-  {id:'first_quest',name:'Adventurer Awakens',icon:'⭐',desc:'Complete your first quest'},
-  {id:'ten_quests',name:'Seasoned Warrior',icon:'⚔️',desc:'Complete 10 total quests'},
-  {id:'fifty_quests',name:'Legendary Hero',icon:'👑',desc:'Complete 50 total quests'},
-  {id:'first_victory',name:'First Victory',icon:'🏆',desc:'Achieve your first daily goal'},
-  {id:'streak_3',name:'Consistent Crusader',icon:'🔥',desc:'Reach a 3-day streak'},
-  {id:'streak_7',name:'Weekly Warrior',icon:'💪',desc:'Reach a 7-day streak'},
-  {id:'streak_30',name:'Monthly Paladin',icon:'🛡️',desc:'Reach a 30-day streak'},
-  {id:'perfectionist',name:'Perfectionist',icon:'💎',desc:'Complete all daily quests in one day'},
-  {id:'xp_500',name:'XP Collector',icon:'🪙',desc:'Earn 500 lifetime XP'},
-  {id:'xp_2000',name:'XP Hoarder',icon:'💰',desc:'Earn 2000 lifetime XP'},
-  {id:'kitchen_master',name:'Kitchen Sovereign',icon:'🍳',desc:'Complete 15 kitchen quests'},
-  {id:'floor_master',name:'Floor Commander',icon:'🧹',desc:'Complete 15 floor quests'},
+  {id:'first_quest',name:'Awakening Arc',icon:'⭐',desc:'Complete your first mission'},
+  {id:'ten_quests',name:'Chunin Level',icon:'⚔️',desc:'Complete 10 total missions'},
+  {id:'fifty_quests',name:'Legendary Senpai',icon:'👑',desc:'Complete 50 total missions'},
+  {id:'first_victory',name:'First Power-Up',icon:'🏆',desc:'Achieve your first daily goal'},
+  {id:'streak_3',name:'Training Montage',icon:'🔥',desc:'Reach a 3-day streak'},
+  {id:'streak_7',name:'Weekly Shonen Arc',icon:'💪',desc:'Reach a 7-day streak'},
+  {id:'streak_30',name:'Ultimate Form',icon:'🛡️',desc:'Reach a 30-day streak'},
+  {id:'perfectionist',name:'Plus Ultra!',icon:'💎',desc:'Complete all daily missions in one day'},
+  {id:'xp_500',name:'Spirit Energy Rising',icon:'🪙',desc:'Earn 500 lifetime XP'},
+  {id:'xp_2000',name:'Over 9000 (well, 2000)',icon:'💰',desc:'Earn 2000 lifetime XP'},
+  {id:'kitchen_master',name:'Kitchen Sensei',icon:'🍳',desc:'Complete 15 kitchen missions'},
+  {id:'floor_master',name:'Floor Guardian',icon:'🧹',desc:'Complete 15 floor missions'},
 ];
 
 /* ========== SEEDED PRNG ========== */
@@ -182,19 +209,23 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a
 function getDayOfYear(d){var s=new Date(d.getFullYear(),0,0);return Math.floor((d-s)/86400000)}
 function todayStr(){return new Date().toLocaleDateString('en-CA')}
 
-/* ========== QUEST GENERATION ========== */
+/* ========== QUEST GENERATION (day-themed) ========== */
+function getTodayRealm(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  return DAY_REALMS[d.getDay()];
+}
 function generateDailyQuests(dateStr){
   var d=new Date(dateStr+'T00:00:00');
   var seed=getDayOfYear(d)*2654435761+d.getFullYear();
   var rng=mulberry32(seed);
-  // Shuffle tasks using Fisher-Yates
-  var pool=TASKS.map(function(t,i){return{t:t,r:rng()}});
+  var todayRealm=getTodayRealm(dateStr).realm;
+  // Get all tasks for today's realm
+  var realmTasks=TASKS.filter(function(t){return t.realm===todayRealm});
+  // Shuffle them
+  var pool=realmTasks.map(function(t){return{t:t,r:rng()}});
   pool.sort(function(a,b){return a.r-b.r});
-  var picked=[], realmCount={};
-  for(var i=0;i<pool.length&&picked.length<6;i++){
-    var t=pool[i].t, rc=realmCount[t.realm]||0;
-    if(rc<2){picked.push(t);realmCount[t.realm]=(rc+1)}
-  }
+  // Pick 5-6 from the themed realm
+  var picked=pool.slice(0,Math.min(6,pool.length)).map(function(p){return p.t});
   return picked;
 }
 
@@ -282,6 +313,10 @@ function render(){
   document.getElementById('s-level').textContent=lvl;
   document.getElementById('s-xp').textContent=state.totalXP;
   document.getElementById('s-streak').textContent='🔥 '+state.streak;
+  // Day theme header
+  var dayInfo=getTodayRealm(todayStr());
+  var realmObj=REALMS.find(function(r){return r.name===dayInfo.realm});
+  document.getElementById('day-theme').innerHTML='<span class="realm-icon">'+(realmObj?realmObj.emoji:'')+'</span> '+dayInfo.title;
   // Daily progress
   var dxp=getDailyXP(),pct=Math.min(100,Math.round(dxp/DAILY_GOAL*100));
   document.getElementById('prog-fill').style.width=pct+'%';
