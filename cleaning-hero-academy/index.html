@@ -138,6 +138,34 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff;padding:14px 28px;border-radius:14px;font-weight:700;font-size:14px;z-index:999;transition:transform 0.4s ease;box-shadow:0 8px 30px rgba(168,85,247,0.4)}
 .toast.show{transform:translateX(-50%) translateY(0)}
 
+/* Timer */
+.timer-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:1001;align-items:center;justify-content:center;flex-direction:column}
+.timer-overlay.show{display:flex}
+.timer-display{font-family:'Space Grotesk',sans-serif;font-size:72px;font-weight:700;color:#e879f9;text-shadow:0 0 30px rgba(232,121,249,0.4)}
+.timer-task-name{font-size:16px;color:#c084fc;margin-bottom:20px;text-align:center;max-width:80%}
+.timer-bonus{font-size:14px;color:#fbbf24;margin-top:10px}
+.timer-btns{display:flex;gap:12px;margin-top:24px}
+.timer-btn{padding:12px 28px;border-radius:12px;border:none;font-weight:700;font-size:14px;cursor:pointer}
+.timer-btn.start{background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff}
+.timer-btn.stop{background:#2a1f4e;color:#e2e8f0;border:1px solid #3b2d6e}
+
+/* Quest Log / History */
+.history-toggle{text-align:center;margin:16px 0 8px}
+.history-toggle button{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
+.history-toggle button:hover{border-color:#e879f944}
+.calendar-card{display:none}
+.calendar-card.show{display:block}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}
+.cal-header{font-size:10px;font-weight:700;color:#7c6f9b;text-align:center;padding:4px}
+.cal-day{text-align:center;padding:8px 4px;border-radius:8px;font-size:12px;font-weight:600;color:#475569;background:#0a0a14;border:1px solid transparent;min-height:38px}
+.cal-day.has-data{color:#e2e8f0;border-color:#2a1f4e;cursor:pointer}
+.cal-day.victory{background:#22c55e22;border-color:#22c55e44;color:#4ade80}
+.cal-day.partial{background:#f59e0b15;border-color:#f59e0b33;color:#fbbf24}
+.cal-day.today{box-shadow:0 0 0 2px #e879f9}
+.cal-month{display:flex;align-items:center;justify-content:space-between}
+.cal-month-label{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:#e2e8f0}
+.cal-nav{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:16px}
+
 /* Reset button */
 .reset-wrap{text-align:center;margin-top:24px}
 .reset-btn{background:transparent;border:1px solid #2a1f4e;color:#7c6f9b;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:12px}
@@ -179,7 +207,21 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
     <div class="card-title">🏆 Achievements</div>
     <div class="achievements-grid" id="achievements-grid"></div>
   </div>
+  <div class="history-toggle"><button onclick="toggleHistory()">📅 Quest Log</button></div>
+  <div class="card calendar-card" id="calendar-card">
+    <div class="cal-month"><button class="cal-nav" onclick="calNav(-1)">‹</button><div class="cal-month-label" id="cal-month-label"></div><button class="cal-nav" onclick="calNav(1)">›</button></div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+  </div>
   <div class="reset-wrap"><button class="reset-btn" onclick="resetAll()">Reset All Progress</button></div>
+</div>
+<div class="timer-overlay" id="timer-overlay">
+  <div class="timer-task-name" id="timer-task-name"></div>
+  <div class="timer-display" id="timer-display">25:00</div>
+  <div class="timer-bonus" id="timer-bonus">Complete before time runs out for bonus XP!</div>
+  <div class="timer-btns">
+    <button class="timer-btn start" id="timer-start-btn" onclick="timerToggle()">Start</button>
+    <button class="timer-btn stop" onclick="timerCancel()">Cancel</button>
+  </div>
 </div>
 <div class="loot-modal-overlay" id="loot-overlay" onclick="closeLoot()">
   <div class="loot-modal" onclick="event.stopPropagation()">
@@ -402,6 +444,7 @@ function completeQuest(id){
   var lootChance=getEffectiveLootChance(baseLoot);
   if(Math.random()<lootChance) rollLoot();
   checkAchievements();
+  saveHistory();
   saveState();
   render();
 }
@@ -615,7 +658,16 @@ function render(){
       '</div><div class="quest-info"><div class="quest-realm">'+realmLabel+eventTag+
       '</div><div class="quest-name">'+q.name+'</div></div><div class="quest-right"><div class="quest-points">+'+
       q.pts+' XP</div><div class="quest-diff diff-'+q.diff.toLowerCase()+'">'+q.diff+'</div></div>';
-    card.onclick=function(){completeQuest(q.id)};
+    if(!done){
+      (function(quest){
+        card.onclick=function(e){completeQuest(quest.id)};
+        var timerBtn=document.createElement('div');
+        timerBtn.textContent='⏱️';timerBtn.style.cssText='cursor:pointer;font-size:18px;flex-shrink:0';
+        timerBtn.title='Start timer';
+        timerBtn.onclick=function(e){e.stopPropagation();startTimer(quest.id,quest.name)};
+        card.appendChild(timerBtn);
+      })(q);
+    }
     grid.appendChild(card);
   });
   // Boss & Skill Tree
@@ -644,6 +696,77 @@ function resetAll(){
   state=defaultState();state.lastDate=todayStr();
   dailyQuests=generateDailyQuests(todayStr());
   saveState();render();
+}
+
+/* ========== TIMER MODE ========== */
+var timerInterval=null, timerSeconds=0, timerRunning=false, timerQuestId=null;
+function startTimer(questId,questName){
+  timerQuestId=questId;
+  document.getElementById('timer-task-name').textContent=questName;
+  timerSeconds=25*60;
+  timerRunning=false;
+  updateTimerDisplay();
+  document.getElementById('timer-start-btn').textContent='Start';
+  document.getElementById('timer-overlay').className='timer-overlay show';
+}
+function timerToggle(){
+  if(timerRunning){timerRunning=false;clearInterval(timerInterval);document.getElementById('timer-start-btn').textContent='Resume';return}
+  timerRunning=true;document.getElementById('timer-start-btn').textContent='Pause';
+  timerInterval=setInterval(function(){
+    timerSeconds--;
+    updateTimerDisplay();
+    if(timerSeconds<=0){clearInterval(timerInterval);timerRunning=false;
+      document.getElementById('timer-display').textContent='00:00';
+      document.getElementById('timer-bonus').textContent='Time\'s up! Mission complete!';
+      completeQuest(timerQuestId);timerCancel();
+    }
+  },1000);
+}
+function timerCancel(){clearInterval(timerInterval);timerRunning=false;document.getElementById('timer-overlay').className='timer-overlay'}
+function updateTimerDisplay(){
+  var m=Math.floor(timerSeconds/60),s=timerSeconds%60;
+  document.getElementById('timer-display').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+
+/* ========== QUEST LOG / HISTORY ========== */
+var calViewMonth=new Date().getMonth(), calViewYear=new Date().getFullYear();
+function saveHistory(){
+  if(!state.history) state.history={};
+  state.history[todayStr()]={done:state.todayDone.length,goal:state.dailyGoalMet,xp:getDailyXP()};
+  saveState();
+}
+function toggleHistory(){
+  var c=document.getElementById('calendar-card');
+  c.className=c.className.indexOf('show')!==-1?'card calendar-card':'card calendar-card show';
+  if(c.className.indexOf('show')!==-1) renderCalendar();
+}
+function calNav(dir){calViewMonth+=dir;if(calViewMonth>11){calViewMonth=0;calViewYear++}if(calViewMonth<0){calViewMonth=11;calViewYear--}renderCalendar()}
+function renderCalendar(){
+  var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cal-month-label').textContent=months[calViewMonth]+' '+calViewYear;
+  var grid=document.getElementById('calendar-grid');grid.innerHTML='';
+  var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  days.forEach(function(d){var h=document.createElement('div');h.className='cal-header';h.textContent=d;grid.appendChild(h)});
+  var first=new Date(calViewYear,calViewMonth,1);
+  var lastDay=new Date(calViewYear,calViewMonth+1,0).getDate();
+  var startDay=first.getDay();
+  for(var i=0;i<startDay;i++){var e=document.createElement('div');e.className='cal-day';grid.appendChild(e)}
+  var todayD=todayStr();
+  for(var d=1;d<=lastDay;d++){
+    var cell=document.createElement('div');
+    var ds=calViewYear+'-'+(calViewMonth+1<10?'0':'')+(calViewMonth+1)+'-'+(d<10?'0':'')+d;
+    var hist=state.history&&state.history[ds];
+    cell.className='cal-day';
+    if(ds===todayD) cell.className+=' today';
+    if(hist){
+      cell.className+=' has-data';
+      if(hist.goal) cell.className+=' victory';
+      else if(hist.done>0) cell.className+=' partial';
+      cell.title=hist.xp+' XP earned'+(hist.goal?' — Victory!':'');
+    }
+    cell.textContent=d;
+    grid.appendChild(cell);
+  }
 }
 
 /* ========== INIT ========== */
