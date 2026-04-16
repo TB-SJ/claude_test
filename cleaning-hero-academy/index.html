@@ -563,16 +563,15 @@ const BOSSES = [
   {id:'boss_laundry',name:'The Lint Wraith',realm:'Laundry',xp:175,emoji:'🦠',
     tasks:['Clean dryer vent duct','Deep clean washer drum','Organize all supplies','Wipe down machines','Clean laundry room floor']},
 ];
-function getWeeklyBoss(dateStr){
+function getMonthlyBoss(dateStr){
   var d=new Date(dateStr+'T00:00:00');
-  var weekNum=Math.floor(getDayOfYear(d)/7);
-  return BOSSES[weekNum%BOSSES.length];
+  return BOSSES[d.getMonth()%BOSSES.length];
 }
 function completeBossTask(idx){
   if(!state.bossDone) state.bossDone=[];
   if(state.bossDone.indexOf(idx)!==-1) return;
   state.bossDone.push(idx);
-  var boss=getWeeklyBoss(todayStr());
+  var boss=getMonthlyBoss(todayStr());
   if(state.bossDone.length>=boss.tasks.length){
     state.totalXP+=boss.xp;
     showToast(boss.emoji+' BOSS DEFEATED! +'+boss.xp+' XP!');
@@ -583,15 +582,15 @@ function completeBossTask(idx){
 }
 function renderBoss(){
   var sec=document.getElementById('boss-section');
-  var boss=getWeeklyBoss(todayStr());
+  var boss=getMonthlyBoss(todayStr());
   if(!state.bossDone) state.bossDone=[];
-  if(!state.bossWeek) state.bossWeek='';
+  if(!state.bossMonth) state.bossMonth='';
   var d=new Date(todayStr()+'T00:00:00');
-  var weekId=d.getFullYear()+'-w'+Math.floor(getDayOfYear(d)/7);
-  if(state.bossWeek!==weekId){state.bossWeek=weekId;state.bossDone=[];state.bossDefeated=false;saveState()}
+  var monthId=d.getFullYear()+'-m'+d.getMonth();
+  if(state.bossMonth!==monthId){state.bossMonth=monthId;state.bossDone=[];state.bossDefeated=false;saveState()}
   var done=state.bossDone||[];
   var hpPct=Math.max(0,Math.round((1-done.length/boss.tasks.length)*100));
-  var html='<div class="boss-card"><div class="boss-header"><div class="boss-title">'+boss.emoji+' WEEKLY BOSS: '+boss.name+'</div><div class="boss-xp">'+boss.xp+' XP</div></div>';
+  var html='<div class="boss-card"><div class="boss-header"><div class="boss-title">'+boss.emoji+' MONTHLY BOSS: '+boss.name+'</div><div class="boss-xp">'+boss.xp+' XP</div></div>';
   html+='<div class="boss-hp-label">Boss HP</div><div class="boss-hp-wrap"><div class="boss-hp-fill" style="width:'+hpPct+'%"></div><div class="boss-hp-text">'+done.length+'/'+boss.tasks.length+' hits</div></div>';
   if(state.bossDefeated){
     html+='<div class="boss-defeated">🎌 BOSS DEFEATED! You are victorious! 🎌</div>';
