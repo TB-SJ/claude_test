@@ -194,12 +194,14 @@
 
   /* ── Tablet / Mobile (≤ 680px) ── */
   @media (max-width:680px) {
-    /* Header: logo row on top, nav bar on its own full-width row below */
-    .header { flex-direction:column; padding:10px 12px 0; gap:0; align-items:stretch; }
-    .header > div:first-child { display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; }
-    .header-right { overflow:visible; min-width:0; border-top:1px solid #1e1e3a; padding:4px 0 6px; gap:4px; }
-    .nav { flex:1; }
-    .signout-btn { flex-shrink:0; }
+    /* Header: "unwrap" header-right so its children join the header flex.
+       Row 1 → logo-div (flex:1) + sign-out button (order:2).
+       Row 2 → nav bar full-width (order:3, width:100%). */
+    .header { flex-wrap:wrap; padding:10px 12px 0; gap:0; align-items:center; }
+    .header-right { display:contents; }
+    .signout-btn { order:2; flex-shrink:0; min-height:40px; padding:8px 12px; margin-bottom:8px; }
+    .nav { order:3; width:100%; border-top:1px solid #1e1e3a; padding:4px 0 8px; flex-shrink:0; }
+    .header > div:first-child { flex:1; margin-bottom:8px; }
     /* Grids */
     .income-grid { grid-template-columns:1fr 1fr; }
     .income-card.total { grid-column:span 2; }
@@ -225,10 +227,10 @@
   /* ── Mobile (≤ 420px) ── */
   @media (max-width:420px) {
     #app { padding:0 10px 40px; }
-    .header { padding:10px 12px; }
+    .header { padding:10px 10px 0; }
     .logo { font-size:17px; }
-    .nav-btn { padding:7px 10px; font-size:12px; }
-    .signout-btn { padding:7px 10px; font-size:11px; }
+    .nav-btn { padding:7px 9px; font-size:12px; }
+    .signout-btn { font-size:11px; }
     .card { padding:14px; }
     .auth-card { padding:28px 20px; }
     .income-grid { grid-template-columns:1fr; }
