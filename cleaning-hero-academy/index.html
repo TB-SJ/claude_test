@@ -166,6 +166,33 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .cal-month-label{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:#e2e8f0}
 .cal-nav{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:16px}
 
+/* Custom Quest Form */
+.custom-quest-toggle{text-align:center;margin:8px 0}
+.custom-quest-toggle button{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
+.custom-form{display:none;margin-top:10px}
+.custom-form.show{display:block}
+.custom-form input,.custom-form select{width:100%;background:#0a0a14;border:1px solid #2a1f4e;border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:13px;margin-bottom:8px;font-family:inherit}
+.custom-form input:focus,.custom-form select:focus{outline:none;border-color:#c084fc}
+.custom-form-row{display:flex;gap:8px}
+.custom-form-row>*{flex:1}
+.custom-submit{width:100%;background:linear-gradient(135deg,#a855f7,#e879f9);border:none;color:#fff;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px}
+
+/* Theme Toggle */
+.theme-toggle{position:fixed;top:12px;right:12px;z-index:100;background:#110f1f;border:1px solid #2a1f4e;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:all 0.2s}
+.theme-toggle:hover{border-color:#e879f9}
+body.light{background:#f0eff5;color:#1a1a2e}
+body.light .card,body.light .stat-badge,body.light .quest-card,body.light .boss-card{background:#fff;border-color:#d8d4e8}
+body.light .achievement{background:#f5f3fa;border-color:#d8d4e8}
+body.light .quest-name,body.light .cal-month-label{color:#1a1a2e}
+body.light .quest-realm,body.light .card-title,body.light .stat-label,body.light .ach-name,body.light .subtitle,body.light .avatar-rank{color:#6b5f8a}
+body.light .logo{color:#1a1a2e}
+body.light .progress-wrap,body.light .boss-hp-wrap,body.light .level-progress{background:#e0ddef}
+body.light .cal-day{background:#f5f3fa;color:#6b5f8a}
+body.light .theme-toggle{background:#fff;border-color:#d8d4e8}
+body.light .skill-node{background:#f5f3fa;border-color:#d8d4e8}
+body.light .combo-bar{background:#fef3c7;border-color:#f59e0b44}
+body.light input,body.light select{background:#f5f3fa;border-color:#d8d4e8;color:#1a1a2e}
+
 /* Reset button */
 .reset-wrap{text-align:center;margin-top:24px}
 .reset-btn{background:transparent;border:1px solid #2a1f4e;color:#7c6f9b;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:12px}
@@ -173,6 +200,7 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 </style>
 </head>
 <body>
+<div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</div>
 <div id="app">
   <div class="header">
     <div class="logo">✨ Cleaning Hero <span>Academy</span></div>
@@ -206,6 +234,16 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
   <div class="card" style="margin-top:20px">
     <div class="card-title">🏆 Achievements</div>
     <div class="achievements-grid" id="achievements-grid"></div>
+  </div>
+  <div class="custom-quest-toggle"><button onclick="toggleCustomForm()">➕ Create Custom Mission</button></div>
+  <div class="card custom-form" id="custom-form">
+    <div class="card-title">✏️ New Custom Mission</div>
+    <input type="text" id="cq-name" placeholder="Mission name (e.g., Clean the garage)"/>
+    <div class="custom-form-row">
+      <select id="cq-realm"><option value="Kitchen">Kitchen</option><option value="Bathroom">Bathroom</option><option value="Floors">Floors</option><option value="Yard">Yard</option><option value="Bedroom">Bedroom</option><option value="Living Room">Living Room</option><option value="Laundry">Laundry</option></select>
+      <select id="cq-diff"><option value="Easy">Easy (10 XP)</option><option value="Medium">Medium (25 XP)</option><option value="Hard">Hard (50 XP)</option></select>
+    </div>
+    <button class="custom-submit" onclick="addCustomQuest()">Add Mission</button>
   </div>
   <div class="history-toggle"><button onclick="toggleHistory()">📅 Quest Log</button></div>
   <div class="card calendar-card" id="calendar-card">
@@ -698,6 +736,51 @@ function resetAll(){
   saveState();render();
 }
 
+/* ========== CUSTOM QUESTS ========== */
+function toggleCustomForm(){
+  var f=document.getElementById('custom-form');
+  f.className=f.className.indexOf('show')!==-1?'card custom-form':'card custom-form show';
+}
+function addCustomQuest(){
+  var name=document.getElementById('cq-name').value.trim();
+  if(!name){showToast('Enter a mission name!');return}
+  var realm=document.getElementById('cq-realm').value;
+  var diff=document.getElementById('cq-diff').value;
+  var pts=diff==='Hard'?50:diff==='Medium'?25:10;
+  var id='custom_'+Date.now();
+  var quest={id:id,realm:realm,name:name,diff:diff,pts:pts};
+  dailyQuests.push(quest);
+  if(!state.customQuests) state.customQuests=[];
+  state.customQuests.push({id:id,realm:realm,name:name,diff:diff,pts:pts,date:todayStr()});
+  saveState();
+  document.getElementById('cq-name').value='';
+  toggleCustomForm();
+  showToast('📜 Custom mission added!');
+  render();
+}
+function loadCustomQuests(){
+  if(!state.customQuests) return;
+  var today=todayStr();
+  state.customQuests.forEach(function(cq){
+    if(cq.date===today&&state.todayDone.indexOf(cq.id)===-1){
+      dailyQuests.push(cq);
+    }
+  });
+}
+
+/* ========== THEME TOGGLE ========== */
+function toggleTheme(){
+  var isLight=document.body.classList.toggle('light');
+  localStorage.setItem('hcq_theme',isLight?'light':'dark');
+  document.getElementById('theme-toggle').textContent=isLight?'☀️':'🌙';
+}
+function loadTheme(){
+  if(localStorage.getItem('hcq_theme')==='light'){
+    document.body.classList.add('light');
+    document.getElementById('theme-toggle').textContent='☀️';
+  }
+}
+
 /* ========== TIMER MODE ========== */
 var timerInterval=null, timerSeconds=0, timerRunning=false, timerQuestId=null;
 function startTimer(questId,questName){
@@ -770,8 +853,10 @@ function renderCalendar(){
 }
 
 /* ========== INIT ========== */
+loadTheme();
 checkNewDay();
 dailyQuests=generateDailyQuests(todayStr());
+loadCustomQuests();
 render();
 </script>
 </body>
