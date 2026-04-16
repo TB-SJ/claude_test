@@ -73,6 +73,47 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .ach-name{font-size:11px;font-weight:600;color:#7c6f9b;margin-top:6px}
 .achievement.unlocked .ach-name{color:#fbbf24}
 
+/* Boss Battle */
+.boss-card{background:linear-gradient(135deg,#1a0a1e,#1e0f25);border:2px solid #ef444466;border-radius:16px;padding:20px 24px;margin-bottom:16px;position:relative;overflow:hidden}
+.boss-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(45deg,transparent 40%,rgba(239,68,68,0.05) 50%,transparent 60%);animation:bossShimmer 3s infinite}
+@keyframes bossShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.boss-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.boss-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#f87171}
+.boss-xp{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#fbbf24}
+.boss-hp-label{font-size:11px;color:#7c6f9b;margin-bottom:4px}
+.boss-hp-wrap{background:#0a0a14;border-radius:8px;height:22px;overflow:hidden;position:relative;margin-bottom:12px}
+.boss-hp-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#ef4444,#f87171);transition:width 0.5s ease}
+.boss-hp-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:600;color:#fff}
+.boss-tasks{display:flex;flex-direction:column;gap:6px}
+.boss-task{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a0a1466;border:1px solid #2a1f4e;border-radius:10px;cursor:pointer;transition:all 0.2s;font-size:13px;color:#e2e8f0}
+.boss-task:hover{border-color:#f8717144}
+.boss-task.done{opacity:0.4;text-decoration:line-through}
+.boss-task-check{width:20px;height:20px;border-radius:50%;border:2px solid #5a2d2d;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.boss-task.done .boss-task-check{background:#ef4444;border-color:#ef4444}
+.boss-task.done .boss-task-check::after{content:'✓';color:#fff;font-size:11px;font-weight:700}
+.boss-defeated{text-align:center;padding:10px;font-weight:700;color:#fbbf24;font-size:15px}
+
+/* Combo indicator */
+.combo-bar{display:none;text-align:center;margin:10px 0;padding:8px 14px;background:linear-gradient(135deg,#f59e0b22,#ef444422);border:1px solid #f59e0b44;border-radius:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;color:#fbbf24}
+.combo-bar.show{display:block}
+.combo-bar .combo-mult{color:#f87171;font-size:18px}
+
+/* Random event quest */
+.quest-card.event-quest{border-color:#f59e0b66;background:linear-gradient(135deg,#1a1520,#1f1a10);animation:eventGlow 2s infinite}
+@keyframes eventGlow{0%,100%{box-shadow:0 0 8px rgba(245,158,11,0.15)}50%{box-shadow:0 0 18px rgba(245,158,11,0.3)}}
+.event-badge{font-size:9px;font-weight:700;color:#fbbf24;background:#f59e0b22;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle}
+
+/* Loot drops */
+.loot-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center}
+.loot-modal-overlay.show{display:flex}
+.loot-modal{background:#1a1530;border:2px solid #c084fc;border-radius:20px;padding:30px;text-align:center;max-width:320px;width:90%;animation:lootPop 0.3s ease}
+@keyframes lootPop{from{transform:scale(0.7);opacity:0}to{transform:scale(1);opacity:1}}
+.loot-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#e879f9;margin-bottom:8px}
+.loot-icon{font-size:48px;margin:12px 0}
+.loot-name{font-size:16px;font-weight:700;color:#fbbf24;margin-bottom:4px}
+.loot-desc{font-size:12px;color:#7c6f9b;margin-bottom:16px}
+.loot-close{background:linear-gradient(135deg,#a855f7,#e879f9);border:none;color:#fff;padding:10px 28px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
+
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff;padding:14px 28px;border-radius:14px;font-weight:700;font-size:14px;z-index:999;transition:transform 0.4s ease;box-shadow:0 8px 30px rgba(168,85,247,0.4)}
 .toast.show{transform:translateX(-50%) translateY(0)}
@@ -100,13 +141,24 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
     <div class="progress-wrap"><div class="progress-fill" id="prog-fill"></div><div class="progress-text" id="prog-text">0 / 100 XP</div></div>
     <div class="victory-banner" id="victory">🌸 SUGOI! DAILY MISSION COMPLETE! 🌸</div>
   </div>
+  <div class="combo-bar" id="combo-bar">COMBO: <span class="combo-mult" id="combo-count">x2</span> — Bonus XP active!</div>
   <div class="quests-title">📜 Today's Missions</div>
   <div class="quests-grid" id="quests-grid"></div>
+  <div id="boss-section"></div>
   <div class="card" style="margin-top:20px">
     <div class="card-title">🏆 Achievements</div>
     <div class="achievements-grid" id="achievements-grid"></div>
   </div>
   <div class="reset-wrap"><button class="reset-btn" onclick="resetAll()">Reset All Progress</button></div>
+</div>
+<div class="loot-modal-overlay" id="loot-overlay" onclick="closeLoot()">
+  <div class="loot-modal" onclick="event.stopPropagation()">
+    <div class="loot-title">✨ Loot Drop! ✨</div>
+    <div class="loot-icon" id="loot-icon"></div>
+    <div class="loot-name" id="loot-name"></div>
+    <div class="loot-desc" id="loot-desc"></div>
+    <button class="loot-close" onclick="closeLoot()">Yatta! Claim It!</button>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -184,6 +236,26 @@ const TASKS = [
   {id:'w6',realm:'Laundry',name:'Dryer Lint Trap Rescue',diff:'Easy',pts:10},
   {id:'w7',realm:'Laundry',name:'Stain Removal Special Attack',diff:'Medium',pts:25},
 ];
+// Random event quests (can appear on any day as bonus)
+const EVENT_QUESTS = [
+  {id:'ev1',realm:'Any',name:'Emergency Spill Alert! Clean It NOW!',diff:'Easy',pts:30,event:true},
+  {id:'ev2',realm:'Any',name:'Surprise Guest Incoming — Speed Clean!',diff:'Medium',pts:40,event:true},
+  {id:'ev3',realm:'Any',name:'Mystery Mess Appeared! Investigate!',diff:'Easy',pts:20,event:true},
+  {id:'ev4',realm:'Any',name:'Golden Dust Bunny Spotted — Catch It!',diff:'Hard',pts:60,event:true},
+  {id:'ev5',realm:'Any',name:'Legendary Stain Encounter!',diff:'Medium',pts:35,event:true},
+];
+// Loot table
+const LOOT_TABLE = [
+  {id:'loot_star',name:'Star Fragment',icon:'🌟',desc:'A shard of pure cleaning energy',rarity:'common'},
+  {id:'loot_sakura',name:'Sakura Petal',icon:'🌸',desc:'Blooms when rooms are spotless',rarity:'common'},
+  {id:'loot_crystal',name:'Crystal Orb',icon:'🔮',desc:'Grants vision of hidden dust',rarity:'uncommon'},
+  {id:'loot_katana',name:'Mini Broom Katana',icon:'⚔️',desc:'A legendary sweeping weapon',rarity:'uncommon'},
+  {id:'loot_scroll',name:'Ancient Cleaning Scroll',icon:'📜',desc:'Contains forbidden techniques',rarity:'rare'},
+  {id:'loot_crown',name:'Golden Senpai Crown',icon:'👑',desc:'Only the worthy may wear it',rarity:'rare'},
+  {id:'loot_dragon',name:'Dust Dragon Scale',icon:'🐉',desc:'Dropped by the final boss of filth',rarity:'legendary'},
+  {id:'loot_gem',name:'Prismatic Gem',icon:'💎',desc:'Radiates with cleaning power',rarity:'legendary'},
+];
+const COMBO_WINDOW = 120000; // 2 minutes between tasks for combo
 const DAILY_GOAL = 100;
 const XP_PER_LEVEL = 200;
 const STORAGE_KEY = 'hcq_state';
@@ -219,20 +291,23 @@ function generateDailyQuests(dateStr){
   var seed=getDayOfYear(d)*2654435761+d.getFullYear();
   var rng=mulberry32(seed);
   var todayRealm=getTodayRealm(dateStr).realm;
-  // Get all tasks for today's realm
   var realmTasks=TASKS.filter(function(t){return t.realm===todayRealm});
-  // Shuffle them
   var pool=realmTasks.map(function(t){return{t:t,r:rng()}});
   pool.sort(function(a,b){return a.r-b.r});
-  // Pick 5-6 from the themed realm
   var picked=pool.slice(0,Math.min(6,pool.length)).map(function(p){return p.t});
+  // 40% chance to inject a random event quest
+  if(rng()<0.4){
+    var evIdx=Math.floor(rng()*EVENT_QUESTS.length);
+    picked.push(EVENT_QUESTS[evIdx]);
+  }
   return picked;
 }
 
 /* ========== STATE MANAGEMENT ========== */
 function defaultState(){
   return {totalXP:0,streak:0,lastDate:'',todayDone:[],dailyGoalMet:false,
-    unlocked:{},realmCounts:{Kitchen:0,Bathroom:0,Floors:0,Yard:0,Bedroom:0,'Living Room':0,Laundry:0},totalCompleted:0};
+    unlocked:{},realmCounts:{Kitchen:0,Bathroom:0,Floors:0,Yard:0,Bedroom:0,'Living Room':0,Laundry:0},totalCompleted:0,
+    loot:[],lastCompleteTime:0,comboCount:0,history:{}};
 }
 function loadState(){
   try{var s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):defaultState()}catch(e){return defaultState()}
@@ -273,17 +348,112 @@ function completeQuest(id){
   var quest=dailyQuests.find(function(q){return q.id===id});
   if(!quest)return;
   state.todayDone.push(id);
-  state.totalXP+=quest.pts;
+  // Combo system
+  var now=Date.now();
+  if(state.lastCompleteTime&&(now-state.lastCompleteTime)<COMBO_WINDOW){
+    state.comboCount=(state.comboCount||0)+1;
+  }else{state.comboCount=1}
+  state.lastCompleteTime=now;
+  var comboMult=state.comboCount>=3?1.5:state.comboCount>=2?1.25:1;
+  var xpGained=Math.round(quest.pts*comboMult);
+  state.totalXP+=xpGained;
   state.totalCompleted=(state.totalCompleted||0)+1;
-  state.realmCounts[quest.realm]=(state.realmCounts[quest.realm]||0)+1;
+  if(quest.realm!=='Any') state.realmCounts[quest.realm]=(state.realmCounts[quest.realm]||0)+1;
   // Check daily goal
   if(!state.dailyGoalMet&&getDailyXP()>=DAILY_GOAL){
     state.dailyGoalMet=true;
     if(state.streak===0&&state.lastDate===todayStr())state.streak=1;
   }
+  // Show combo toast
+  if(comboMult>1) showToast('⚡ '+state.comboCount+'x COMBO! +'+xpGained+' XP!');
+  // Loot drop chance (20% base, higher for hard tasks)
+  var lootChance=quest.diff==='Hard'?0.4:quest.diff==='Medium'?0.25:0.15;
+  if(Math.random()<lootChance) rollLoot();
   checkAchievements();
   saveState();
   render();
+}
+
+/* ========== LOOT SYSTEM ========== */
+function rollLoot(){
+  var roll=Math.random();
+  var pool;
+  if(roll<0.05) pool=LOOT_TABLE.filter(function(l){return l.rarity==='legendary'});
+  else if(roll<0.2) pool=LOOT_TABLE.filter(function(l){return l.rarity==='rare'});
+  else if(roll<0.5) pool=LOOT_TABLE.filter(function(l){return l.rarity==='uncommon'});
+  else pool=LOOT_TABLE.filter(function(l){return l.rarity==='common'});
+  var item=pool[Math.floor(Math.random()*pool.length)];
+  if(!state.loot) state.loot=[];
+  state.loot.push({id:item.id,name:item.name,date:todayStr()});
+  showLoot(item);
+}
+function showLoot(item){
+  document.getElementById('loot-icon').textContent=item.icon;
+  document.getElementById('loot-name').textContent=item.name;
+  document.getElementById('loot-desc').textContent=item.desc+' ('+item.rarity+')';
+  document.getElementById('loot-overlay').className='loot-modal-overlay show';
+}
+function closeLoot(){document.getElementById('loot-overlay').className='loot-modal-overlay'}
+
+/* ========== BOSS BATTLES ========== */
+const BOSSES = [
+  {id:'boss_kitchen',name:'The Grease Overlord',realm:'Kitchen',xp:200,emoji:'👹',
+    tasks:['Deep clean oven interior','Scrub all cabinet fronts','Sanitize the sink & drain','Clean behind appliances','Wipe down all handles & knobs']},
+  {id:'boss_bath',name:'Mold Demon King',realm:'Bathroom',xp:200,emoji:'🧟',
+    tasks:['Deep scrub shower grout','Clean exhaust fan','Descale all faucets','Wash shower curtain','Sanitize trash can']},
+  {id:'boss_floors',name:'The Dust Titan',realm:'Floors',xp:200,emoji:'👾',
+    tasks:['Move furniture & vacuum under','Steam mop all hard floors','Deep clean all rugs','Scrub floor corners','Polish hardwood areas']},
+  {id:'boss_yard',name:'Weed Dragon',realm:'Yard',xp:250,emoji:'🐲',
+    tasks:['Edge all walkways','Clear gutters','Power wash driveway','Prune all bushes','Clean outdoor furniture']},
+  {id:'boss_bedroom',name:'Chaos Phantom',realm:'Bedroom',xp:200,emoji:'👻',
+    tasks:['Rotate & flip mattress','Wash all bedding','Deep clean closet','Dust ceiling fan & lights','Organize all drawers']},
+  {id:'boss_living',name:'Clutter Shogun',realm:'Living Room',xp:200,emoji:'🥷',
+    tasks:['Deep clean upholstery','Wash all throw blankets','Dust all decor & shelves','Clean all electronics','Wash windows inside & out']},
+  {id:'boss_laundry',name:'The Lint Wraith',realm:'Laundry',xp:175,emoji:'🦠',
+    tasks:['Clean dryer vent duct','Deep clean washer drum','Organize all supplies','Wipe down machines','Clean laundry room floor']},
+];
+function getWeeklyBoss(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  var weekNum=Math.floor(getDayOfYear(d)/7);
+  return BOSSES[weekNum%BOSSES.length];
+}
+function completeBossTask(idx){
+  if(!state.bossDone) state.bossDone=[];
+  if(state.bossDone.indexOf(idx)!==-1) return;
+  state.bossDone.push(idx);
+  var boss=getWeeklyBoss(todayStr());
+  if(state.bossDone.length>=boss.tasks.length){
+    state.totalXP+=boss.xp;
+    showToast(boss.emoji+' BOSS DEFEATED! +'+boss.xp+' XP!');
+    state.bossDefeated=true;
+  }
+  checkAchievements();
+  saveState();render();
+}
+function renderBoss(){
+  var sec=document.getElementById('boss-section');
+  var boss=getWeeklyBoss(todayStr());
+  if(!state.bossDone) state.bossDone=[];
+  if(!state.bossWeek) state.bossWeek='';
+  var d=new Date(todayStr()+'T00:00:00');
+  var weekId=d.getFullYear()+'-w'+Math.floor(getDayOfYear(d)/7);
+  if(state.bossWeek!==weekId){state.bossWeek=weekId;state.bossDone=[];state.bossDefeated=false;saveState()}
+  var done=state.bossDone||[];
+  var hpPct=Math.max(0,Math.round((1-done.length/boss.tasks.length)*100));
+  var html='<div class="boss-card"><div class="boss-header"><div class="boss-title">'+boss.emoji+' WEEKLY BOSS: '+boss.name+'</div><div class="boss-xp">'+boss.xp+' XP</div></div>';
+  html+='<div class="boss-hp-label">Boss HP</div><div class="boss-hp-wrap"><div class="boss-hp-fill" style="width:'+hpPct+'%"></div><div class="boss-hp-text">'+done.length+'/'+boss.tasks.length+' hits</div></div>';
+  if(state.bossDefeated){
+    html+='<div class="boss-defeated">🎌 BOSS DEFEATED! You are victorious! 🎌</div>';
+  }else{
+    html+='<div class="boss-tasks">';
+    boss.tasks.forEach(function(t,i){
+      var d2=done.indexOf(i)!==-1;
+      html+='<div class="boss-task'+(d2?' done':'')+'" onclick="completeBossTask('+i+')"><div class="boss-task-check"></div>'+t+'</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  sec.innerHTML=html;
 }
 
 function checkAchievements(){
@@ -323,19 +493,31 @@ function render(){
   document.getElementById('prog-text').textContent=dxp+' / '+DAILY_GOAL+' XP';
   var vb=document.getElementById('victory');
   vb.className='victory-banner'+(state.dailyGoalMet?' show':'');
+  // Combo bar
+  var cb=document.getElementById('combo-bar');
+  if(state.comboCount>=2&&state.lastCompleteTime&&(Date.now()-state.lastCompleteTime)<COMBO_WINDOW){
+    cb.className='combo-bar show';
+    document.getElementById('combo-count').textContent='x'+state.comboCount;
+  }else{cb.className='combo-bar'}
   // Quests
   var grid=document.getElementById('quests-grid');grid.innerHTML='';
   dailyQuests.forEach(function(q){
     var done=state.todayDone.indexOf(q.id)!==-1;
+    var isEvent=!!q.event;
     var card=document.createElement('div');
-    card.className='quest-card'+(done?' completed':'');
-    card.innerHTML='<div class="quest-check"></div><div class="quest-emoji">'+realmEmoji(q.realm)+
-      '</div><div class="quest-info"><div class="quest-realm">'+q.realm+
+    card.className='quest-card'+(done?' completed':'')+(isEvent?' event-quest':'');
+    var realmLabel=isEvent?'Random Event':q.realm;
+    var emojiChar=isEvent?'⚡':realmEmoji(q.realm);
+    var eventTag=isEvent?'<span class="event-badge">EVENT!</span>':'';
+    card.innerHTML='<div class="quest-check"></div><div class="quest-emoji">'+emojiChar+
+      '</div><div class="quest-info"><div class="quest-realm">'+realmLabel+eventTag+
       '</div><div class="quest-name">'+q.name+'</div></div><div class="quest-right"><div class="quest-points">+'+
       q.pts+' XP</div><div class="quest-diff diff-'+q.diff.toLowerCase()+'">'+q.diff+'</div></div>';
     card.onclick=function(){completeQuest(q.id)};
     grid.appendChild(card);
   });
+  // Boss
+  renderBoss();
   // Achievements
   var ag=document.getElementById('achievements-grid');ag.innerHTML='';
   ACHIEVEMENTS.forEach(function(a){
