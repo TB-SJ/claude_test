@@ -73,7 +73,7 @@
   .income-input { background:transparent; border:none; outline:none; font-size:26px; font-weight:700; font-family:'Space Grotesk',sans-serif; width:100%; }
   .income-sub { font-size:10px; color:#334155; margin-top:4px; }
   .income-adjust { display:flex; align-items:center; gap:6px; margin-top:10px; }
-  .adj-btn { background:#1a1a3a; border:1px solid #2d2d5e; border-radius:8px; color:#94a3b8; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; font-weight:600; transition:background 0.15s; flex-shrink:0; }
+  .adj-btn { background:#1a1a3a; border:1px solid #2d2d5e; border-radius:8px; color:#94a3b8; width:40px; height:40px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; font-weight:600; transition:background 0.15s; flex-shrink:0; }
   .adj-btn:hover { background:#2d2d5e; color:#e2e8f0; }
   .adj-input { background:#0a0a15; border:1px solid #1e1e3a; border-radius:8px; padding:5px 8px; color:#94a3b8; font-size:12px; width:0; flex:1; outline:none; text-align:center; min-width:0; }
   .adj-input:focus { border-color:#6366f1; color:#e2e8f0; }
@@ -139,7 +139,7 @@
   .adjust-row { display:flex; align-items:center; gap:4px; margin-top:6px; }
   .adjust-inp { background:#0a0a15; border:1px solid #1e1e3a; border-radius:8px; padding:4px 8px; color:#e2e8f0; font-size:12px; outline:none; width:68px; text-align:center; }
   .adjust-inp:focus { border-color:#6366f1; }
-  .adj-btn { background:#1e1e3a; border:none; color:#94a3b8; border-radius:6px; padding:0 10px; cursor:pointer; font-size:16px; font-weight:700; min-width:30px; min-height:30px; transition:background 0.15s,color 0.15s; line-height:1; }
+  .adj-btn { background:#1e1e3a; border:none; color:#94a3b8; border-radius:6px; padding:0 10px; cursor:pointer; font-size:16px; font-weight:700; min-width:40px; min-height:40px; transition:background 0.15s,color 0.15s; line-height:1; }
   .adj-btn.minus:hover { background:#450a0a; color:#f87171; }
   .adj-btn.plus:hover { background:#064e3b; color:#34d399; }
 
@@ -147,7 +147,7 @@
   .expense-form-grid { display:grid; grid-template-columns:130px 1fr 165px 150px auto; gap:10px; align-items:center; }
 
   /* Expenses */
-  .expense-row { display:grid; grid-template-columns:85px 1fr 150px 100px auto; gap:10px; align-items:center; padding:10px 14px; background:#0a0a15; border-radius:10px; margin-bottom:6px; }
+  .expense-row { display:grid; grid-template-columns:90px 1fr auto; gap:10px; align-items:center; padding:10px 14px; background:#0a0a15; border-radius:10px; margin-bottom:6px; }
   .exp-amount { font-size:15px; font-weight:700; font-family:'Space Grotesk',sans-serif; }
   .exp-note { font-size:13px; font-weight:500; }
   .exp-no-note { color:#334155; font-style:italic; }
@@ -192,8 +192,15 @@
 
   .tab { display:none; } .tab.active { display:block; }
 
-  /* ── Tablet (≤ 680px) ── */
+  /* ── Tablet / Mobile (≤ 680px) ── */
   @media (max-width:680px) {
+    /* Header: logo row on top, nav bar on its own full-width row below */
+    .header { flex-direction:column; padding:10px 12px 0; gap:0; align-items:stretch; }
+    .header > div:first-child { display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; }
+    .header-right { overflow:visible; min-width:0; border-top:1px solid #1e1e3a; padding:4px 0 6px; gap:4px; }
+    .nav { flex:1; }
+    .signout-btn { flex-shrink:0; }
+    /* Grids */
     .income-grid { grid-template-columns:1fr 1fr; }
     .income-card.total { grid-column:span 2; }
     .summary-grid { grid-template-columns:1fr 1fr; gap:10px; }
@@ -205,8 +212,6 @@
     .expense-form-grid { grid-template-columns:1fr 1fr; }
     .expense-form-grid .btn-primary { grid-column:span 2; }
     .expense-row { grid-template-columns:75px 1fr auto; }
-    .expense-row > div:nth-child(3),
-    .expense-row > div:nth-child(4) { display:none; }
     .user-email { display:none; }
     .modal-grid { grid-template-columns:1fr; }
     /* tx-row: name + amount on row 1, full-width select row 2, full-width buttons row 3 */
@@ -1000,10 +1005,14 @@ function renderExpenses(){
     const col=CAT_COLORS[e.category]||"#818cf8";
     return `<div class="expense-row">
       <div class="exp-amount" style="color:${col}">${fmt(e.amount)}</div>
-      <div><div class="exp-note ${e.note?'':'exp-no-note'}">${e.note?esc(e.note):'No note'}</div><div class="exp-date">${e.date||""}</div></div>
-      <div><span class="cat-badge" style="background:${col}18;color:${col};border:1px solid ${col}33">${esc(e.category)}</span></div>
-      <div style="font-size:11px;color:#475569">${e.date||""}</div>
-      <div style="display:flex;gap:4px">
+      <div>
+        <div class="exp-note ${e.note?'':'exp-no-note'}">${e.note?esc(e.note):'No note'}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap">
+          <span class="cat-badge" style="background:${col}18;color:${col};border:1px solid ${col}33">${esc(e.category)}</span>
+          <span class="exp-date">${e.date||""}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center">
         <button class="btn-edit" onclick="openEditModal('${e.id}')">✏️</button>
         <button class="btn-ghost" onclick="deleteExpense('${e.id}')">×</button>
       </div>
