@@ -127,6 +127,31 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 @keyframes eventGlow{0%,100%{box-shadow:0 0 8px rgba(245,158,11,0.15)}50%{box-shadow:0 0 18px rgba(245,158,11,0.3)}}
 .event-badge{font-size:9px;font-weight:700;color:#fbbf24;background:#f59e0b22;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle}
 
+/* Task Detail Modal */
+.detail-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center}
+.detail-overlay.show{display:flex}
+.detail-modal{background:#1a1530;border:2px solid #2a1f4e;border-radius:20px;padding:28px 24px;max-width:380px;width:90%;animation:lootPop 0.3s ease}
+.detail-emoji{font-size:48px;text-align:center}
+.detail-name{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#e2e8f0;text-align:center;margin:8px 0 4px}
+.detail-realm{font-size:12px;color:#7c6f9b;text-align:center;text-transform:uppercase;letter-spacing:0.5px}
+.detail-stats{display:flex;justify-content:center;gap:16px;margin:14px 0}
+.detail-stat{text-align:center}
+.detail-stat-val{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#c084fc}
+.detail-stat-lbl{font-size:10px;color:#7c6f9b;text-transform:uppercase}
+.detail-tips{background:#0a0a14;border:1px solid #2a1f4e;border-radius:12px;padding:14px;margin:14px 0}
+.detail-tips-title{font-size:11px;font-weight:700;color:#c084fc;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.detail-tip{font-size:13px;color:#e2e8f0;padding:4px 0 4px 16px;position:relative}
+.detail-tip::before{content:'•';position:absolute;left:4px;color:#c084fc}
+.detail-btns{display:flex;gap:8px;margin-top:16px}
+.detail-btns button{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:13px;cursor:pointer}
+.detail-btn-complete{background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff}
+.detail-btn-timer{background:#0a0a14;border:1px solid #2a1f4e!important;color:#c084fc}
+.detail-btn-close{background:#0a0a14;border:1px solid #2a1f4e!important;color:#7c6f9b}
+body.light .detail-modal{background:#fff;border-color:#d8d4e8}
+body.light .detail-tips{background:#f5f3fa;border-color:#d8d4e8}
+body.light .detail-name{color:#1a1a2e}
+body.light .detail-tip{color:#1a1a2e}
+
 /* Loot drops */
 .loot-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center}
 .loot-modal-overlay.show{display:flex}
@@ -290,6 +315,23 @@ body.light input,body.light select{background:#f5f3fa;border-color:#d8d4e8;color
   </div>
   <div class="reset-wrap"><button class="reset-btn" onclick="resetAll()">Reset All Progress</button></div>
 </div>
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()">
+  <div class="detail-modal" onclick="event.stopPropagation()">
+    <div class="detail-emoji" id="det-emoji"></div>
+    <div class="detail-name" id="det-name"></div>
+    <div class="detail-realm" id="det-realm"></div>
+    <div class="detail-stats">
+      <div class="detail-stat"><div class="detail-stat-val" id="det-pts"></div><div class="detail-stat-lbl">XP</div></div>
+      <div class="detail-stat"><div class="detail-stat-val" id="det-diff"></div><div class="detail-stat-lbl">Difficulty</div></div>
+    </div>
+    <div class="detail-tips"><div class="detail-tips-title">How to Complete</div><div id="det-tips"></div></div>
+    <div class="detail-btns">
+      <button class="detail-btn-complete" id="det-complete-btn">Complete</button>
+      <button class="detail-btn-timer" id="det-timer-btn">⏱ Timer</button>
+      <button class="detail-btn-close" onclick="closeDetail()">Close</button>
+    </div>
+  </div>
+</div>
 <div class="timer-overlay" id="timer-overlay">
   <div class="timer-task-name" id="timer-task-name"></div>
   <div class="timer-display" id="timer-display">25:00</div>
@@ -327,62 +369,112 @@ const DAY_REALMS = [
 ];
 const TASKS = [
   // Kitchen
-  {id:'k1',realm:'Kitchen',name:'Dish Tornado Jutsu — Wash All Dishes!',diff:'Easy',pts:10},
-  {id:'k2',realm:'Kitchen',name:'Counter Purification Beam',diff:'Easy',pts:10},
-  {id:'k3',realm:'Kitchen',name:'Defeat the Stovetop Grease Demon',diff:'Medium',pts:25},
-  {id:'k4',realm:'Kitchen',name:'Fridge Boss Battle — Full Cleanout!',diff:'Hard',pts:50},
-  {id:'k5',realm:'Kitchen',name:'Swift Sweep no Jutsu — Kitchen Floor',diff:'Easy',pts:10},
-  {id:'k6',realm:'Kitchen',name:'Banish the Trash Monster',diff:'Easy',pts:10},
-  {id:'k7',realm:'Kitchen',name:'Microwave Radiation Cleanse',diff:'Easy',pts:10},
-  {id:'k8',realm:'Kitchen',name:'Organize the Pantry Scrolls',diff:'Medium',pts:25},
+  {id:'k1',realm:'Kitchen',name:'Dish Tornado Jutsu — Wash All Dishes!',diff:'Easy',pts:10,
+    tips:['Scrape food scraps into trash first','Wash in order: glasses, silverware, plates, pots','Use hot soapy water for best results','Rinse and place in drying rack']},
+  {id:'k2',realm:'Kitchen',name:'Counter Purification Beam',diff:'Easy',pts:10,
+    tips:['Clear all items off counters first','Spray with all-purpose cleaner','Wipe in circular motions with a microfiber cloth','Pay attention to edges and corners']},
+  {id:'k3',realm:'Kitchen',name:'Defeat the Stovetop Grease Demon',diff:'Medium',pts:25,
+    tips:['Remove burner grates and knobs','Apply degreaser and let sit 5 minutes','Scrub with non-scratch pad','Wipe clean and reassemble','Clean the backsplash behind the stove']},
+  {id:'k4',realm:'Kitchen',name:'Fridge Boss Battle — Full Cleanout!',diff:'Hard',pts:50,
+    tips:['Remove all items shelf by shelf','Toss expired food and leftovers','Wipe shelves and drawers with baking soda solution','Clean door seals with a toothbrush','Organize items back by category']},
+  {id:'k5',realm:'Kitchen',name:'Swift Sweep no Jutsu — Kitchen Floor',diff:'Easy',pts:10,
+    tips:['Start from the far corner, sweep toward the door','Get under the table and chairs','Pay extra attention to areas near the stove and trash','Sweep debris into dustpan']},
+  {id:'k6',realm:'Kitchen',name:'Banish the Trash Monster',diff:'Easy',pts:10,
+    tips:['Pull the bag and tie it securely','Take the bag out to the outdoor bin','Wipe inside of the trash can with disinfectant','Replace with a fresh bag']},
+  {id:'k7',realm:'Kitchen',name:'Microwave Radiation Cleanse',diff:'Easy',pts:10,
+    tips:['Place a bowl of water with lemon inside','Microwave for 3 minutes to create steam','Wipe interior with a damp cloth','Clean the turntable separately']},
+  {id:'k8',realm:'Kitchen',name:'Organize the Pantry Scrolls',diff:'Medium',pts:25,
+    tips:['Take everything out of the pantry','Check expiration dates and toss old items','Wipe down shelves','Group items by category (cans, snacks, baking, etc.)','Put most-used items at eye level']},
   // Bathroom
-  {id:'b1',realm:'Bathroom',name:'Toilet Thunder Strike — Scrub Clean!',diff:'Medium',pts:25},
-  {id:'b2',realm:'Bathroom',name:'Mirror Reflection Technique',diff:'Easy',pts:10},
-  {id:'b3',realm:'Bathroom',name:'Shower Steam Purification Ritual',diff:'Medium',pts:25},
-  {id:'b4',realm:'Bathroom',name:'Tile Mopping Kata',diff:'Easy',pts:10},
-  {id:'b5',realm:'Bathroom',name:'Sink Basin Spirit Cleanse',diff:'Medium',pts:25},
-  {id:'b6',realm:'Bathroom',name:'Towel Restock Formation',diff:'Easy',pts:10},
-  {id:'b7',realm:'Bathroom',name:'Grout Darkness Banishment',diff:'Hard',pts:50},
+  {id:'b1',realm:'Bathroom',name:'Toilet Thunder Strike — Scrub Clean!',diff:'Medium',pts:25,
+    tips:['Apply toilet bowl cleaner under the rim','Let it sit while you clean the exterior','Scrub the bowl with a toilet brush','Wipe the seat, lid, base, and handle with disinfectant','Mop around the base of the toilet']},
+  {id:'b2',realm:'Bathroom',name:'Mirror Reflection Technique',diff:'Easy',pts:10,
+    tips:['Spray glass cleaner in a Z pattern','Wipe with a lint-free cloth top to bottom','Buff any streaks with a dry microfiber cloth','Clean the mirror edges and frame']},
+  {id:'b3',realm:'Bathroom',name:'Shower Steam Purification Ritual',diff:'Medium',pts:25,
+    tips:['Spray shower walls and door with bathroom cleaner','Let it sit for 5 minutes','Scrub tiles with a brush, working top to bottom','Rinse everything with the showerhead','Squeegee the glass door to prevent water spots']},
+  {id:'b4',realm:'Bathroom',name:'Tile Mopping Kata',diff:'Easy',pts:10,
+    tips:['Sweep or vacuum the floor first','Mop with warm water and floor cleaner','Pay attention to corners and behind the toilet','Let the floor air dry or wipe with a towel']},
+  {id:'b5',realm:'Bathroom',name:'Sink Basin Spirit Cleanse',diff:'Medium',pts:25,
+    tips:['Remove items from around the sink','Scrub the basin with a cleaning paste','Clean the faucet and handles with disinfectant','Wipe down the countertop','Polish the faucet with a dry cloth for shine']},
+  {id:'b6',realm:'Bathroom',name:'Towel Restock Formation',diff:'Easy',pts:10,
+    tips:['Remove all used towels and washcloths','Put them in the laundry','Fold fresh towels neatly','Hang hand towels and restock the rack']},
+  {id:'b7',realm:'Bathroom',name:'Grout Darkness Banishment',diff:'Hard',pts:50,
+    tips:['Make a paste of baking soda and water','Apply to grout lines with an old toothbrush','Let sit for 10 minutes','Scrub vigorously in small sections','Rinse with warm water and dry','Consider a grout sealer for long-term protection']},
   // Floors
-  {id:'f1',realm:'Floors',name:'Vacuum Vortex — All Rooms!',diff:'Medium',pts:25},
-  {id:'f2',realm:'Floors',name:'Mop Wave Technique',diff:'Medium',pts:25},
-  {id:'f3',realm:'Floors',name:'Entryway Sweep Strike',diff:'Easy',pts:10},
-  {id:'f4',realm:'Floors',name:'Carpet Stain Final Boss',diff:'Hard',pts:50},
-  {id:'f5',realm:'Floors',name:'Baseboard Dust Exorcism',diff:'Medium',pts:25},
-  {id:'f6',realm:'Floors',name:'Hallway Speed Sweep Challenge',diff:'Easy',pts:10},
-  {id:'f7',realm:'Floors',name:'Rug Shaking Power Move',diff:'Easy',pts:10},
+  {id:'f1',realm:'Floors',name:'Vacuum Vortex — All Rooms!',diff:'Medium',pts:25,
+    tips:['Pick up toys, shoes, and clutter first','Start from the farthest room, work toward the entrance','Use crevice tool along walls and edges','Move furniture to get underneath where possible','Empty the vacuum canister when done']},
+  {id:'f2',realm:'Floors',name:'Mop Wave Technique',diff:'Medium',pts:25,
+    tips:['Sweep or vacuum first to remove loose debris','Use warm water with floor-appropriate cleaner','Mop in figure-8 motions','Rinse mop frequently in clean water','Work backward toward the door so you don\'t step on wet areas']},
+  {id:'f3',realm:'Floors',name:'Entryway Sweep Strike',diff:'Easy',pts:10,
+    tips:['Shake out the doormat outside','Sweep the entryway floor','Wipe down the shoe rack or tray','Straighten any shoes or items by the door']},
+  {id:'f4',realm:'Floors',name:'Carpet Stain Final Boss',diff:'Hard',pts:50,
+    tips:['Identify all visible stains','Blot (don\'t rub) fresh stains with a clean cloth','Apply carpet stain remover and let sit per directions','Work from the outside of the stain inward','Blot with clean water to rinse','Use a carpet cleaner machine for deep stains']},
+  {id:'f5',realm:'Floors',name:'Baseboard Dust Exorcism',diff:'Medium',pts:25,
+    tips:['Use a damp microfiber cloth or dryer sheet','Wipe along the top of baseboards first','Work your way around each room','Use a cotton swab for tight corners','Follow up with a dry cloth']},
+  {id:'f6',realm:'Floors',name:'Hallway Speed Sweep Challenge',diff:'Easy',pts:10,
+    tips:['Start at one end of the hallway','Sweep in long strokes toward the other end','Get along the edges where dust collects','Collect debris in a dustpan at the end']},
+  {id:'f7',realm:'Floors',name:'Rug Shaking Power Move',diff:'Easy',pts:10,
+    tips:['Take rugs outside','Shake vigorously to remove dust and debris','Hang over a railing and beat with a broom if needed','Vacuum both sides before placing back']},
   // Yard
-  {id:'y1',realm:'Yard',name:'Lawn Titan Takedown — Mow It All!',diff:'Hard',pts:50},
-  {id:'y2',realm:'Yard',name:'Walkway Sweep Dash',diff:'Easy',pts:10},
-  {id:'y3',realm:'Yard',name:'Garden Spirit Tending',diff:'Medium',pts:25},
-  {id:'y4',realm:'Yard',name:'Weed Slayer Mode: ACTIVATED',diff:'Medium',pts:25},
-  {id:'y5',realm:'Yard',name:'Fallen Leaf Roundup',diff:'Easy',pts:10},
-  {id:'y6',realm:'Yard',name:'Hose Down the Patio Arena',diff:'Medium',pts:25},
-  {id:'y7',realm:'Yard',name:'Trim the Hedge Guardians',diff:'Hard',pts:50},
+  {id:'y1',realm:'Yard',name:'Lawn Titan Takedown — Mow It All!',diff:'Hard',pts:50,
+    tips:['Check mower oil and gas levels','Set blade height to cut no more than 1/3 of grass height','Mow in overlapping rows for even coverage','Trim edges with a weed eater','Blow or rake clippings off walkways']},
+  {id:'y2',realm:'Yard',name:'Walkway Sweep Dash',diff:'Easy',pts:10,
+    tips:['Use a stiff outdoor broom','Sweep debris away from the house','Clear any leaves from cracks','Pay attention to the front porch and steps']},
+  {id:'y3',realm:'Yard',name:'Garden Spirit Tending',diff:'Medium',pts:25,
+    tips:['Water plants at the base, not the leaves','Check for dead or yellowing leaves and trim them','Add mulch around plants to retain moisture','Check soil moisture before watering','Pull any small weeds you spot']},
+  {id:'y4',realm:'Yard',name:'Weed Slayer Mode: ACTIVATED',diff:'Medium',pts:25,
+    tips:['Pull weeds after rain when soil is soft','Grab close to the root for full removal','Use a weeding tool for deep-rooted weeds','Focus on garden beds and walkway edges','Bag and dispose of pulled weeds']},
+  {id:'y5',realm:'Yard',name:'Fallen Leaf Roundup',diff:'Easy',pts:10,
+    tips:['Rake leaves into small piles','Gather piles onto a tarp for easy transport','Bag the leaves or add to compost','Clear leaves from gutters and drains too']},
+  {id:'y6',realm:'Yard',name:'Hose Down the Patio Arena',diff:'Medium',pts:25,
+    tips:['Move outdoor furniture to one side','Sweep loose debris first','Spray the patio with a garden hose (or pressure washer)','Scrub stubborn spots with a stiff brush','Move furniture back once dry']},
+  {id:'y7',realm:'Yard',name:'Trim the Hedge Guardians',diff:'Hard',pts:50,
+    tips:['Use sharp, clean hedge shears or an electric trimmer','Start from the bottom and work upward','Step back frequently to check for evenness','Collect clippings with a tarp laid below','Shape hedges wider at the bottom for sunlight']},
   // Bedroom
-  {id:'d1',realm:'Bedroom',name:'Bed Making Transformation Sequence',diff:'Easy',pts:10},
-  {id:'d2',realm:'Bedroom',name:'Wardrobe Inventory Arc',diff:'Medium',pts:25},
-  {id:'d3',realm:'Bedroom',name:'Surface Dust Flash Step',diff:'Easy',pts:10},
-  {id:'d4',realm:'Bedroom',name:'Nightstand Declutter Combo',diff:'Easy',pts:10},
-  {id:'d5',realm:'Bedroom',name:'Under-Bed Shadow Realm Cleanup',diff:'Hard',pts:50},
-  {id:'d6',realm:'Bedroom',name:'Pillow Fluff Power-Up',diff:'Easy',pts:10},
-  {id:'d7',realm:'Bedroom',name:'Closet Organization Final Form',diff:'Medium',pts:25},
+  {id:'d1',realm:'Bedroom',name:'Bed Making Transformation Sequence',diff:'Easy',pts:10,
+    tips:['Pull sheets tight and tuck corners','Smooth the comforter or duvet evenly','Fluff and arrange pillows','Fold any throw blankets neatly at the foot']},
+  {id:'d2',realm:'Bedroom',name:'Wardrobe Inventory Arc',diff:'Medium',pts:25,
+    tips:['Take everything out of one section at a time','Sort into keep, donate, and toss piles','Wipe down shelves and rods','Organize by type: shirts, pants, etc.','Put most-worn items at eye level']},
+  {id:'d3',realm:'Bedroom',name:'Surface Dust Flash Step',diff:'Easy',pts:10,
+    tips:['Use a microfiber cloth or duster','Start high (shelves, headboard) and work down','Don\'t forget lamp shades and picture frames','Wipe nightstands and dressers']},
+  {id:'d4',realm:'Bedroom',name:'Nightstand Declutter Combo',diff:'Easy',pts:10,
+    tips:['Remove everything from the nightstand','Wipe the surface clean','Only put back essentials (lamp, phone charger, book)','Toss or relocate everything else']},
+  {id:'d5',realm:'Bedroom',name:'Under-Bed Shadow Realm Cleanup',diff:'Hard',pts:50,
+    tips:['Pull items out from under the bed','Sort into keep, toss, and relocate','Vacuum or sweep under the bed thoroughly','Dust the bed frame','Use storage containers for items going back under']},
+  {id:'d6',realm:'Bedroom',name:'Pillow Fluff Power-Up',diff:'Easy',pts:10,
+    tips:['Remove pillowcases and check for stains','Fluff each pillow by hand','Toss in the dryer on low heat for 10 min for extra fluff','Replace pillowcases with fresh ones']},
+  {id:'d7',realm:'Bedroom',name:'Closet Organization Final Form',diff:'Medium',pts:25,
+    tips:['Group clothing by category and color','Face all hangers the same direction','Use shelf dividers or bins for folded items','Store out-of-season clothes separately','Keep the closet floor clear']},
   // Living Room
-  {id:'l1',realm:'Living Room',name:'Cushion Revival Technique',diff:'Easy',pts:10},
-  {id:'l2',realm:'Living Room',name:'Entertainment Shrine Dusting',diff:'Medium',pts:25},
-  {id:'l3',realm:'Living Room',name:'Surface Wipe Barrage',diff:'Easy',pts:10},
-  {id:'l4',realm:'Living Room',name:'Bookshelf Sorting Arc',diff:'Medium',pts:25},
-  {id:'l5',realm:'Living Room',name:'Window Crystal Clear Vision',diff:'Hard',pts:50},
-  {id:'l6',realm:'Living Room',name:'Remote Control Rescue Mission',diff:'Easy',pts:10},
-  {id:'l7',realm:'Living Room',name:'Cable Management no Jutsu',diff:'Medium',pts:25},
+  {id:'l1',realm:'Living Room',name:'Cushion Revival Technique',diff:'Easy',pts:10,
+    tips:['Remove all cushions from the couch','Vacuum the couch base and crevices','Fluff and flip each cushion','Arrange them neatly back in place']},
+  {id:'l2',realm:'Living Room',name:'Entertainment Shrine Dusting',diff:'Medium',pts:25,
+    tips:['Unplug electronics before wiping','Use a microfiber cloth for screens','Dust all shelves, consoles, and speakers','Wipe remote controls with disinfectant','Organize cables and media']},
+  {id:'l3',realm:'Living Room',name:'Surface Wipe Barrage',diff:'Easy',pts:10,
+    tips:['Spray all-purpose cleaner on a cloth (not directly on surfaces)','Wipe coffee table, end tables, and shelves','Don\'t forget windowsills and ledges','Dry with a clean cloth to avoid streaks']},
+  {id:'l4',realm:'Living Room',name:'Bookshelf Sorting Arc',diff:'Medium',pts:25,
+    tips:['Remove all books and items','Dust each shelf thoroughly','Sort books by genre, author, or size','Arrange decorative items with intention','Don\'t overcrowd — leave some breathing room']},
+  {id:'l5',realm:'Living Room',name:'Window Crystal Clear Vision',diff:'Hard',pts:50,
+    tips:['Remove curtains or blinds if possible','Spray glass cleaner on the window','Wipe in a Z pattern with a lint-free cloth','Clean the window sill and frame','Wash or dust curtains/blinds before replacing']},
+  {id:'l6',realm:'Living Room',name:'Remote Control Rescue Mission',diff:'Easy',pts:10,
+    tips:['Gather all remotes from around the room','Wipe each with a disinfecting wipe','Use a toothpick to clean between buttons','Replace dead batteries','Return them all to one designated spot']},
+  {id:'l7',realm:'Living Room',name:'Cable Management no Jutsu',diff:'Medium',pts:25,
+    tips:['Unplug everything and identify each cable','Bundle related cables with zip ties or velcro','Route cables behind furniture out of sight','Label cables for easy identification','Use a cable box or tray to hide power strips']},
   // Laundry
-  {id:'w1',realm:'Laundry',name:'Washing Machine Summoning',diff:'Easy',pts:10},
-  {id:'w2',realm:'Laundry',name:'Folding Technique: Master Level',diff:'Easy',pts:10},
-  {id:'w3',realm:'Laundry',name:'Iron Armor Pressing Ritual',diff:'Medium',pts:25},
-  {id:'w4',realm:'Laundry',name:'Laundry Sorting Gauntlet',diff:'Easy',pts:10},
-  {id:'w5',realm:'Laundry',name:'Washing Machine Deep Purification',diff:'Hard',pts:50},
-  {id:'w6',realm:'Laundry',name:'Dryer Lint Trap Rescue',diff:'Easy',pts:10},
-  {id:'w7',realm:'Laundry',name:'Stain Removal Special Attack',diff:'Medium',pts:25},
+  {id:'w1',realm:'Laundry',name:'Washing Machine Summoning',diff:'Easy',pts:10,
+    tips:['Sort clothes by color and fabric type','Check all pockets before loading','Don\'t overload the machine','Add detergent per label instructions','Select the right water temperature']},
+  {id:'w2',realm:'Laundry',name:'Folding Technique: Master Level',diff:'Easy',pts:10,
+    tips:['Fold items while still warm to reduce wrinkles','Stack by category: shirts, pants, towels','Use the file fold method for drawers','Hang items that wrinkle easily','Put folded items away immediately']},
+  {id:'w3',realm:'Laundry',name:'Iron Armor Pressing Ritual',diff:'Medium',pts:25,
+    tips:['Set iron to the correct temperature for the fabric','Iron inside-out for delicate fabrics','Start with items that need the lowest heat','Use steam for stubborn wrinkles','Hang items immediately after ironing']},
+  {id:'w4',realm:'Laundry',name:'Laundry Sorting Gauntlet',diff:'Easy',pts:10,
+    tips:['Separate whites, darks, and colors','Pull out delicates and hand-wash items','Check for heavily stained items that need pre-treatment','Sort by wash temperature if needed']},
+  {id:'w5',realm:'Laundry',name:'Washing Machine Deep Purification',diff:'Hard',pts:50,
+    tips:['Run an empty hot cycle with 2 cups white vinegar','Wipe the drum interior with a cloth','Clean the detergent dispenser drawer','Wipe the door seal and remove any debris','Leave the door open after to air dry','Clean the lint filter if applicable']},
+  {id:'w6',realm:'Laundry',name:'Dryer Lint Trap Rescue',diff:'Easy',pts:10,
+    tips:['Pull out the lint screen','Remove all lint by hand','Rinse the screen with warm water monthly','Wipe inside the lint trap slot','Check the dryer vent hose for buildup']},
+  {id:'w7',realm:'Laundry',name:'Stain Removal Special Attack',diff:'Medium',pts:25,
+    tips:['Identify the stain type (grease, food, ink, etc.)','Apply appropriate pre-treatment product','Let it soak for 10-15 minutes','Gently rub the fabric together','Wash in the hottest water safe for the fabric','Check that the stain is gone before drying']},
 ];
 // Random event quests (can appear on any day as bonus)
 const EVENT_QUESTS = [
@@ -733,16 +825,9 @@ function render(){
       '</div><div class="quest-info"><div class="quest-realm">'+realmLabel+eventTag+
       '</div><div class="quest-name">'+q.name+'</div></div><div class="quest-right"><div class="quest-points">+'+
       q.pts+' XP</div><div class="quest-diff diff-'+q.diff.toLowerCase()+'">'+q.diff+'</div></div>';
-    if(!done){
-      (function(quest){
-        card.onclick=function(e){completeQuest(quest.id)};
-        var timerBtn=document.createElement('div');
-        timerBtn.textContent='⏱️';timerBtn.style.cssText='cursor:pointer;font-size:18px;flex-shrink:0';
-        timerBtn.title='Start timer';
-        timerBtn.onclick=function(e){e.stopPropagation();startTimer(quest.id,quest.name)};
-        card.appendChild(timerBtn);
-      })(q);
-    }
+    (function(quest){
+      card.onclick=function(){showDetail(quest)};
+    })(q);
     grid.appendChild(card);
   });
   // Boss, Skill Tree, Leaderboard
@@ -821,6 +906,31 @@ function renderLeaderboard(){
     lb.appendChild(row);
   });
 }
+
+/* ========== TASK DETAIL MODAL ========== */
+var detailQuestId=null;
+function showDetail(quest){
+  detailQuestId=quest.id;
+  var isEvent=!!quest.event;
+  document.getElementById('det-emoji').textContent=isEvent?'⚡':realmEmoji(quest.realm);
+  document.getElementById('det-name').textContent=quest.name;
+  document.getElementById('det-realm').textContent=isEvent?'Random Event':quest.realm;
+  document.getElementById('det-pts').textContent='+'+quest.pts;
+  document.getElementById('det-diff').textContent=quest.diff;
+  var tipsHtml='';
+  var tips=quest.tips||['No additional details for this mission'];
+  tips.forEach(function(t){tipsHtml+='<div class="detail-tip">'+t+'</div>'});
+  document.getElementById('det-tips').innerHTML=tipsHtml;
+  var done=state.todayDone.indexOf(quest.id)!==-1;
+  document.getElementById('det-complete-btn').textContent=done?'Completed':'Complete Mission';
+  document.getElementById('det-complete-btn').disabled=done;
+  document.getElementById('det-complete-btn').style.opacity=done?'0.4':'1';
+  document.getElementById('det-complete-btn').onclick=function(){completeQuest(quest.id);closeDetail()};
+  document.getElementById('det-timer-btn').onclick=function(){closeDetail();startTimer(quest.id,quest.name)};
+  document.getElementById('det-timer-btn').style.display=done?'none':'block';
+  document.getElementById('detail-overlay').className='detail-overlay show';
+}
+function closeDetail(){document.getElementById('detail-overlay').className='detail-overlay'}
 
 /* ========== CUSTOM QUESTS ========== */
 function toggleCustomForm(){
