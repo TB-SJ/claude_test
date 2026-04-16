@@ -324,6 +324,7 @@
         <button class="nav-btn" onclick="switchTab('expenses',this)">Expenses</button>
         <button class="nav-btn" onclick="switchTab('history',this)">History</button>
         <button class="nav-btn" onclick="switchTab('transactions',this)">🏦 Transactions</button>
+        <button class="nav-btn" onclick="switchTab('goals',this)">🎯 Goals</button>
       </nav>
       <button class="signout-btn" onclick="doSignOut()">Sign Out</button>
     </div>
@@ -344,6 +345,7 @@
           <button class="filter-pill" onclick="setBillFilter('fixed',this)">Fixed Bills</button>
           <button class="filter-pill" onclick="setBillFilter('budget',this)">Budget</button>
         </div>
+        <button class="btn-secondary" style="font-size:12px;padding:6px 14px;min-height:36px;white-space:nowrap" onclick="markAllDueBills()">✓ Mark Due Paid</button>
         <button class="btn-secondary" style="font-size:12px;padding:6px 14px;min-height:36px;white-space:nowrap" onclick="downloadBillsCSV()">⬇ Export CSV</button>
       </div>
       <div id="fixed-section">
@@ -378,9 +380,12 @@
         </div>
       </div>
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
           <div class="card-title" style="margin-bottom:0" id="exp-month-label">This Month's Expenses</div>
-          <div id="exp-total" style="font-size:20px;font-weight:700;color:#f472b6;font-family:'Space Grotesk',sans-serif"></div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div id="exp-total" style="font-size:20px;font-weight:700;color:#f472b6;font-family:'Space Grotesk',sans-serif"></div>
+            <button class="btn-secondary" style="font-size:12px;padding:6px 12px;min-height:unset" onclick="exportCSV()">⬇ Export CSV</button>
+          </div>
         </div>
         <div id="expenses-list"></div>
       </div>
@@ -398,6 +403,10 @@
         <div class="loading-screen"><div class="spinner"></div><div class="loading-text">Loading transactions…</div></div>
       </div>
     </div>
+
+    <!-- GOALS -->
+    <div id="tab-goals" class="tab" style="padding-top:24px"></div>
+
   </div>
 </div>
 
@@ -502,7 +511,7 @@ function showToast(msg,type="success") {
 }
 
 // ── State ──
-let user=null, incomeRec=null, bills=[], expenses={}, chartMonth=monthKey, editingBillId=null, editingExpId=null, editingDueId=null, billsCatFilter='all';
+let user=null, incomeRec=null, bills=[], expenses={}, goals=[], chartMonth=monthKey, editingBillId=null, editingExpId=null, editingDueId=null, billsCatFilter='all';
 let _signingOut = false; // prevents onAuthStateChange from re-initializing during sign-out
 
 // ── Month navigation ──
@@ -568,7 +577,7 @@ async function doSignOut() {
     try { localStorage.removeItem('personal-budget-auth'); } catch(_) {}
   }
   _signingOut = false;
-  user=null; incomeRec=null; bills=[]; expenses={}; plaidTransactions=[]; plaidConnections=[]; csvPendingTransactions=[];
+  user=null; incomeRec=null; bills=[]; expenses={}; goals=[]; plaidTransactions=[]; plaidConnections=[]; csvPendingTransactions=[];
   clearCache();
   document.getElementById("main-app").style.display="none";
   document.getElementById("auth-screen").style.display="flex";
@@ -584,14 +593,14 @@ function setLoadingStep(msg) {
 function saveCache() {
   try {
     localStorage.setItem('budget_cache_' + user.id,
-      JSON.stringify({ incomeRec, bills, expenses }));
+      JSON.stringify({ incomeRec, bills, expenses, goals }));
   } catch(e) {}
 }
 function loadCache() {
   try {
     const c = JSON.parse(localStorage.getItem('budget_cache_' + user.id));
     if (!c) return false;
-    incomeRec = c.incomeRec; bills = c.bills || []; expenses = c.expenses || {};
+    incomeRec = c.incomeRec; bills = c.bills || []; expenses = c.expenses || {}; goals = c.goals || [];
     return true;
   } catch(e) { return false; }
 }
@@ -644,7 +653,7 @@ sb.auth.onAuthStateChange(async(event, session)=>{
   if(_signingOut) return; // ignore all events while sign-out is in progress
   if(event === 'SIGNED_OUT') {
     clearCache();
-    user=null; incomeRec=null; bills=[]; expenses={};
+    user=null; incomeRec=null; bills=[]; expenses={}; goals=[];
     document.getElementById("main-app").style.display="none";
     document.getElementById("auth-screen").style.display="flex";
     return;
@@ -666,7 +675,7 @@ async function loadAll() {
     await Promise.race([
       (async() => {
         setLoadingStep("Loading data…");
-        await Promise.all([loadIncome(), loadBills(), loadExpenses()]);
+        await Promise.all([loadIncome(), loadBills(), loadExpenses(), loadGoals()]);
       })(),
       timeout
     ]);
@@ -706,6 +715,11 @@ async function loadExpenses() {
   expenses={};
   (data||[]).forEach(e=>{ if(!expenses[e.month_key]) expenses[e.month_key]=[]; expenses[e.month_key].push(e); });
 }
+async function loadGoals() {
+  const {data,error}=await sb.from("budget_goals").select("*").eq("user_id",user.id).order("sort_order",{ascending:true});
+  if(error) { console.error("Goals load error:", error.message); return; }
+  goals=data||[];
+}
 
 // ── Derived ──
 function currentBillPaid(b){ return ((b.paid_history||{})[monthKey]) ?? (b.paid||0); }
@@ -716,7 +730,7 @@ function monthExps(){ return expenses[monthKey]||[]; }
 function totalMonthExp(){ return monthExps().reduce((s,e)=>s+parseFloat(e.amount||0),0); }
 
 // ── Render ──
-function renderAll() { renderSummary(); renderBills(); renderExpenses(); renderHistory(); }
+function renderAll() { renderSummary(); renderBills(); renderExpenses(); renderHistory(); renderGoals(); }
 
 function buildDashboard() {
   document.getElementById("tab-dashboard").innerHTML=`
@@ -753,16 +767,41 @@ function buildDashboard() {
       <div class="income-sub">Combined monthly</div>
     </div>
   </div>
+  <!-- Available cash card -->
+  <div class="card" style="background:linear-gradient(135deg,#0f1f1a,#0a1a14);border-color:#064e3b">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+      <div>
+        <div class="card-title" style="color:#10b981;margin-bottom:6px">💵 Available This Month</div>
+        <div id="avail-amount" style="font-size:36px;font-weight:700;font-family:'Space Grotesk',sans-serif"></div>
+        <div id="avail-breakdown" style="font-size:12px;color:#475569;margin-top:6px"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="card-title" style="margin-bottom:6px">After Bills Paid</div>
+        <div id="avail-after-paid" style="font-size:22px;font-weight:700;font-family:'Space Grotesk',sans-serif"></div>
+        <div style="font-size:11px;color:#475569;margin-top:4px">income − paid − spent</div>
+      </div>
+    </div>
+  </div>
+  <!-- Spending alerts populated by renderSummary -->
+  <div id="spending-alerts"></div>
+  <!-- Summary grid -->
   <div class="card">
     <div class="summary-grid">
       <div class="summary-item"><div class="summary-label">Bills Budgeted</div><div class="summary-val" style="color:#f59e0b" id="s-budgeted"></div></div>
       <div class="summary-item"><div class="summary-label">Bills Paid</div><div class="summary-val" style="color:#10b981" id="s-paid"></div></div>
       <div class="summary-item"><div class="summary-label">Expenses</div><div class="summary-val" style="color:#f472b6" id="s-exp"></div></div>
-      <div class="summary-item"><div class="summary-label">Remaining</div><div class="summary-val" id="s-rem"></div></div>
+      <div class="summary-item"><div class="summary-label">Unallocated</div><div class="summary-val" id="s-rem"></div></div>
     </div>
     <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
     <div class="progress-label" id="prog-label"></div>
   </div>
+  <!-- 6-month spending trend -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px">📊 6-Month Spending Trend</div>
+    <div id="trend-chart" style="display:flex;gap:6px;align-items:flex-end;height:100px"></div>
+    <div id="trend-labels" style="display:flex;gap:6px;margin-top:8px"></div>
+  </div>
+  <!-- Quick add -->
   <div class="card">
     <div class="card-title">⚡ Quick Add Expense</div>
     <div class="quick-add">
@@ -783,9 +822,10 @@ function populateCats() {
 }
 
 function renderSummary() {
-  const ti=totalIncome(), tb=totalBudgeted(), te=totalMonthExp(), rem=ti-tb-te;
+  const ti=totalIncome(), tb=totalBudgeted(), tp=totalPaid(), te=totalMonthExp(), rem=ti-tb-te;
+  const afterPaid=ti-tp-te;
   const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  set("total-disp",fmt(ti)); set("s-budgeted",fmt(tb)); set("s-paid",fmt(totalPaid())); set("s-exp",fmt(te));
+  set("total-disp",fmt(ti)); set("s-budgeted",fmt(tb)); set("s-paid",fmt(tp)); set("s-exp",fmt(te));
   const remEl=document.getElementById("s-rem");
   if(remEl){remEl.textContent=fmt(rem); remEl.style.color=rem>=0?"#34d399":"#f87171";}
   const pct=ti>0?Math.min(100,((tb+te)/ti)*100):0;
@@ -793,6 +833,60 @@ function renderSummary() {
   if(fill){fill.style.width=pct+"%"; fill.style.background=rem>=0?"linear-gradient(90deg,#6366f1,#10b981)":"linear-gradient(90deg,#f59e0b,#ef4444)";}
   const pl=document.getElementById("prog-label");
   if(pl) pl.textContent=ti>0?`${Math.round(pct)}% of income allocated`:"Set your income above";
+
+  // Available cash card
+  const avEl=document.getElementById("avail-amount");
+  if(avEl){avEl.textContent=fmt(rem); avEl.style.color=rem>=0?"#34d399":"#f87171";}
+  const abEl=document.getElementById("avail-breakdown");
+  if(abEl) abEl.textContent=`${fmt(ti)} income − ${fmt(tb)} budgeted − ${fmt(te)} spent`;
+  const apEl=document.getElementById("avail-after-paid");
+  if(apEl){apEl.textContent=fmt(afterPaid); apEl.style.color=afterPaid>=0?"#34d399":"#f87171";}
+
+  // Spending alerts
+  const alertsEl=document.getElementById("spending-alerts");
+  if(alertsEl){
+    const lim=getLimits();
+    const cats={};
+    (monthExps()||[]).forEach(e=>{ cats[e.category]=(cats[e.category]||0)+parseFloat(e.amount||0); });
+    const alerts=Object.entries(lim).map(([cat,limit])=>{
+      const spent=cats[cat]||0; const pct=limit>0?spent/limit:0;
+      return {cat,spent,limit,pct};
+    }).filter(a=>a.pct>=0.8).sort((a,b)=>b.pct-a.pct);
+    if(alerts.length){
+      alertsEl.innerHTML=`<div class="card" style="border-color:#f59e0b;background:#1a160a">
+        <div class="card-title" style="color:#f59e0b;margin-bottom:10px">⚠️ Spending Alerts</div>
+        ${alerts.map(a=>{
+          const over=a.pct>=1; const col=over?"#f87171":"#f59e0b";
+          return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px">
+            <span style="font-size:13px;font-weight:500;color:${col}">${esc(a.cat)}</span>
+            <span style="font-size:12px;color:#475569">${fmt(a.spent)} / ${fmt(a.limit)} — <b style="color:${col}">${Math.round(a.pct*100)}%${over?' ⚠️ over':''}</b></span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    } else { alertsEl.innerHTML=''; }
+  }
+
+  // 6-month trend chart
+  const trendEl=document.getElementById("trend-chart");
+  const labelEl=document.getElementById("trend-labels");
+  if(trendEl&&labelEl){
+    const months=[];
+    for(let i=5;i>=0;i--){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`); }
+    const data=months.map(mk=>({mk,total:(expenses[mk]||[]).reduce((s,e)=>s+parseFloat(e.amount||0),0)}));
+    const maxV=Math.max(...data.map(d=>d.total),1);
+    trendEl.innerHTML=data.map(d=>{
+      const h=Math.max(4,Math.round((d.total/maxV)*100));
+      const isCur=d.mk===monthKey;
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px">
+        <div style="font-size:10px;color:#475569;white-space:nowrap">${d.total>0?fmt(d.total):''}</div>
+        <div style="width:100%;height:${h}px;background:${isCur?'linear-gradient(180deg,#6366f1,#8b5cf6)':'#2d2d5e'};border-radius:4px 4px 0 0;transition:height 0.4s"></div>
+      </div>`;
+    }).join('');
+    labelEl.innerHTML=data.map(d=>{
+      const [y,m]=d.mk.split('-'); const isCur=d.mk===monthKey;
+      return `<div style="flex:1;text-align:center;font-size:10px;color:${isCur?'#818cf8':'#334155'};font-weight:${isCur?'600':'400'}">${MONTHS[parseInt(m)-1]}</div>`;
+    }).join('');
+  }
 }
 
 // ── Income ──
@@ -963,6 +1057,19 @@ function downloadBillsCSV() {
     download: `budget-${monthKey}.csv`,
   });
   a.click();
+}
+
+async function markAllDueBills() {
+  const today = new Date().getDate();
+  const toBePaid = bills.filter(b => b.due_day && b.due_day <= today && currentBillPaid(b) < b.budgeted);
+  if (!toBePaid.length) return showToast("No due bills need marking","error");
+  for (const b of toBePaid) {
+    const hist = {...(b.paid_history||{}), [monthKey]: b.budgeted};
+    bills = bills.map(x => x.id===b.id ? {...x, paid_history:hist} : x);
+    await sb.from("budget_bills").update({paid_history:hist}).eq("id",b.id).eq("user_id",user.id);
+  }
+  renderBills(); renderSummary(); saveCache();
+  showToast(`Marked ${toBePaid.length} bill${toBePaid.length!==1?'s':''} as paid!`);
 }
 
 // ── Adjust paid/spent ──
@@ -1184,6 +1291,86 @@ function exportCSV(){
   a.download=`expenses-${chartMonth}.csv`;
   a.click();
   showToast("Exported!");
+}
+
+// ── Savings Goals ──
+function renderGoals() {
+  const tab = document.getElementById("tab-goals");
+  if (!tab) return;
+  const GOAL_COLORS = ['#6366f1','#10b981','#f59e0b','#f472b6','#34d399','#818cf8','#fb923c','#38bdf8'];
+  const cards = goals.length ? goals.map(g => {
+    const pct = g.target_amount > 0 ? Math.min(100, ((g.saved_amount||0) / g.target_amount) * 100) : 0;
+    const done = pct >= 100;
+    const remaining = Math.max(0, g.target_amount - (g.saved_amount||0));
+    return `<div class="card" style="border-color:${g.color}44">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <div style="font-size:16px;font-weight:600;color:${g.color}">${esc(g.name)}</div>
+          <div style="font-size:12px;color:#475569;margin-top:2px">${done?'Goal reached!':fmt(remaining)+' left to go'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${done?'<span style="font-size:22px">🎉</span>':''}
+          <button class="btn-ghost" style="font-size:18px;line-height:1;padding:4px 8px" onclick="deleteGoal('${g.id}')">×</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">
+        <div style="font-size:28px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:${g.color}">${fmt(g.saved_amount||0)}</div>
+        <div style="font-size:13px;color:#475569">${Math.round(pct)}% of ${fmt(g.target_amount)}</div>
+      </div>
+      <div style="background:#1e1e3a;border-radius:99px;height:10px;overflow:hidden;margin-bottom:14px">
+        <div style="height:100%;width:${pct}%;background:${done?'linear-gradient(90deg,#10b981,#34d399)':'linear-gradient(90deg,'+g.color+','+g.color+'88)'};border-radius:99px;transition:width 0.5s"></div>
+      </div>
+      ${!done?`<div style="display:flex;gap:8px;align-items:center">
+        <div class="inp-dollar" style="flex:1"><span class="dollar-sign">$</span>
+          <input class="inp" type="number" id="goal-add-${g.id}" placeholder="Add funds" min="0" onkeydown="if(event.key==='Enter')addToGoal('${g.id}')" />
+        </div>
+        <button class="btn btn-primary" style="font-size:13px;padding:8px 16px;min-height:unset;white-space:nowrap" onclick="addToGoal('${g.id}')">+ Add</button>
+      </div>`:`<div style="text-align:center;padding:8px 0;color:#10b981;font-size:14px;font-weight:500">🎉 Goal complete!</div>`}
+    </div>`;
+  }).join('') : `<div class="card"><div class="empty-state">No savings goals yet — add one below!</div></div>`;
+  tab.innerHTML = `${cards}
+    <div class="card" style="margin-top:8px">
+      <div class="card-title" style="margin-bottom:14px">+ New Savings Goal</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <input class="inp" type="text" id="goal-name" placeholder="Goal name (e.g. Vacation Fund, Emergency Fund)" />
+        <div class="inp-dollar"><span class="dollar-sign">$</span>
+          <input class="inp" type="number" id="goal-target" placeholder="Target amount" min="0" />
+        </div>
+        <button class="btn btn-primary" onclick="addGoal()">+ Add Goal</button>
+      </div>
+    </div>`;
+}
+async function addGoal() {
+  const name = document.getElementById("goal-name").value.trim();
+  const target = parseFloat(document.getElementById("goal-target").value);
+  if (!name || !target || target <= 0) return showToast("Fill in goal name and target amount","error");
+  const GOAL_COLORS = ['#6366f1','#10b981','#f59e0b','#f472b6','#34d399','#818cf8','#fb923c','#38bdf8'];
+  const color = GOAL_COLORS[goals.length % GOAL_COLORS.length];
+  const {data,error}=await sb.from("budget_goals").insert({user_id:user.id,name,target_amount:target,saved_amount:0,color,sort_order:goals.length}).select().maybeSingle();
+  if(error) return showToast("Error adding goal","error");
+  goals.push(data);
+  document.getElementById("goal-name").value="";
+  document.getElementById("goal-target").value="";
+  renderGoals(); saveCache(); showToast("Goal added!");
+}
+async function deleteGoal(id) {
+  goals = goals.filter(g=>g.id!==id);
+  await sb.from("budget_goals").delete().eq("id",id).eq("user_id",user.id);
+  renderGoals(); saveCache(); showToast("Goal removed");
+}
+async function addToGoal(id) {
+  const amtEl = document.getElementById("goal-add-"+id);
+  const amt = parseFloat(amtEl?.value);
+  if (!amt || amt <= 0) return showToast("Enter an amount to add","error");
+  const goal = goals.find(g=>g.id===id);
+  if (!goal) return;
+  const newSaved = Math.min(goal.target_amount, (goal.saved_amount||0) + amt);
+  const {error}=await sb.from("budget_goals").update({saved_amount:newSaved}).eq("id",id).eq("user_id",user.id);
+  if (error) return showToast("Error updating goal","error");
+  goals = goals.map(g=>g.id===id ? {...g, saved_amount:newSaved} : g);
+  if (amtEl) amtEl.value="";
+  renderGoals(); saveCache();
+  showToast(newSaved >= goal.target_amount ? "🎉 Goal reached!" : `${fmt(amt)} added to ${goal.name}!`);
 }
 
 // ── Tab switching ──
