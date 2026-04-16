@@ -73,6 +73,17 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .ach-name{font-size:11px;font-weight:600;color:#7c6f9b;margin-top:6px}
 .achievement.unlocked .ach-name{color:#fbbf24}
 
+/* Skill Tree */
+.skill-tree-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.skill-node{background:#0a0a14;border:1px solid #2a1f4e;border-radius:12px;padding:14px 10px;text-align:center;transition:all 0.2s;position:relative}
+.skill-node.unlocked{border-color:#22c55e44;background:#0f1a0f}
+.skill-node.locked{opacity:0.5}
+.skill-icon{font-size:26px;margin-bottom:4px}
+.skill-name{font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px}
+.skill-desc{font-size:10px;color:#7c6f9b}
+.skill-req{font-size:9px;color:#ef4444;margin-top:4px}
+.skill-node.unlocked .skill-req{color:#4ade80}
+
 /* Boss Battle */
 .boss-card{background:linear-gradient(135deg,#1a0a1e,#1e0f25);border:2px solid #ef444466;border-radius:16px;padding:20px 24px;margin-bottom:16px;position:relative;overflow:hidden}
 .boss-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(45deg,transparent 40%,rgba(239,68,68,0.05) 50%,transparent 60%);animation:bossShimmer 3s infinite}
@@ -145,6 +156,10 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
   <div class="quests-title">📜 Today's Missions</div>
   <div class="quests-grid" id="quests-grid"></div>
   <div id="boss-section"></div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">🌳 Skill Tree</div>
+    <div class="skill-tree-grid" id="skill-tree"></div>
+  </div>
   <div class="card" style="margin-top:20px">
     <div class="card-title">🏆 Achievements</div>
     <div class="achievements-grid" id="achievements-grid"></div>
@@ -350,24 +365,26 @@ function completeQuest(id){
   state.todayDone.push(id);
   // Combo system
   var now=Date.now();
-  if(state.lastCompleteTime&&(now-state.lastCompleteTime)<COMBO_WINDOW){
+  var cw=getEffectiveComboWindow();
+  if(state.lastCompleteTime&&(now-state.lastCompleteTime)<cw){
     state.comboCount=(state.comboCount||0)+1;
   }else{state.comboCount=1}
   state.lastCompleteTime=now;
   var comboMult=state.comboCount>=3?1.5:state.comboCount>=2?1.25:1;
-  var xpGained=Math.round(quest.pts*comboMult);
+  var xpGained=Math.round(quest.pts*comboMult*getXPMultiplier());
   state.totalXP+=xpGained;
   state.totalCompleted=(state.totalCompleted||0)+1;
   if(quest.realm!=='Any') state.realmCounts[quest.realm]=(state.realmCounts[quest.realm]||0)+1;
   // Check daily goal
-  if(!state.dailyGoalMet&&getDailyXP()>=DAILY_GOAL){
+  if(!state.dailyGoalMet&&getDailyXP()>=getDailyGoal()){
     state.dailyGoalMet=true;
     if(state.streak===0&&state.lastDate===todayStr())state.streak=1;
   }
   // Show combo toast
   if(comboMult>1) showToast('⚡ '+state.comboCount+'x COMBO! +'+xpGained+' XP!');
-  // Loot drop chance (20% base, higher for hard tasks)
-  var lootChance=quest.diff==='Hard'?0.4:quest.diff==='Medium'?0.25:0.15;
+  // Loot drop chance (scaled by skill)
+  var baseLoot=quest.diff==='Hard'?0.4:quest.diff==='Medium'?0.25:0.15;
+  var lootChance=getEffectiveLootChance(baseLoot);
   if(Math.random()<lootChance) rollLoot();
   checkAchievements();
   saveState();
@@ -477,6 +494,45 @@ function checkAchievements(){
   });
 }
 
+/* ========== SKILL TREE ========== */
+const SKILLS = [
+  {id:'sk_double_sun',name:'Double XP Sunday',icon:'☀️',desc:'2x XP on Sundays',lvl:3},
+  {id:'sk_combo_ext',name:'Combo Extender',icon:'⚡',desc:'Combo window +1 min',lvl:5},
+  {id:'sk_loot_up',name:'Loot Magnet',icon:'🧲',desc:'+10% loot drop chance',lvl:7},
+  {id:'sk_bonus_quest',name:'Bonus Mission',icon:'📜',desc:'+1 daily mission slot',lvl:10},
+  {id:'sk_xp_boost',name:'XP Aura',icon:'✨',desc:'+15% XP from all missions',lvl:13},
+  {id:'sk_boss_buster',name:'Boss Buster',icon:'💥',desc:'+50 XP from boss defeats',lvl:16},
+  {id:'sk_streak_shield',name:'Streak Shield',icon:'🛡️',desc:'Missing 1 day won\'t break streak',lvl:20},
+  {id:'sk_reroll',name:'Quest Reroll',icon:'🎲',desc:'Reroll 1 mission per day',lvl:25},
+];
+function hasSkill(skillId){
+  var sk=SKILLS.find(function(s){return s.id===skillId});
+  return sk&&getLevel(state.totalXP)>=sk.lvl;
+}
+function getEffectiveComboWindow(){return hasSkill('sk_combo_ext')?COMBO_WINDOW+60000:COMBO_WINDOW}
+function getXPMultiplier(){
+  var m=1;
+  if(hasSkill('sk_xp_boost')) m+=0.15;
+  if(hasSkill('sk_double_sun')&&new Date().getDay()===0) m+=1;
+  return m;
+}
+function getEffectiveLootChance(base){return hasSkill('sk_loot_up')?base+0.1:base}
+function getDailyGoal(){
+  var lvl=getLevel(state.totalXP);
+  return DAILY_GOAL+Math.floor((lvl-1)*10); // Scales with level
+}
+function renderSkillTree(){
+  var sg=document.getElementById('skill-tree');sg.innerHTML='';
+  var lvl=getLevel(state.totalXP);
+  SKILLS.forEach(function(sk){
+    var unlocked=lvl>=sk.lvl;
+    var div=document.createElement('div');
+    div.className='skill-node'+(unlocked?' unlocked':' locked');
+    div.innerHTML='<div class="skill-icon">'+sk.icon+'</div><div class="skill-name">'+sk.name+'</div><div class="skill-desc">'+sk.desc+'</div><div class="skill-req">'+(unlocked?'Unlocked!':'Requires Lvl '+sk.lvl)+'</div>';
+    sg.appendChild(div);
+  });
+}
+
 /* ========== RENDERING ========== */
 function render(){
   var lvl=getLevel(state.totalXP);
@@ -487,10 +543,11 @@ function render(){
   var dayInfo=getTodayRealm(todayStr());
   var realmObj=REALMS.find(function(r){return r.name===dayInfo.realm});
   document.getElementById('day-theme').innerHTML='<span class="realm-icon">'+(realmObj?realmObj.emoji:'')+'</span> '+dayInfo.title;
-  // Daily progress
-  var dxp=getDailyXP(),pct=Math.min(100,Math.round(dxp/DAILY_GOAL*100));
+  // Daily progress (scales with level)
+  var dg=getDailyGoal();
+  var dxp=getDailyXP(),pct=Math.min(100,Math.round(dxp/dg*100));
   document.getElementById('prog-fill').style.width=pct+'%';
-  document.getElementById('prog-text').textContent=dxp+' / '+DAILY_GOAL+' XP';
+  document.getElementById('prog-text').textContent=dxp+' / '+dg+' XP';
   var vb=document.getElementById('victory');
   vb.className='victory-banner'+(state.dailyGoalMet?' show':'');
   // Combo bar
@@ -516,8 +573,9 @@ function render(){
     card.onclick=function(){completeQuest(q.id)};
     grid.appendChild(card);
   });
-  // Boss
+  // Boss & Skill Tree
   renderBoss();
+  renderSkillTree();
   // Achievements
   var ag=document.getElementById('achievements-grid');ag.innerHTML='';
   ACHIEVEMENTS.forEach(function(a){
