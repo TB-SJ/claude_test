@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Cleaning Hero Academy</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#a855f7"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-height:100vh}
@@ -73,9 +77,148 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .ach-name{font-size:11px;font-weight:600;color:#7c6f9b;margin-top:6px}
 .achievement.unlocked .ach-name{color:#fbbf24}
 
+/* Avatar */
+.avatar-section{text-align:center;margin:8px 0 16px}
+.avatar-char{font-size:64px;line-height:1;transition:all 0.3s}
+.avatar-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#c084fc;margin-top:6px}
+.avatar-rank{font-size:11px;color:#7c6f9b;margin-top:2px}
+.level-progress{max-width:260px;margin:10px auto 0;background:#0a0a14;border-radius:8px;height:14px;overflow:hidden;position:relative}
+.level-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#818cf8,#c084fc);transition:width 0.5s}
+.level-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;font-weight:600;color:#fff}
+
+/* Skill Tree */
+.skill-tree-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.skill-node{background:#0a0a14;border:1px solid #2a1f4e;border-radius:12px;padding:14px 10px;text-align:center;transition:all 0.2s;position:relative}
+.skill-node.unlocked{border-color:#22c55e44;background:#0f1a0f}
+.skill-node.locked{opacity:0.5}
+.skill-icon{font-size:26px;margin-bottom:4px}
+.skill-name{font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:2px}
+.skill-desc{font-size:10px;color:#7c6f9b}
+.skill-req{font-size:9px;color:#ef4444;margin-top:4px}
+.skill-node.unlocked .skill-req{color:#4ade80}
+
+/* Boss Battle */
+.boss-card{background:linear-gradient(135deg,#1a0a1e,#1e0f25);border:2px solid #ef444466;border-radius:16px;padding:20px 24px;margin-bottom:16px;position:relative;overflow:hidden}
+.boss-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(45deg,transparent 40%,rgba(239,68,68,0.05) 50%,transparent 60%);animation:bossShimmer 3s infinite}
+@keyframes bossShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.boss-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.boss-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#f87171}
+.boss-xp{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#fbbf24}
+.boss-hp-label{font-size:11px;color:#7c6f9b;margin-bottom:4px}
+.boss-hp-wrap{background:#0a0a14;border-radius:8px;height:22px;overflow:hidden;position:relative;margin-bottom:12px}
+.boss-hp-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#ef4444,#f87171);transition:width 0.5s ease}
+.boss-hp-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:600;color:#fff}
+.boss-tasks{display:flex;flex-direction:column;gap:6px}
+.boss-task{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a0a1466;border:1px solid #2a1f4e;border-radius:10px;cursor:pointer;transition:all 0.2s;font-size:13px;color:#e2e8f0}
+.boss-task:hover{border-color:#f8717144}
+.boss-task.done{opacity:0.4;text-decoration:line-through}
+.boss-task-check{width:20px;height:20px;border-radius:50%;border:2px solid #5a2d2d;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.boss-task.done .boss-task-check{background:#ef4444;border-color:#ef4444}
+.boss-task.done .boss-task-check::after{content:'✓';color:#fff;font-size:11px;font-weight:700}
+.boss-defeated{text-align:center;padding:10px;font-weight:700;color:#fbbf24;font-size:15px}
+
+/* Combo indicator */
+.combo-bar{display:none;text-align:center;margin:10px 0;padding:8px 14px;background:linear-gradient(135deg,#f59e0b22,#ef444422);border:1px solid #f59e0b44;border-radius:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;color:#fbbf24}
+.combo-bar.show{display:block}
+.combo-bar .combo-mult{color:#f87171;font-size:18px}
+
+/* Random event quest */
+.quest-card.event-quest{border-color:#f59e0b66;background:linear-gradient(135deg,#1a1520,#1f1a10);animation:eventGlow 2s infinite}
+@keyframes eventGlow{0%,100%{box-shadow:0 0 8px rgba(245,158,11,0.15)}50%{box-shadow:0 0 18px rgba(245,158,11,0.3)}}
+.event-badge{font-size:9px;font-weight:700;color:#fbbf24;background:#f59e0b22;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle}
+
+/* Loot drops */
+.loot-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center}
+.loot-modal-overlay.show{display:flex}
+.loot-modal{background:#1a1530;border:2px solid #c084fc;border-radius:20px;padding:30px;text-align:center;max-width:320px;width:90%;animation:lootPop 0.3s ease}
+@keyframes lootPop{from{transform:scale(0.7);opacity:0}to{transform:scale(1);opacity:1}}
+.loot-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#e879f9;margin-bottom:8px}
+.loot-icon{font-size:48px;margin:12px 0}
+.loot-name{font-size:16px;font-weight:700;color:#fbbf24;margin-bottom:4px}
+.loot-desc{font-size:12px;color:#7c6f9b;margin-bottom:16px}
+.loot-close{background:linear-gradient(135deg,#a855f7,#e879f9);border:none;color:#fff;padding:10px 28px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
+
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff;padding:14px 28px;border-radius:14px;font-weight:700;font-size:14px;z-index:999;transition:transform 0.4s ease;box-shadow:0 8px 30px rgba(168,85,247,0.4)}
 .toast.show{transform:translateX(-50%) translateY(0)}
+
+/* Timer */
+.timer-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:1001;align-items:center;justify-content:center;flex-direction:column}
+.timer-overlay.show{display:flex}
+.timer-display{font-family:'Space Grotesk',sans-serif;font-size:72px;font-weight:700;color:#e879f9;text-shadow:0 0 30px rgba(232,121,249,0.4)}
+.timer-task-name{font-size:16px;color:#c084fc;margin-bottom:20px;text-align:center;max-width:80%}
+.timer-bonus{font-size:14px;color:#fbbf24;margin-top:10px}
+.timer-btns{display:flex;gap:12px;margin-top:24px}
+.timer-btn{padding:12px 28px;border-radius:12px;border:none;font-weight:700;font-size:14px;cursor:pointer}
+.timer-btn.start{background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff}
+.timer-btn.stop{background:#2a1f4e;color:#e2e8f0;border:1px solid #3b2d6e}
+
+/* Quest Log / History */
+.history-toggle{text-align:center;margin:16px 0 8px}
+.history-toggle button{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
+.history-toggle button:hover{border-color:#e879f944}
+.calendar-card{display:none}
+.calendar-card.show{display:block}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:8px}
+.cal-header{font-size:10px;font-weight:700;color:#7c6f9b;text-align:center;padding:4px}
+.cal-day{text-align:center;padding:8px 4px;border-radius:8px;font-size:12px;font-weight:600;color:#475569;background:#0a0a14;border:1px solid transparent;min-height:38px}
+.cal-day.has-data{color:#e2e8f0;border-color:#2a1f4e;cursor:pointer}
+.cal-day.victory{background:#22c55e22;border-color:#22c55e44;color:#4ade80}
+.cal-day.partial{background:#f59e0b15;border-color:#f59e0b33;color:#fbbf24}
+.cal-day.today{box-shadow:0 0 0 2px #e879f9}
+.cal-month{display:flex;align-items:center;justify-content:space-between}
+.cal-month-label{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:#e2e8f0}
+.cal-nav{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:16px}
+
+/* Party & Leaderboard */
+.party-section{margin-top:20px}
+.party-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.party-add-btn{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+.party-form{display:none;margin-bottom:12px}
+.party-form.show{display:flex;gap:8px}
+.party-form input{flex:1;background:#0a0a14;border:1px solid #2a1f4e;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;font-family:inherit}
+.party-form button{background:linear-gradient(135deg,#a855f7,#e879f9);border:none;color:#fff;padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px}
+.leaderboard{display:flex;flex-direction:column;gap:6px}
+.lb-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0a0a14;border:1px solid #2a1f4e;border-radius:10px}
+.lb-row.self{border-color:#e879f944;background:#1a1530}
+.lb-rank{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#7c6f9b;width:30px;text-align:center}
+.lb-rank.gold{color:#fbbf24}.lb-rank.silver{color:#94a3b8}.lb-rank.bronze{color:#cd7f32}
+.lb-info{flex:1}
+.lb-name{font-size:14px;font-weight:600;color:#e2e8f0}
+.lb-stats{font-size:11px;color:#7c6f9b}
+.lb-xp{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#c084fc}
+.lb-remove{background:none;border:none;color:#7c6f9b;cursor:pointer;font-size:14px;padding:4px}
+.lb-remove:hover{color:#ef4444}
+body.light .lb-row{background:#f5f3fa;border-color:#d8d4e8}
+body.light .lb-row.self{background:#ede9f7;border-color:#c084fc44}
+body.light .party-form input{background:#f5f3fa;border-color:#d8d4e8;color:#1a1a2e}
+
+/* Custom Quest Form */
+.custom-quest-toggle{text-align:center;margin:8px 0}
+.custom-quest-toggle button{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
+.custom-form{display:none;margin-top:10px}
+.custom-form.show{display:block}
+.custom-form input,.custom-form select{width:100%;background:#0a0a14;border:1px solid #2a1f4e;border-radius:8px;padding:10px 12px;color:#e2e8f0;font-size:13px;margin-bottom:8px;font-family:inherit}
+.custom-form input:focus,.custom-form select:focus{outline:none;border-color:#c084fc}
+.custom-form-row{display:flex;gap:8px}
+.custom-form-row>*{flex:1}
+.custom-submit{width:100%;background:linear-gradient(135deg,#a855f7,#e879f9);border:none;color:#fff;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px}
+
+/* Theme Toggle */
+.theme-toggle{position:fixed;top:12px;right:12px;z-index:100;background:#110f1f;border:1px solid #2a1f4e;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;transition:all 0.2s}
+.theme-toggle:hover{border-color:#e879f9}
+body.light{background:#f0eff5;color:#1a1a2e}
+body.light .card,body.light .stat-badge,body.light .quest-card,body.light .boss-card{background:#fff;border-color:#d8d4e8}
+body.light .achievement{background:#f5f3fa;border-color:#d8d4e8}
+body.light .quest-name,body.light .cal-month-label{color:#1a1a2e}
+body.light .quest-realm,body.light .card-title,body.light .stat-label,body.light .ach-name,body.light .subtitle,body.light .avatar-rank{color:#6b5f8a}
+body.light .logo{color:#1a1a2e}
+body.light .progress-wrap,body.light .boss-hp-wrap,body.light .level-progress{background:#e0ddef}
+body.light .cal-day{background:#f5f3fa;color:#6b5f8a}
+body.light .theme-toggle{background:#fff;border-color:#d8d4e8}
+body.light .skill-node{background:#f5f3fa;border-color:#d8d4e8}
+body.light .combo-bar{background:#fef3c7;border-color:#f59e0b44}
+body.light input,body.light select{background:#f5f3fa;border-color:#d8d4e8;color:#1a1a2e}
 
 /* Reset button */
 .reset-wrap{text-align:center;margin-top:24px}
@@ -84,11 +227,18 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 </style>
 </head>
 <body>
+<div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">🌙</div>
 <div id="app">
   <div class="header">
     <div class="logo">✨ Cleaning Hero <span>Academy</span></div>
     <div class="subtitle">~ Your training arc begins now, senpai ~</div>
     <div class="day-theme" id="day-theme"></div>
+  </div>
+  <div class="avatar-section">
+    <div class="avatar-char" id="avatar-char"></div>
+    <div class="avatar-title" id="avatar-title"></div>
+    <div class="avatar-rank" id="avatar-rank"></div>
+    <div class="level-progress"><div class="level-fill" id="level-fill"></div><div class="level-text" id="level-text"></div></div>
   </div>
   <div class="stats-bar">
     <div class="stat-badge level"><div class="stat-value" id="s-level">1</div><div class="stat-label">Level</div></div>
@@ -100,13 +250,63 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
     <div class="progress-wrap"><div class="progress-fill" id="prog-fill"></div><div class="progress-text" id="prog-text">0 / 100 XP</div></div>
     <div class="victory-banner" id="victory">🌸 SUGOI! DAILY MISSION COMPLETE! 🌸</div>
   </div>
+  <div class="combo-bar" id="combo-bar">COMBO: <span class="combo-mult" id="combo-count">x2</span> — Bonus XP active!</div>
   <div class="quests-title">📜 Today's Missions</div>
   <div class="quests-grid" id="quests-grid"></div>
+  <div id="boss-section"></div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">🌳 Skill Tree</div>
+    <div class="skill-tree-grid" id="skill-tree"></div>
+  </div>
   <div class="card" style="margin-top:20px">
     <div class="card-title">🏆 Achievements</div>
     <div class="achievements-grid" id="achievements-grid"></div>
   </div>
+  <div class="card party-section">
+    <div class="party-header">
+      <div class="card-title" style="margin-bottom:0">🏅 Party Leaderboard</div>
+      <button class="party-add-btn" onclick="togglePartyForm()">+ Add Rival</button>
+    </div>
+    <div class="party-form" id="party-form">
+      <input type="text" id="rival-name" placeholder="Rival's name"/>
+      <button onclick="addRival()">Add</button>
+    </div>
+    <div class="leaderboard" id="leaderboard"></div>
+  </div>
+  <div class="custom-quest-toggle"><button onclick="toggleCustomForm()">➕ Create Custom Mission</button></div>
+  <div class="card custom-form" id="custom-form">
+    <div class="card-title">✏️ New Custom Mission</div>
+    <input type="text" id="cq-name" placeholder="Mission name (e.g., Clean the garage)"/>
+    <div class="custom-form-row">
+      <select id="cq-realm"><option value="Kitchen">Kitchen</option><option value="Bathroom">Bathroom</option><option value="Floors">Floors</option><option value="Yard">Yard</option><option value="Bedroom">Bedroom</option><option value="Living Room">Living Room</option><option value="Laundry">Laundry</option></select>
+      <select id="cq-diff"><option value="Easy">Easy (10 XP)</option><option value="Medium">Medium (25 XP)</option><option value="Hard">Hard (50 XP)</option></select>
+    </div>
+    <button class="custom-submit" onclick="addCustomQuest()">Add Mission</button>
+  </div>
+  <div class="history-toggle"><button onclick="toggleHistory()">📅 Quest Log</button></div>
+  <div class="card calendar-card" id="calendar-card">
+    <div class="cal-month"><button class="cal-nav" onclick="calNav(-1)">‹</button><div class="cal-month-label" id="cal-month-label"></div><button class="cal-nav" onclick="calNav(1)">›</button></div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+  </div>
   <div class="reset-wrap"><button class="reset-btn" onclick="resetAll()">Reset All Progress</button></div>
+</div>
+<div class="timer-overlay" id="timer-overlay">
+  <div class="timer-task-name" id="timer-task-name"></div>
+  <div class="timer-display" id="timer-display">25:00</div>
+  <div class="timer-bonus" id="timer-bonus">Complete before time runs out for bonus XP!</div>
+  <div class="timer-btns">
+    <button class="timer-btn start" id="timer-start-btn" onclick="timerToggle()">Start</button>
+    <button class="timer-btn stop" onclick="timerCancel()">Cancel</button>
+  </div>
+</div>
+<div class="loot-modal-overlay" id="loot-overlay" onclick="closeLoot()">
+  <div class="loot-modal" onclick="event.stopPropagation()">
+    <div class="loot-title">✨ Loot Drop! ✨</div>
+    <div class="loot-icon" id="loot-icon"></div>
+    <div class="loot-name" id="loot-name"></div>
+    <div class="loot-desc" id="loot-desc"></div>
+    <button class="loot-close" onclick="closeLoot()">Yatta! Claim It!</button>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -184,6 +384,26 @@ const TASKS = [
   {id:'w6',realm:'Laundry',name:'Dryer Lint Trap Rescue',diff:'Easy',pts:10},
   {id:'w7',realm:'Laundry',name:'Stain Removal Special Attack',diff:'Medium',pts:25},
 ];
+// Random event quests (can appear on any day as bonus)
+const EVENT_QUESTS = [
+  {id:'ev1',realm:'Any',name:'Emergency Spill Alert! Clean It NOW!',diff:'Easy',pts:30,event:true},
+  {id:'ev2',realm:'Any',name:'Surprise Guest Incoming — Speed Clean!',diff:'Medium',pts:40,event:true},
+  {id:'ev3',realm:'Any',name:'Mystery Mess Appeared! Investigate!',diff:'Easy',pts:20,event:true},
+  {id:'ev4',realm:'Any',name:'Golden Dust Bunny Spotted — Catch It!',diff:'Hard',pts:60,event:true},
+  {id:'ev5',realm:'Any',name:'Legendary Stain Encounter!',diff:'Medium',pts:35,event:true},
+];
+// Loot table
+const LOOT_TABLE = [
+  {id:'loot_star',name:'Star Fragment',icon:'🌟',desc:'A shard of pure cleaning energy',rarity:'common'},
+  {id:'loot_sakura',name:'Sakura Petal',icon:'🌸',desc:'Blooms when rooms are spotless',rarity:'common'},
+  {id:'loot_crystal',name:'Crystal Orb',icon:'🔮',desc:'Grants vision of hidden dust',rarity:'uncommon'},
+  {id:'loot_katana',name:'Mini Broom Katana',icon:'⚔️',desc:'A legendary sweeping weapon',rarity:'uncommon'},
+  {id:'loot_scroll',name:'Ancient Cleaning Scroll',icon:'📜',desc:'Contains forbidden techniques',rarity:'rare'},
+  {id:'loot_crown',name:'Golden Senpai Crown',icon:'👑',desc:'Only the worthy may wear it',rarity:'rare'},
+  {id:'loot_dragon',name:'Dust Dragon Scale',icon:'🐉',desc:'Dropped by the final boss of filth',rarity:'legendary'},
+  {id:'loot_gem',name:'Prismatic Gem',icon:'💎',desc:'Radiates with cleaning power',rarity:'legendary'},
+];
+const COMBO_WINDOW = 120000; // 2 minutes between tasks for combo
 const DAILY_GOAL = 100;
 const XP_PER_LEVEL = 200;
 const STORAGE_KEY = 'hcq_state';
@@ -219,20 +439,23 @@ function generateDailyQuests(dateStr){
   var seed=getDayOfYear(d)*2654435761+d.getFullYear();
   var rng=mulberry32(seed);
   var todayRealm=getTodayRealm(dateStr).realm;
-  // Get all tasks for today's realm
   var realmTasks=TASKS.filter(function(t){return t.realm===todayRealm});
-  // Shuffle them
   var pool=realmTasks.map(function(t){return{t:t,r:rng()}});
   pool.sort(function(a,b){return a.r-b.r});
-  // Pick 5-6 from the themed realm
   var picked=pool.slice(0,Math.min(6,pool.length)).map(function(p){return p.t});
+  // 40% chance to inject a random event quest
+  if(rng()<0.4){
+    var evIdx=Math.floor(rng()*EVENT_QUESTS.length);
+    picked.push(EVENT_QUESTS[evIdx]);
+  }
   return picked;
 }
 
 /* ========== STATE MANAGEMENT ========== */
 function defaultState(){
   return {totalXP:0,streak:0,lastDate:'',todayDone:[],dailyGoalMet:false,
-    unlocked:{},realmCounts:{Kitchen:0,Bathroom:0,Floors:0,Yard:0,Bedroom:0,'Living Room':0,Laundry:0},totalCompleted:0};
+    unlocked:{},realmCounts:{Kitchen:0,Bathroom:0,Floors:0,Yard:0,Bedroom:0,'Living Room':0,Laundry:0},totalCompleted:0,
+    loot:[],lastCompleteTime:0,comboCount:0,history:{}};
 }
 function loadState(){
   try{var s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):defaultState()}catch(e){return defaultState()}
@@ -273,17 +496,115 @@ function completeQuest(id){
   var quest=dailyQuests.find(function(q){return q.id===id});
   if(!quest)return;
   state.todayDone.push(id);
-  state.totalXP+=quest.pts;
+  // Combo system
+  var now=Date.now();
+  var cw=getEffectiveComboWindow();
+  if(state.lastCompleteTime&&(now-state.lastCompleteTime)<cw){
+    state.comboCount=(state.comboCount||0)+1;
+  }else{state.comboCount=1}
+  state.lastCompleteTime=now;
+  var comboMult=state.comboCount>=3?1.5:state.comboCount>=2?1.25:1;
+  var xpGained=Math.round(quest.pts*comboMult*getXPMultiplier());
+  state.totalXP+=xpGained;
   state.totalCompleted=(state.totalCompleted||0)+1;
-  state.realmCounts[quest.realm]=(state.realmCounts[quest.realm]||0)+1;
+  if(quest.realm!=='Any') state.realmCounts[quest.realm]=(state.realmCounts[quest.realm]||0)+1;
   // Check daily goal
-  if(!state.dailyGoalMet&&getDailyXP()>=DAILY_GOAL){
+  if(!state.dailyGoalMet&&getDailyXP()>=getDailyGoal()){
     state.dailyGoalMet=true;
     if(state.streak===0&&state.lastDate===todayStr())state.streak=1;
   }
+  // Show combo toast
+  if(comboMult>1) showToast('⚡ '+state.comboCount+'x COMBO! +'+xpGained+' XP!');
+  // Loot drop chance (scaled by skill)
+  var baseLoot=quest.diff==='Hard'?0.4:quest.diff==='Medium'?0.25:0.15;
+  var lootChance=getEffectiveLootChance(baseLoot);
+  if(Math.random()<lootChance) rollLoot();
   checkAchievements();
+  saveHistory();
   saveState();
   render();
+}
+
+/* ========== LOOT SYSTEM ========== */
+function rollLoot(){
+  var roll=Math.random();
+  var pool;
+  if(roll<0.05) pool=LOOT_TABLE.filter(function(l){return l.rarity==='legendary'});
+  else if(roll<0.2) pool=LOOT_TABLE.filter(function(l){return l.rarity==='rare'});
+  else if(roll<0.5) pool=LOOT_TABLE.filter(function(l){return l.rarity==='uncommon'});
+  else pool=LOOT_TABLE.filter(function(l){return l.rarity==='common'});
+  var item=pool[Math.floor(Math.random()*pool.length)];
+  if(!state.loot) state.loot=[];
+  state.loot.push({id:item.id,name:item.name,date:todayStr()});
+  showLoot(item);
+}
+function showLoot(item){
+  document.getElementById('loot-icon').textContent=item.icon;
+  document.getElementById('loot-name').textContent=item.name;
+  document.getElementById('loot-desc').textContent=item.desc+' ('+item.rarity+')';
+  document.getElementById('loot-overlay').className='loot-modal-overlay show';
+}
+function closeLoot(){document.getElementById('loot-overlay').className='loot-modal-overlay'}
+
+/* ========== BOSS BATTLES ========== */
+const BOSSES = [
+  {id:'boss_kitchen',name:'The Grease Overlord',realm:'Kitchen',xp:200,emoji:'👹',
+    tasks:['Deep clean oven interior','Scrub all cabinet fronts','Sanitize the sink & drain','Clean behind appliances','Wipe down all handles & knobs']},
+  {id:'boss_bath',name:'Mold Demon King',realm:'Bathroom',xp:200,emoji:'🧟',
+    tasks:['Deep scrub shower grout','Clean exhaust fan','Descale all faucets','Wash shower curtain','Sanitize trash can']},
+  {id:'boss_floors',name:'The Dust Titan',realm:'Floors',xp:200,emoji:'👾',
+    tasks:['Move furniture & vacuum under','Steam mop all hard floors','Deep clean all rugs','Scrub floor corners','Polish hardwood areas']},
+  {id:'boss_yard',name:'Weed Dragon',realm:'Yard',xp:250,emoji:'🐲',
+    tasks:['Edge all walkways','Clear gutters','Power wash driveway','Prune all bushes','Clean outdoor furniture']},
+  {id:'boss_bedroom',name:'Chaos Phantom',realm:'Bedroom',xp:200,emoji:'👻',
+    tasks:['Rotate & flip mattress','Wash all bedding','Deep clean closet','Dust ceiling fan & lights','Organize all drawers']},
+  {id:'boss_living',name:'Clutter Shogun',realm:'Living Room',xp:200,emoji:'🥷',
+    tasks:['Deep clean upholstery','Wash all throw blankets','Dust all decor & shelves','Clean all electronics','Wash windows inside & out']},
+  {id:'boss_laundry',name:'The Lint Wraith',realm:'Laundry',xp:175,emoji:'🦠',
+    tasks:['Clean dryer vent duct','Deep clean washer drum','Organize all supplies','Wipe down machines','Clean laundry room floor']},
+];
+function getWeeklyBoss(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  var weekNum=Math.floor(getDayOfYear(d)/7);
+  return BOSSES[weekNum%BOSSES.length];
+}
+function completeBossTask(idx){
+  if(!state.bossDone) state.bossDone=[];
+  if(state.bossDone.indexOf(idx)!==-1) return;
+  state.bossDone.push(idx);
+  var boss=getWeeklyBoss(todayStr());
+  if(state.bossDone.length>=boss.tasks.length){
+    state.totalXP+=boss.xp;
+    showToast(boss.emoji+' BOSS DEFEATED! +'+boss.xp+' XP!');
+    state.bossDefeated=true;
+  }
+  checkAchievements();
+  saveState();render();
+}
+function renderBoss(){
+  var sec=document.getElementById('boss-section');
+  var boss=getWeeklyBoss(todayStr());
+  if(!state.bossDone) state.bossDone=[];
+  if(!state.bossWeek) state.bossWeek='';
+  var d=new Date(todayStr()+'T00:00:00');
+  var weekId=d.getFullYear()+'-w'+Math.floor(getDayOfYear(d)/7);
+  if(state.bossWeek!==weekId){state.bossWeek=weekId;state.bossDone=[];state.bossDefeated=false;saveState()}
+  var done=state.bossDone||[];
+  var hpPct=Math.max(0,Math.round((1-done.length/boss.tasks.length)*100));
+  var html='<div class="boss-card"><div class="boss-header"><div class="boss-title">'+boss.emoji+' WEEKLY BOSS: '+boss.name+'</div><div class="boss-xp">'+boss.xp+' XP</div></div>';
+  html+='<div class="boss-hp-label">Boss HP</div><div class="boss-hp-wrap"><div class="boss-hp-fill" style="width:'+hpPct+'%"></div><div class="boss-hp-text">'+done.length+'/'+boss.tasks.length+' hits</div></div>';
+  if(state.bossDefeated){
+    html+='<div class="boss-defeated">🎌 BOSS DEFEATED! You are victorious! 🎌</div>';
+  }else{
+    html+='<div class="boss-tasks">';
+    boss.tasks.forEach(function(t,i){
+      var d2=done.indexOf(i)!==-1;
+      html+='<div class="boss-task'+(d2?' done':'')+'" onclick="completeBossTask('+i+')"><div class="boss-task-check"></div>'+t+'</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  sec.innerHTML=html;
 }
 
 function checkAchievements(){
@@ -307,35 +628,128 @@ function checkAchievements(){
   });
 }
 
+/* ========== CHARACTER AVATAR ========== */
+const AVATARS = [
+  {minLvl:1,  char:'🧹', title:'Cleaning Apprentice', rank:'D-Rank Cleaner'},
+  {minLvl:3,  char:'🧽', title:'Scrub Genin', rank:'C-Rank Cleaner'},
+  {minLvl:6,  char:'🧑‍🎓', title:'Academy Student', rank:'C-Rank Cleaner'},
+  {minLvl:10, char:'⚔️', title:'Cleaning Chunin', rank:'B-Rank Cleaner'},
+  {minLvl:15, char:'🥷', title:'Shadow Sweeper', rank:'B-Rank Cleaner'},
+  {minLvl:20, char:'🦸', title:'Cleaning Hero', rank:'A-Rank Cleaner'},
+  {minLvl:25, char:'👑', title:'Grand Sensei', rank:'S-Rank Cleaner'},
+  {minLvl:35, char:'🌟', title:'Legendary Cleaning God', rank:'SS-Rank Cleaner'},
+  {minLvl:50, char:'🐉', title:'Dragon of Spotlessness', rank:'SSS-Rank Cleaner'},
+];
+function getAvatar(lvl){
+  var a=AVATARS[0];
+  for(var i=AVATARS.length-1;i>=0;i--){if(lvl>=AVATARS[i].minLvl){a=AVATARS[i];break}}
+  return a;
+}
+function renderAvatar(){
+  var lvl=getLevel(state.totalXP);
+  var av=getAvatar(lvl);
+  document.getElementById('avatar-char').textContent=av.char;
+  document.getElementById('avatar-title').textContent=av.title;
+  document.getElementById('avatar-rank').textContent=av.rank+' — Level '+lvl;
+  var prog=getLevelProgress(state.totalXP);
+  var pct=Math.round(prog/XP_PER_LEVEL*100);
+  document.getElementById('level-fill').style.width=pct+'%';
+  document.getElementById('level-text').textContent=prog+' / '+XP_PER_LEVEL+' XP to next level';
+}
+
+/* ========== SKILL TREE ========== */
+const SKILLS = [
+  {id:'sk_double_sun',name:'Double XP Sunday',icon:'☀️',desc:'2x XP on Sundays',lvl:3},
+  {id:'sk_combo_ext',name:'Combo Extender',icon:'⚡',desc:'Combo window +1 min',lvl:5},
+  {id:'sk_loot_up',name:'Loot Magnet',icon:'🧲',desc:'+10% loot drop chance',lvl:7},
+  {id:'sk_bonus_quest',name:'Bonus Mission',icon:'📜',desc:'+1 daily mission slot',lvl:10},
+  {id:'sk_xp_boost',name:'XP Aura',icon:'✨',desc:'+15% XP from all missions',lvl:13},
+  {id:'sk_boss_buster',name:'Boss Buster',icon:'💥',desc:'+50 XP from boss defeats',lvl:16},
+  {id:'sk_streak_shield',name:'Streak Shield',icon:'🛡️',desc:'Missing 1 day won\'t break streak',lvl:20},
+  {id:'sk_reroll',name:'Quest Reroll',icon:'🎲',desc:'Reroll 1 mission per day',lvl:25},
+];
+function hasSkill(skillId){
+  var sk=SKILLS.find(function(s){return s.id===skillId});
+  return sk&&getLevel(state.totalXP)>=sk.lvl;
+}
+function getEffectiveComboWindow(){return hasSkill('sk_combo_ext')?COMBO_WINDOW+60000:COMBO_WINDOW}
+function getXPMultiplier(){
+  var m=1;
+  if(hasSkill('sk_xp_boost')) m+=0.15;
+  if(hasSkill('sk_double_sun')&&new Date().getDay()===0) m+=1;
+  return m;
+}
+function getEffectiveLootChance(base){return hasSkill('sk_loot_up')?base+0.1:base}
+function getDailyGoal(){
+  var lvl=getLevel(state.totalXP);
+  return DAILY_GOAL+Math.floor((lvl-1)*10); // Scales with level
+}
+function renderSkillTree(){
+  var sg=document.getElementById('skill-tree');sg.innerHTML='';
+  var lvl=getLevel(state.totalXP);
+  SKILLS.forEach(function(sk){
+    var unlocked=lvl>=sk.lvl;
+    var div=document.createElement('div');
+    div.className='skill-node'+(unlocked?' unlocked':' locked');
+    div.innerHTML='<div class="skill-icon">'+sk.icon+'</div><div class="skill-name">'+sk.name+'</div><div class="skill-desc">'+sk.desc+'</div><div class="skill-req">'+(unlocked?'Unlocked!':'Requires Lvl '+sk.lvl)+'</div>';
+    sg.appendChild(div);
+  });
+}
+
 /* ========== RENDERING ========== */
 function render(){
   var lvl=getLevel(state.totalXP);
   document.getElementById('s-level').textContent=lvl;
   document.getElementById('s-xp').textContent=state.totalXP;
   document.getElementById('s-streak').textContent='🔥 '+state.streak;
+  renderAvatar();
   // Day theme header
   var dayInfo=getTodayRealm(todayStr());
   var realmObj=REALMS.find(function(r){return r.name===dayInfo.realm});
   document.getElementById('day-theme').innerHTML='<span class="realm-icon">'+(realmObj?realmObj.emoji:'')+'</span> '+dayInfo.title;
-  // Daily progress
-  var dxp=getDailyXP(),pct=Math.min(100,Math.round(dxp/DAILY_GOAL*100));
+  // Daily progress (scales with level)
+  var dg=getDailyGoal();
+  var dxp=getDailyXP(),pct=Math.min(100,Math.round(dxp/dg*100));
   document.getElementById('prog-fill').style.width=pct+'%';
-  document.getElementById('prog-text').textContent=dxp+' / '+DAILY_GOAL+' XP';
+  document.getElementById('prog-text').textContent=dxp+' / '+dg+' XP';
   var vb=document.getElementById('victory');
   vb.className='victory-banner'+(state.dailyGoalMet?' show':'');
+  // Combo bar
+  var cb=document.getElementById('combo-bar');
+  if(state.comboCount>=2&&state.lastCompleteTime&&(Date.now()-state.lastCompleteTime)<COMBO_WINDOW){
+    cb.className='combo-bar show';
+    document.getElementById('combo-count').textContent='x'+state.comboCount;
+  }else{cb.className='combo-bar'}
   // Quests
   var grid=document.getElementById('quests-grid');grid.innerHTML='';
   dailyQuests.forEach(function(q){
     var done=state.todayDone.indexOf(q.id)!==-1;
+    var isEvent=!!q.event;
     var card=document.createElement('div');
-    card.className='quest-card'+(done?' completed':'');
-    card.innerHTML='<div class="quest-check"></div><div class="quest-emoji">'+realmEmoji(q.realm)+
-      '</div><div class="quest-info"><div class="quest-realm">'+q.realm+
+    card.className='quest-card'+(done?' completed':'')+(isEvent?' event-quest':'');
+    var realmLabel=isEvent?'Random Event':q.realm;
+    var emojiChar=isEvent?'⚡':realmEmoji(q.realm);
+    var eventTag=isEvent?'<span class="event-badge">EVENT!</span>':'';
+    card.innerHTML='<div class="quest-check"></div><div class="quest-emoji">'+emojiChar+
+      '</div><div class="quest-info"><div class="quest-realm">'+realmLabel+eventTag+
       '</div><div class="quest-name">'+q.name+'</div></div><div class="quest-right"><div class="quest-points">+'+
       q.pts+' XP</div><div class="quest-diff diff-'+q.diff.toLowerCase()+'">'+q.diff+'</div></div>';
-    card.onclick=function(){completeQuest(q.id)};
+    if(!done){
+      (function(quest){
+        card.onclick=function(e){completeQuest(quest.id)};
+        var timerBtn=document.createElement('div');
+        timerBtn.textContent='⏱️';timerBtn.style.cssText='cursor:pointer;font-size:18px;flex-shrink:0';
+        timerBtn.title='Start timer';
+        timerBtn.onclick=function(e){e.stopPropagation();startTimer(quest.id,quest.name)};
+        card.appendChild(timerBtn);
+      })(q);
+    }
     grid.appendChild(card);
   });
+  // Boss, Skill Tree, Leaderboard
+  renderBoss();
+  renderSkillTree();
+  renderLeaderboard();
   // Achievements
   var ag=document.getElementById('achievements-grid');ag.innerHTML='';
   ACHIEVEMENTS.forEach(function(a){
@@ -361,9 +775,177 @@ function resetAll(){
   saveState();render();
 }
 
+/* ========== PARTY / LEADERBOARD ========== */
+function togglePartyForm(){
+  var f=document.getElementById('party-form');
+  f.className=f.className.indexOf('show')!==-1?'party-form':'party-form show';
+}
+function addRival(){
+  var name=document.getElementById('rival-name').value.trim();
+  if(!name){showToast('Enter a rival name!');return}
+  if(!state.rivals) state.rivals=[];
+  state.rivals.push({name:name,xp:0,weeklyXP:0});
+  document.getElementById('rival-name').value='';
+  togglePartyForm();
+  saveState();render();
+  showToast('⚔️ New rival: '+name+'!');
+}
+function removeRival(idx){
+  if(!state.rivals) return;
+  state.rivals.splice(idx,1);
+  saveState();render();
+}
+function simulateRivalProgress(){
+  if(!state.rivals||!state.rivals.length) return;
+  // Each rival gains random XP daily to create competition feel
+  var today=todayStr();
+  if(state.rivalLastSim===today) return;
+  state.rivals.forEach(function(r){
+    var gain=Math.floor(Math.random()*80)+20;
+    r.xp+=gain;
+    r.weeklyXP=(r.weeklyXP||0)+gain;
+  });
+  state.rivalLastSim=today;
+  saveState();
+}
+function renderLeaderboard(){
+  var lb=document.getElementById('leaderboard');lb.innerHTML='';
+  var entries=[{name:'You (Hero)',xp:state.totalXP,weeklyXP:getDailyXP(),self:true}];
+  if(state.rivals) state.rivals.forEach(function(r,i){entries.push({name:r.name,xp:r.xp,weeklyXP:r.weeklyXP||0,self:false,idx:i})});
+  entries.sort(function(a,b){return b.xp-a.xp});
+  entries.forEach(function(e,i){
+    var rankClass=i===0?' gold':i===1?' silver':i===2?' bronze':'';
+    var row=document.createElement('div');
+    row.className='lb-row'+(e.self?' self':'');
+    var removeBtn=e.self?'':'<button class="lb-remove" onclick="removeRival('+e.idx+')" title="Remove">✕</button>';
+    row.innerHTML='<div class="lb-rank'+rankClass+'">#'+(i+1)+'</div><div class="lb-info"><div class="lb-name">'+e.name+'</div><div class="lb-stats">Lvl '+getLevel(e.xp)+'</div></div><div class="lb-xp">'+e.xp+' XP</div>'+removeBtn;
+    lb.appendChild(row);
+  });
+}
+
+/* ========== CUSTOM QUESTS ========== */
+function toggleCustomForm(){
+  var f=document.getElementById('custom-form');
+  f.className=f.className.indexOf('show')!==-1?'card custom-form':'card custom-form show';
+}
+function addCustomQuest(){
+  var name=document.getElementById('cq-name').value.trim();
+  if(!name){showToast('Enter a mission name!');return}
+  var realm=document.getElementById('cq-realm').value;
+  var diff=document.getElementById('cq-diff').value;
+  var pts=diff==='Hard'?50:diff==='Medium'?25:10;
+  var id='custom_'+Date.now();
+  var quest={id:id,realm:realm,name:name,diff:diff,pts:pts};
+  dailyQuests.push(quest);
+  if(!state.customQuests) state.customQuests=[];
+  state.customQuests.push({id:id,realm:realm,name:name,diff:diff,pts:pts,date:todayStr()});
+  saveState();
+  document.getElementById('cq-name').value='';
+  toggleCustomForm();
+  showToast('📜 Custom mission added!');
+  render();
+}
+function loadCustomQuests(){
+  if(!state.customQuests) return;
+  var today=todayStr();
+  state.customQuests.forEach(function(cq){
+    if(cq.date===today&&state.todayDone.indexOf(cq.id)===-1){
+      dailyQuests.push(cq);
+    }
+  });
+}
+
+/* ========== THEME TOGGLE ========== */
+function toggleTheme(){
+  var isLight=document.body.classList.toggle('light');
+  localStorage.setItem('hcq_theme',isLight?'light':'dark');
+  document.getElementById('theme-toggle').textContent=isLight?'☀️':'🌙';
+}
+function loadTheme(){
+  if(localStorage.getItem('hcq_theme')==='light'){
+    document.body.classList.add('light');
+    document.getElementById('theme-toggle').textContent='☀️';
+  }
+}
+
+/* ========== TIMER MODE ========== */
+var timerInterval=null, timerSeconds=0, timerRunning=false, timerQuestId=null;
+function startTimer(questId,questName){
+  timerQuestId=questId;
+  document.getElementById('timer-task-name').textContent=questName;
+  timerSeconds=25*60;
+  timerRunning=false;
+  updateTimerDisplay();
+  document.getElementById('timer-start-btn').textContent='Start';
+  document.getElementById('timer-overlay').className='timer-overlay show';
+}
+function timerToggle(){
+  if(timerRunning){timerRunning=false;clearInterval(timerInterval);document.getElementById('timer-start-btn').textContent='Resume';return}
+  timerRunning=true;document.getElementById('timer-start-btn').textContent='Pause';
+  timerInterval=setInterval(function(){
+    timerSeconds--;
+    updateTimerDisplay();
+    if(timerSeconds<=0){clearInterval(timerInterval);timerRunning=false;
+      document.getElementById('timer-display').textContent='00:00';
+      document.getElementById('timer-bonus').textContent='Time\'s up! Mission complete!';
+      completeQuest(timerQuestId);timerCancel();
+    }
+  },1000);
+}
+function timerCancel(){clearInterval(timerInterval);timerRunning=false;document.getElementById('timer-overlay').className='timer-overlay'}
+function updateTimerDisplay(){
+  var m=Math.floor(timerSeconds/60),s=timerSeconds%60;
+  document.getElementById('timer-display').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+}
+
+/* ========== QUEST LOG / HISTORY ========== */
+var calViewMonth=new Date().getMonth(), calViewYear=new Date().getFullYear();
+function saveHistory(){
+  if(!state.history) state.history={};
+  state.history[todayStr()]={done:state.todayDone.length,goal:state.dailyGoalMet,xp:getDailyXP()};
+  saveState();
+}
+function toggleHistory(){
+  var c=document.getElementById('calendar-card');
+  c.className=c.className.indexOf('show')!==-1?'card calendar-card':'card calendar-card show';
+  if(c.className.indexOf('show')!==-1) renderCalendar();
+}
+function calNav(dir){calViewMonth+=dir;if(calViewMonth>11){calViewMonth=0;calViewYear++}if(calViewMonth<0){calViewMonth=11;calViewYear--}renderCalendar()}
+function renderCalendar(){
+  var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('cal-month-label').textContent=months[calViewMonth]+' '+calViewYear;
+  var grid=document.getElementById('calendar-grid');grid.innerHTML='';
+  var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  days.forEach(function(d){var h=document.createElement('div');h.className='cal-header';h.textContent=d;grid.appendChild(h)});
+  var first=new Date(calViewYear,calViewMonth,1);
+  var lastDay=new Date(calViewYear,calViewMonth+1,0).getDate();
+  var startDay=first.getDay();
+  for(var i=0;i<startDay;i++){var e=document.createElement('div');e.className='cal-day';grid.appendChild(e)}
+  var todayD=todayStr();
+  for(var d=1;d<=lastDay;d++){
+    var cell=document.createElement('div');
+    var ds=calViewYear+'-'+(calViewMonth+1<10?'0':'')+(calViewMonth+1)+'-'+(d<10?'0':'')+d;
+    var hist=state.history&&state.history[ds];
+    cell.className='cal-day';
+    if(ds===todayD) cell.className+=' today';
+    if(hist){
+      cell.className+=' has-data';
+      if(hist.goal) cell.className+=' victory';
+      else if(hist.done>0) cell.className+=' partial';
+      cell.title=hist.xp+' XP earned'+(hist.goal?' — Victory!':'');
+    }
+    cell.textContent=d;
+    grid.appendChild(cell);
+  }
+}
+
 /* ========== INIT ========== */
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
+loadTheme();
 checkNewDay();
+simulateRivalProgress();
 dailyQuests=generateDailyQuests(todayStr());
+loadCustomQuests();
 render();
 </script>
 </body>

@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Cleaning Hero Academy</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#a855f7"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-height:100vh}
@@ -166,6 +170,29 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .cal-month-label{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:#e2e8f0}
 .cal-nav{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:16px}
 
+/* Party & Leaderboard */
+.party-section{margin-top:20px}
+.party-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.party-add-btn{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+.party-form{display:none;margin-bottom:12px}
+.party-form.show{display:flex;gap:8px}
+.party-form input{flex:1;background:#0a0a14;border:1px solid #2a1f4e;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;font-family:inherit}
+.party-form button{background:linear-gradient(135deg,#a855f7,#e879f9);border:none;color:#fff;padding:8px 16px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px}
+.leaderboard{display:flex;flex-direction:column;gap:6px}
+.lb-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#0a0a14;border:1px solid #2a1f4e;border-radius:10px}
+.lb-row.self{border-color:#e879f944;background:#1a1530}
+.lb-rank{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#7c6f9b;width:30px;text-align:center}
+.lb-rank.gold{color:#fbbf24}.lb-rank.silver{color:#94a3b8}.lb-rank.bronze{color:#cd7f32}
+.lb-info{flex:1}
+.lb-name{font-size:14px;font-weight:600;color:#e2e8f0}
+.lb-stats{font-size:11px;color:#7c6f9b}
+.lb-xp{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#c084fc}
+.lb-remove{background:none;border:none;color:#7c6f9b;cursor:pointer;font-size:14px;padding:4px}
+.lb-remove:hover{color:#ef4444}
+body.light .lb-row{background:#f5f3fa;border-color:#d8d4e8}
+body.light .lb-row.self{background:#ede9f7;border-color:#c084fc44}
+body.light .party-form input{background:#f5f3fa;border-color:#d8d4e8;color:#1a1a2e}
+
 /* Custom Quest Form */
 .custom-quest-toggle{text-align:center;margin:8px 0}
 .custom-quest-toggle button{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:8px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
@@ -234,6 +261,17 @@ body.light input,body.light select{background:#f5f3fa;border-color:#d8d4e8;color
   <div class="card" style="margin-top:20px">
     <div class="card-title">🏆 Achievements</div>
     <div class="achievements-grid" id="achievements-grid"></div>
+  </div>
+  <div class="card party-section">
+    <div class="party-header">
+      <div class="card-title" style="margin-bottom:0">🏅 Party Leaderboard</div>
+      <button class="party-add-btn" onclick="togglePartyForm()">+ Add Rival</button>
+    </div>
+    <div class="party-form" id="party-form">
+      <input type="text" id="rival-name" placeholder="Rival's name"/>
+      <button onclick="addRival()">Add</button>
+    </div>
+    <div class="leaderboard" id="leaderboard"></div>
   </div>
   <div class="custom-quest-toggle"><button onclick="toggleCustomForm()">➕ Create Custom Mission</button></div>
   <div class="card custom-form" id="custom-form">
@@ -708,9 +746,10 @@ function render(){
     }
     grid.appendChild(card);
   });
-  // Boss & Skill Tree
+  // Boss, Skill Tree, Leaderboard
   renderBoss();
   renderSkillTree();
+  renderLeaderboard();
   // Achievements
   var ag=document.getElementById('achievements-grid');ag.innerHTML='';
   ACHIEVEMENTS.forEach(function(a){
@@ -734,6 +773,54 @@ function resetAll(){
   state=defaultState();state.lastDate=todayStr();
   dailyQuests=generateDailyQuests(todayStr());
   saveState();render();
+}
+
+/* ========== PARTY / LEADERBOARD ========== */
+function togglePartyForm(){
+  var f=document.getElementById('party-form');
+  f.className=f.className.indexOf('show')!==-1?'party-form':'party-form show';
+}
+function addRival(){
+  var name=document.getElementById('rival-name').value.trim();
+  if(!name){showToast('Enter a rival name!');return}
+  if(!state.rivals) state.rivals=[];
+  state.rivals.push({name:name,xp:0,weeklyXP:0});
+  document.getElementById('rival-name').value='';
+  togglePartyForm();
+  saveState();render();
+  showToast('⚔️ New rival: '+name+'!');
+}
+function removeRival(idx){
+  if(!state.rivals) return;
+  state.rivals.splice(idx,1);
+  saveState();render();
+}
+function simulateRivalProgress(){
+  if(!state.rivals||!state.rivals.length) return;
+  // Each rival gains random XP daily to create competition feel
+  var today=todayStr();
+  if(state.rivalLastSim===today) return;
+  state.rivals.forEach(function(r){
+    var gain=Math.floor(Math.random()*80)+20;
+    r.xp+=gain;
+    r.weeklyXP=(r.weeklyXP||0)+gain;
+  });
+  state.rivalLastSim=today;
+  saveState();
+}
+function renderLeaderboard(){
+  var lb=document.getElementById('leaderboard');lb.innerHTML='';
+  var entries=[{name:'You (Hero)',xp:state.totalXP,weeklyXP:getDailyXP(),self:true}];
+  if(state.rivals) state.rivals.forEach(function(r,i){entries.push({name:r.name,xp:r.xp,weeklyXP:r.weeklyXP||0,self:false,idx:i})});
+  entries.sort(function(a,b){return b.xp-a.xp});
+  entries.forEach(function(e,i){
+    var rankClass=i===0?' gold':i===1?' silver':i===2?' bronze':'';
+    var row=document.createElement('div');
+    row.className='lb-row'+(e.self?' self':'');
+    var removeBtn=e.self?'':'<button class="lb-remove" onclick="removeRival('+e.idx+')" title="Remove">✕</button>';
+    row.innerHTML='<div class="lb-rank'+rankClass+'">#'+(i+1)+'</div><div class="lb-info"><div class="lb-name">'+e.name+'</div><div class="lb-stats">Lvl '+getLevel(e.xp)+'</div></div><div class="lb-xp">'+e.xp+' XP</div>'+removeBtn;
+    lb.appendChild(row);
+  });
 }
 
 /* ========== CUSTOM QUESTS ========== */
@@ -853,8 +940,10 @@ function renderCalendar(){
 }
 
 /* ========== INIT ========== */
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
 loadTheme();
 checkNewDay();
+simulateRivalProgress();
 dailyQuests=generateDailyQuests(todayStr());
 loadCustomQuests();
 render();
