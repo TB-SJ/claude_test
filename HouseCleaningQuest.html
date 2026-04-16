@@ -146,6 +146,7 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .detail-btns button{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:13px;cursor:pointer}
 .detail-btn-complete{background:linear-gradient(135deg,#a855f7,#e879f9);color:#fff}
 .detail-btn-timer{background:#0a0a14;border:1px solid #2a1f4e!important;color:#c084fc}
+.detail-btn-undo{background:#ef444422;border:1px solid #ef444466!important;color:#f87171}
 .detail-btn-close{background:#0a0a14;border:1px solid #2a1f4e!important;color:#7c6f9b}
 body.light .detail-modal{background:#fff;border-color:#d8d4e8}
 body.light .detail-tips{background:#f5f3fa;border-color:#d8d4e8}
@@ -327,6 +328,7 @@ body.light input,body.light select{background:#f5f3fa;border-color:#d8d4e8;color
     <div class="detail-tips"><div class="detail-tips-title">How to Complete</div><div id="det-tips"></div></div>
     <div class="detail-btns">
       <button class="detail-btn-complete" id="det-complete-btn">Complete</button>
+      <button class="detail-btn-undo" id="det-undo-btn" style="display:none">↩ Undo</button>
       <button class="detail-btn-timer" id="det-timer-btn">⏱ Timer</button>
       <button class="detail-btn-close" onclick="closeDetail()">Close</button>
     </div>
@@ -612,6 +614,25 @@ function completeQuest(id){
   var lootChance=getEffectiveLootChance(baseLoot);
   if(Math.random()<lootChance) rollLoot();
   checkAchievements();
+  saveHistory();
+  saveState();
+  render();
+}
+
+function uncompleteQuest(id){
+  var idx=state.todayDone.indexOf(id);
+  if(idx===-1) return;
+  var quest=dailyQuests.find(function(q){return q.id===id});
+  if(!quest) return;
+  state.todayDone.splice(idx,1);
+  state.totalXP=Math.max(0,state.totalXP-quest.pts);
+  state.totalCompleted=Math.max(0,(state.totalCompleted||0)-1);
+  if(quest.realm!=='Any') state.realmCounts[quest.realm]=Math.max(0,(state.realmCounts[quest.realm]||0)-1);
+  // Re-check daily goal status
+  if(state.dailyGoalMet&&getDailyXP()<getDailyGoal()){
+    state.dailyGoalMet=false;
+  }
+  showToast('↩ Mission unchecked!');
   saveHistory();
   saveState();
   render();
@@ -926,6 +947,8 @@ function showDetail(quest){
   document.getElementById('det-complete-btn').disabled=done;
   document.getElementById('det-complete-btn').style.opacity=done?'0.4':'1';
   document.getElementById('det-complete-btn').onclick=function(){completeQuest(quest.id);closeDetail()};
+  document.getElementById('det-undo-btn').style.display=done?'block':'none';
+  document.getElementById('det-undo-btn').onclick=function(){uncompleteQuest(quest.id);closeDetail()};
   document.getElementById('det-timer-btn').onclick=function(){closeDetail();startTimer(quest.id,quest.name)};
   document.getElementById('det-timer-btn').style.display=done?'none':'block';
   document.getElementById('detail-overlay').className='detail-overlay show';
