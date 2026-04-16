@@ -73,6 +73,15 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .ach-name{font-size:11px;font-weight:600;color:#7c6f9b;margin-top:6px}
 .achievement.unlocked .ach-name{color:#fbbf24}
 
+/* Avatar */
+.avatar-section{text-align:center;margin:8px 0 16px}
+.avatar-char{font-size:64px;line-height:1;transition:all 0.3s}
+.avatar-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:#c084fc;margin-top:6px}
+.avatar-rank{font-size:11px;color:#7c6f9b;margin-top:2px}
+.level-progress{max-width:260px;margin:10px auto 0;background:#0a0a14;border-radius:8px;height:14px;overflow:hidden;position:relative}
+.level-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#818cf8,#c084fc);transition:width 0.5s}
+.level-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;font-weight:600;color:#fff}
+
 /* Skill Tree */
 .skill-tree-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .skill-node{background:#0a0a14;border:1px solid #2a1f4e;border-radius:12px;padding:14px 10px;text-align:center;transition:all 0.2s;position:relative}
@@ -141,6 +150,12 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
     <div class="logo">✨ Cleaning Hero <span>Academy</span></div>
     <div class="subtitle">~ Your training arc begins now, senpai ~</div>
     <div class="day-theme" id="day-theme"></div>
+  </div>
+  <div class="avatar-section">
+    <div class="avatar-char" id="avatar-char"></div>
+    <div class="avatar-title" id="avatar-title"></div>
+    <div class="avatar-rank" id="avatar-rank"></div>
+    <div class="level-progress"><div class="level-fill" id="level-fill"></div><div class="level-text" id="level-text"></div></div>
   </div>
   <div class="stats-bar">
     <div class="stat-badge level"><div class="stat-value" id="s-level">1</div><div class="stat-label">Level</div></div>
@@ -494,6 +509,35 @@ function checkAchievements(){
   });
 }
 
+/* ========== CHARACTER AVATAR ========== */
+const AVATARS = [
+  {minLvl:1,  char:'🧹', title:'Cleaning Apprentice', rank:'D-Rank Cleaner'},
+  {minLvl:3,  char:'🧽', title:'Scrub Genin', rank:'C-Rank Cleaner'},
+  {minLvl:6,  char:'🧑‍🎓', title:'Academy Student', rank:'C-Rank Cleaner'},
+  {minLvl:10, char:'⚔️', title:'Cleaning Chunin', rank:'B-Rank Cleaner'},
+  {minLvl:15, char:'🥷', title:'Shadow Sweeper', rank:'B-Rank Cleaner'},
+  {minLvl:20, char:'🦸', title:'Cleaning Hero', rank:'A-Rank Cleaner'},
+  {minLvl:25, char:'👑', title:'Grand Sensei', rank:'S-Rank Cleaner'},
+  {minLvl:35, char:'🌟', title:'Legendary Cleaning God', rank:'SS-Rank Cleaner'},
+  {minLvl:50, char:'🐉', title:'Dragon of Spotlessness', rank:'SSS-Rank Cleaner'},
+];
+function getAvatar(lvl){
+  var a=AVATARS[0];
+  for(var i=AVATARS.length-1;i>=0;i--){if(lvl>=AVATARS[i].minLvl){a=AVATARS[i];break}}
+  return a;
+}
+function renderAvatar(){
+  var lvl=getLevel(state.totalXP);
+  var av=getAvatar(lvl);
+  document.getElementById('avatar-char').textContent=av.char;
+  document.getElementById('avatar-title').textContent=av.title;
+  document.getElementById('avatar-rank').textContent=av.rank+' — Level '+lvl;
+  var prog=getLevelProgress(state.totalXP);
+  var pct=Math.round(prog/XP_PER_LEVEL*100);
+  document.getElementById('level-fill').style.width=pct+'%';
+  document.getElementById('level-text').textContent=prog+' / '+XP_PER_LEVEL+' XP to next level';
+}
+
 /* ========== SKILL TREE ========== */
 const SKILLS = [
   {id:'sk_double_sun',name:'Double XP Sunday',icon:'☀️',desc:'2x XP on Sundays',lvl:3},
@@ -539,6 +583,7 @@ function render(){
   document.getElementById('s-level').textContent=lvl;
   document.getElementById('s-xp').textContent=state.totalXP;
   document.getElementById('s-streak').textContent='🔥 '+state.streak;
+  renderAvatar();
   // Day theme header
   var dayInfo=getTodayRealm(todayStr());
   var realmObj=REALMS.find(function(r){return r.name===dayInfo.realm});
