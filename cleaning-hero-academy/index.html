@@ -23,6 +23,18 @@ body{background:#0a0a14;color:#e2e8f0;font-family:'DM Sans',sans-serif;min-heigh
 .subtitle{font-size:13px;color:#7c6f9b;margin-top:4px;font-style:italic}
 .day-theme{margin-top:10px;font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:#c084fc;letter-spacing:0.3px}
 .day-theme .realm-icon{font-size:22px;margin-right:4px}
+.change-realm-btn{background:transparent;border:1px solid #2a1f4e;color:#c084fc;padding:4px 12px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:600;margin-left:8px;vertical-align:middle}
+.change-realm-btn:hover{border-color:#e879f9}
+.realm-picker{display:none;margin-top:10px;padding:12px;background:#110f1f;border:1px solid #2a1f4e;border-radius:12px;max-width:420px;margin-left:auto;margin-right:auto}
+.realm-picker.show{display:block}
+.realm-picker-title{font-size:11px;color:#7c6f9b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.realm-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px}
+.realm-option{background:#0a0a14;border:1px solid #2a1f4e;border-radius:8px;padding:8px 10px;cursor:pointer;font-size:12px;color:#e2e8f0;transition:all 0.2s;display:flex;align-items:center;gap:6px}
+.realm-option:hover{border-color:#c084fc}
+.realm-option.active{border-color:#e879f9;background:#1a1530;color:#e879f9}
+body.light .change-realm-btn{border-color:#d8d4e8;color:#6b5f8a}
+body.light .realm-picker{background:#fff;border-color:#d8d4e8}
+body.light .realm-option{background:#f5f3fa;border-color:#d8d4e8;color:#1a1a2e}
 
 /* Stats Bar */
 .stats-bar{display:flex;gap:12px;justify-content:center;margin:16px 0;flex-wrap:wrap}
@@ -259,6 +271,10 @@ body.light input,body.light select{background:#f5f3fa;border-color:#d8d4e8;color
     <div class="logo">✨ Cleaning Hero <span>Academy</span></div>
     <div class="subtitle">~ Your training arc begins now, senpai ~</div>
     <div class="day-theme" id="day-theme"></div>
+    <div class="realm-picker" id="realm-picker">
+      <div class="realm-picker-title">Change today's category</div>
+      <div class="realm-options" id="realm-options"></div>
+    </div>
   </div>
   <div class="avatar-section">
     <div class="avatar-char" id="avatar-char"></div>
@@ -525,8 +541,48 @@ function todayStr(){return new Date().toLocaleDateString('en-CA')}
 
 /* ========== QUEST GENERATION (day-themed) ========== */
 function getTodayRealm(dateStr){
+  // Check for user override first
+  if(state.realmOverrides&&state.realmOverrides[dateStr]){
+    var override=state.realmOverrides[dateStr];
+    return {day:-1,realm:override,title:'Custom: '+override+' Focus'};
+  }
   var d=new Date(dateStr+'T00:00:00');
   return DAY_REALMS[d.getDay()];
+}
+function setTodayRealm(realmName){
+  var today=todayStr();
+  if(!state.realmOverrides) state.realmOverrides={};
+  state.realmOverrides[today]=realmName;
+  // Reset today's progress since tasks are changing
+  var prevXP=getDailyXP();
+  state.totalXP=Math.max(0,state.totalXP-prevXP);
+  state.totalCompleted=Math.max(0,(state.totalCompleted||0)-state.todayDone.length);
+  state.todayDone=[];
+  state.dailyGoalMet=false;
+  state.comboCount=0;
+  state.lastCompleteTime=0;
+  saveState();
+  dailyQuests=generateDailyQuests(today);
+  loadCustomQuests();
+  toggleRealmPicker();
+  showToast('🔄 Changed to '+realmName+'!');
+  render();
+}
+function toggleRealmPicker(){
+  var p=document.getElementById('realm-picker');
+  p.className=p.className.indexOf('show')!==-1?'realm-picker':'realm-picker show';
+  if(p.className.indexOf('show')!==-1) renderRealmPicker();
+}
+function renderRealmPicker(){
+  var current=getTodayRealm(todayStr()).realm;
+  var ro=document.getElementById('realm-options');ro.innerHTML='';
+  REALMS.forEach(function(r){
+    var div=document.createElement('div');
+    div.className='realm-option'+(r.name===current?' active':'');
+    div.innerHTML='<span style="font-size:18px">'+r.emoji+'</span><span>'+r.name+'</span>';
+    div.onclick=function(){setTodayRealm(r.name)};
+    ro.appendChild(div);
+  });
 }
 function generateDailyQuests(dateStr){
   var d=new Date(dateStr+'T00:00:00');
@@ -818,7 +874,7 @@ function render(){
   // Day theme header
   var dayInfo=getTodayRealm(todayStr());
   var realmObj=REALMS.find(function(r){return r.name===dayInfo.realm});
-  document.getElementById('day-theme').innerHTML='<span class="realm-icon">'+(realmObj?realmObj.emoji:'')+'</span> '+dayInfo.title;
+  document.getElementById('day-theme').innerHTML='<span class="realm-icon">'+(realmObj?realmObj.emoji:'')+'</span> '+dayInfo.title+'<button class="change-realm-btn" onclick="toggleRealmPicker()">Change</button>';
   // Daily progress (scales with level)
   var dg=getDailyGoal();
   var dxp=getDailyXP(),pct=Math.min(100,Math.round(dxp/dg*100));
