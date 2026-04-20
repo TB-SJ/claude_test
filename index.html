@@ -20,6 +20,9 @@
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
   ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111120; } ::-webkit-scrollbar-thumb { background: #2d2d5e; border-radius: 3px; }
 
+  /* Eliminate 300ms tap delay on iOS for all interactive elements */
+  button, input, select, a { touch-action: manipulation; }
+
   /* Auth */
   #auth-screen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
   .auth-card { background:#111120; border:1px solid #1e1e3a; border-radius:24px; padding:40px 36px; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
@@ -513,6 +516,7 @@ function showToast(msg,type="success") {
 // ── State ──
 let user=null, incomeRec=null, bills=[], expenses={}, goals=[], chartMonth=monthKey, editingBillId=null, editingExpId=null, editingDueId=null, billsCatFilter='all';
 let _signingOut = false; // prevents onAuthStateChange from re-initializing during sign-out
+let _saveIncomeTimer=null, _saveBillTimers={};
 
 // ── Month navigation ──
 function changeMonth(dir) {
@@ -569,19 +573,23 @@ async function doResetPassword() {
   else{msg.className="auth-msg ok"; msg.textContent="Password reset email sent!";}
 }
 async function doSignOut() {
+  if(_signingOut) return;
   _signingOut = true;
   const btn = document.querySelector('.signout-btn');
   if(btn) { btn.textContent='Signing out…'; btn.disabled=true; }
-  try { await sb.auth.signOut(); } catch(e) {
-    // Network failed — force-clear the local session so the user is signed out locally
+  try {
+    await sb.auth.signOut();
+  } catch(e) {
+    // Network failed — force-clear local session so user is signed out locally
     try { localStorage.removeItem('personal-budget-auth'); } catch(_) {}
+  } finally {
+    _signingOut = false;
+    user=null; incomeRec=null; bills=[]; expenses={}; goals=[]; plaidTransactions=[]; plaidConnections=[]; csvPendingTransactions=[];
+    clearCache();
+    document.getElementById("main-app").style.display="none";
+    document.getElementById("auth-screen").style.display="flex";
+    if(btn) { btn.textContent='Sign Out'; btn.disabled=false; }
   }
-  _signingOut = false;
-  user=null; incomeRec=null; bills=[]; expenses={}; goals=[]; plaidTransactions=[]; plaidConnections=[]; csvPendingTransactions=[];
-  clearCache();
-  document.getElementById("main-app").style.display="none";
-  document.getElementById("auth-screen").style.display="flex";
-  if(btn) { btn.textContent='Sign Out'; btn.disabled=false; }
 }
 
 function setLoadingStep(msg) {
@@ -903,8 +911,11 @@ function liveIncome() {
   const rv=parseFloat(document.getElementById("inc-rv")?.value)||0;
   const el=document.getElementById("total-disp"); if(el) el.textContent=fmt(ft+rv);
   renderSummary();
+  clearTimeout(_saveIncomeTimer);
+  _saveIncomeTimer=setTimeout(saveIncome, 800);
 }
 async function saveIncome() {
+  if(!user) return;
   const ft=parseFloat(document.getElementById("inc-ft")?.value)||0;
   const rv=parseFloat(document.getElementById("inc-rv")?.value)||0;
   if(incomeRec){
@@ -914,7 +925,7 @@ async function saveIncome() {
     const {data}=await sb.from("budget_income").insert({user_id:user.id,full_time:ft,rover:rv}).select().maybeSingle();
     if(data) incomeRec=data;
   }
-  renderSummary();
+  renderSummary(); saveCache();
 }
 
 // ── Bills ──
@@ -1002,6 +1013,9 @@ function liveBill(id,field,val){
     bills=bills.map(b=>b.id===id?{...b,[field]:parseFloat(val)||0}:b);
   }
   renderSummary();
+  const key=id+':'+field;
+  clearTimeout(_saveBillTimers[key]);
+  _saveBillTimers[key]=setTimeout(()=>commitBill(id,field,val), 800);
 }
 async function commitBill(id,field,val){
   const v=parseFloat(val)||0;
