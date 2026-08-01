@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>Sign in · Calendar Optimizer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="card login-card" id="form">
+      <h1 style="margin:0 0 4px">🗓 Calendar Optimizer</h1>
+      <p class="muted" style="margin:0 0 8px">Enter your password to continue.</p>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" autofocus />
+      <button class="primary full" type="submit">Sign in</button>
+      <p class="center" id="err" style="color:var(--danger);min-height:20px;margin:10px 0 0"></p>
+    </form>
+  </div>
+  <script>
+    const form = document.getElementById('form');
+    const err = document.getElementById('err');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.textContent = '';
+      const password = document.getElementById('password').value;
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        if (res.ok) { window.location.href = '/'; return; }
+        err.textContent = 'Incorrect password.';
+      } catch (_) {
+        err.textContent = 'Network error.';
+      }
+    });
+  </script>
+</body>
+</html>

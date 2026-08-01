@@ -52,19 +52,20 @@ router.get('/:provider/callback', async (req, res) => {
   if (!service) return res.status(404).json({ error: `Unknown provider: ${provider}` });
 
   const { code, state, error, error_description: errorDescription } = req.query;
+  // After the OAuth handshake, land the user back in the web app.
   if (error) {
-    return res.status(400).json({ error, detail: errorDescription });
+    return res.redirect(`/?auth_error=${encodeURIComponent(String(errorDescription || error))}`);
   }
-  if (!code) return res.status(400).json({ error: 'Missing authorization code.' });
+  if (!code) return res.redirect('/?auth_error=missing_code');
   if (!state || !consumeState(String(state), provider)) {
-    return res.status(400).json({ error: 'Invalid or expired state parameter.' });
+    return res.redirect('/?auth_error=invalid_state');
   }
 
   try {
     await service.handleCallback(String(code));
-    res.json({ status: 'connected', provider, message: `${provider} account linked successfully.` });
+    res.redirect(`/?connected=${encodeURIComponent(provider)}`);
   } catch (err) {
-    res.status(500).json({ error: `Failed to complete ${provider} auth`, detail: err.message });
+    res.redirect(`/?auth_error=${encodeURIComponent(err.message)}`);
   }
 });
 

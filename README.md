@@ -289,7 +289,43 @@ curl -X POST http://localhost:3000/schedule/google/apply \
   -d '{"confirm":true,"moves":[ /* moves from /analyze */ ]}'
 ```
 
-## Voice dashboard (main entry point)
+## Mobile web dashboard (Phase 1)
+
+A phone-friendly web UI served by the same Express app: connect Google, view your
+day/week, tap **Optimize my day**, review a **Before / After** of your calendar,
+and **Apply** — all from a browser. Timezone is detected from the browser, so the
+9–11 AM deep-work rules use your local time automatically.
+
+```bash
+# Local (no login gate):
+npm start                      # open http://localhost:3000
+
+# Exposed to a phone — set a password first:
+APP_PASSWORD='choose-one' npm start
+```
+
+- **Single-user login gate.** If `APP_PASSWORD` is set, the app requires it and
+  keeps a signed session cookie; if unset, the gate is disabled (fine for
+  localhost, and the server warns you at startup). **Always set it before hosting.**
+- Endpoints that touch your calendar (`/calendar`, `/schedule`, `/voice`,
+  `/auth`) are gated; the login page and static assets are not.
+
+### Putting it on your phone
+
+**Option A — ngrok (quickest test):**
+```bash
+APP_PASSWORD='choose-one' npm start          # terminal 1
+ngrok http 3000                               # terminal 2 -> gives an https URL
+```
+Add `https://<id>.ngrok.app/auth/google/callback` as an authorized redirect URI
+in the Google Cloud Console, set `BASE_URL=https://<id>.ngrok.app` in `.env`, then
+open the ngrok URL on your phone.
+
+**Option B — cloud host (Render/Railway/Fly)** for a permanent URL — see
+`docs/MOBILE_PLAN.md` (note: move the encrypted token file to durable storage,
+since cloud disks are wiped on redeploy).
+
+## Voice dashboard (terminal)
 
 An interactive CLI that ties the whole app together into one loop:
 
@@ -387,6 +423,7 @@ src/
   logger.js           # Structured logging
   errors.js           # Typed errors + precise API-error extraction/logging
   httpError.js        # Maps typed errors to HTTP status codes
+  webAuth.js          # Single-user password gate + signed session cookie
   voiceCli.js         # CLI: mic -> intent JSON
   optimizeCli.js      # CLI: analyze week -> propose -> confirm -> apply
   dashboardCli.js     # Interactive dashboard (main entry point)
@@ -411,6 +448,9 @@ src/
     voice.js          # record -> transcribe -> intent pipeline
     scheduleRules.js  # Optimization ruleset + helpers
     scheduleOptimizer.js  # analyze() + optimize() engine
+public/                   # Mobile web dashboard (Phase 1)
+  app.html  app.js  login.html  styles.css
 test/
   dashboard.e2e.test.js   # End-to-end loop test (node --test)
+  webAuth.test.js         # Session/password gate unit test
 ```

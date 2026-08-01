@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const express = require('express');
 const { config, validate } = require('./config');
 const healthRouter = require('./routes/health');
@@ -7,36 +8,62 @@ const authRouter = require('./routes/auth');
 const calendarRouter = require('./routes/calendar');
 const voiceRouter = require('./routes/voice');
 const scheduleRouter = require('./routes/schedule');
+const webAuth = require('./webAuth');
 
 const app = express();
+app.set('trust proxy', 1); // respect X-Forwarded-Proto behind ngrok/cloud proxies
 app.use(express.json());
 
-// Landing page: quick pointers to the available endpoints.
-app.get('/', (req, res) => {
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+
+// --- Static assets (login page, app shell, css, js). No auth: these carry no
+// data; the data lives behind the gated API below. index:false so "/" is routed
+// explicitly (auth-gated) rather than auto-serving index.html.
+app.use(express.static(PUBLIC_DIR, { index: false }));
+
+// --- Login gate (single-user). No-op when APP_PASSWORD is unset.
+app.get('/login', (req, res) => {
+  if (webAuth.isAuthed(req)) return res.redirect('/');
+  res.sendFile(path.join(PUBLIC_DIR, 'login.html'));
+});
+app.post('/login', (req, res) => {
+  if (!webAuth.checkPassword(req.body && req.body.password)) {
+    return res.status(401).json({ error: 'Incorrect password' });
+  }
+  webAuth.setSessionCookie(req, res);
+  res.json({ ok: true });
+});
+app.post('/logout', (req, res) => {
+  webAuth.clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+// --- The app shell (mobile dashboard).
+app.get('/', webAuth.requireAuthPage, (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'app.html'));
+});
+
+// --- Machine-readable API index (handy for debugging).
+app.get('/api', (req, res) => {
   res.json({
     name: 'calendar-oauth-server',
     endpoints: {
       health: 'GET /health',
       connectGoogle: 'GET /auth/google',
-      connectOutlook: 'GET /auth/outlook',
-      logout: 'POST /auth/:provider/logout',
       listEvents: 'GET /calendar/:provider/events?range=day|week&date=YYYY-MM-DD',
-      createEvent: 'POST /calendar/:provider/events',
-      updateEvent: 'PATCH /calendar/:provider/events/:id',
-      deleteEvent: 'DELETE /calendar/:provider/events/:id',
-      voiceCapture: 'POST /voice/capture',
-      voiceIntent: 'POST /voice/intent',
       analyzeSchedule: 'POST /schedule/:provider/analyze',
       applySchedule: 'POST /schedule/:provider/apply',
     },
   });
 });
 
+// --- Health is public (useful for host uptime pings). Everything else that
+// touches your calendar is gated.
 app.use('/health', healthRouter);
-app.use('/auth', authRouter);
-app.use('/calendar', calendarRouter);
-app.use('/voice', voiceRouter);
-app.use('/schedule', scheduleRouter);
+app.use('/auth', webAuth.requireAuthApi, authRouter);
+app.use('/calendar', webAuth.requireAuthApi, calendarRouter);
+app.use('/voice', webAuth.requireAuthApi, voiceRouter);
+app.use('/schedule', webAuth.requireAuthApi, scheduleRouter);
 
 // 404 + error handlers.
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
@@ -49,12 +76,14 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
   const warnings = validate();
   warnings.forEach((w) => console.warn(`[config] ${w}`));
+  if (!webAuth.enabled()) {
+    console.warn('[config] APP_PASSWORD is not set — the web dashboard has NO login gate. Set it before hosting.');
+  }
 
   app.listen(config.port, () => {
     console.log(`calendar-oauth-server listening on ${config.baseUrl}`);
-    console.log(`  Health check:    ${config.baseUrl}/health`);
-    console.log(`  Connect Google:  ${config.baseUrl}/auth/google`);
-    console.log(`  Connect Outlook: ${config.baseUrl}/auth/outlook`);
+    console.log(`  Dashboard:   ${config.baseUrl}/`);
+    console.log(`  Health:      ${config.baseUrl}/health`);
   });
 }
 

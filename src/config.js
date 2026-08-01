@@ -40,6 +40,13 @@ const config = {
     whisperModel: process.env.WHISPER_MODEL || 'whisper-1',
   },
 
+  // Web dashboard single-user gate. Leave APP_PASSWORD empty to disable the
+  // login gate (fine for localhost); set it before hosting.
+  app: {
+    password: process.env.APP_PASSWORD || '',
+    sessionSecret: process.env.APP_SESSION_SECRET || '',
+  },
+
   // Microphone capture (node-record-lpcm16 shells out to sox/rec/arecord).
   audio: {
     sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),

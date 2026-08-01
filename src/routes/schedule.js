@@ -9,7 +9,7 @@ const { validationError } = require('../errors');
 const router = express.Router();
 
 /** Serializes the optimize() result for JSON (drops the internal Map). */
-function serialize(result) {
+function serialize(result, events) {
   return {
     rules: result.rules,
     analysis: {
@@ -22,18 +22,22 @@ function serialize(result) {
     moves: result.moves,
     unplaceable: result.unplaceable,
     summary: result.summary,
+    // The exact events analyzed, so a client can render Before/After without
+    // a second fetch (and against the same snapshot).
+    events,
   };
 }
 
 /**
- * POST /schedule/:provider/analyze  { date?, rules? }
+ * POST /schedule/:provider/analyze  { date?, range?, rules? }
  * Read-only: returns the analysis + proposed moves. Never writes.
  */
 router.post('/:provider/analyze', async (req, res) => {
   try {
-    const { date, rules } = req.body || {};
-    const events = await calendar.getEvents(req.params.provider, { range: 'week', date });
-    res.json(serialize(optimize(events, rules || {})));
+    const { date, range, rules } = req.body || {};
+    const scope = range === 'day' ? 'day' : 'week';
+    const events = await calendar.getEvents(req.params.provider, { range: scope, date });
+    res.json(serialize(optimize(events, rules || {}), events));
   } catch (err) {
     sendError(res, err);
   }

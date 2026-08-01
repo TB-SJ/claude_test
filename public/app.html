@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>Calendar Optimizer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>🗓 Calendar Optimizer</h1>
+        <div class="sub" id="tzLabel"></div>
+      </div>
+      <button class="ghost" id="logoutBtn" title="Sign out">Sign out</button>
+    </header>
+
+    <!-- Not connected -->
+    <section class="card hidden" id="connectCard">
+      <h2>Connect your calendar</h2>
+      <p class="muted">Link your Google Calendar to get started.</p>
+      <a class="btn primary full" href="/auth/google">Connect Google Calendar</a>
+    </section>
+
+    <!-- Connected: today -->
+    <section class="card hidden" id="todayCard">
+      <div class="row">
+        <h2 style="margin:0">Your schedule</h2>
+        <span class="spacer"></span>
+        <div class="toggle" id="scopeToggle">
+          <button data-scope="day" class="active">Day</button>
+          <button data-scope="week">Week</button>
+        </div>
+      </div>
+      <div id="eventList" style="margin-top:10px"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="ghost" id="refreshBtn">↻ Refresh</button>
+        <span class="spacer"></span>
+        <button class="primary" id="optimizeBtn">✨ Optimize my <span id="optScope">day</span></button>
+      </div>
+    </section>
+
+    <!-- Optimization proposal -->
+    <section class="card hidden" id="proposalCard">
+      <div class="row">
+        <h2 style="margin:0">Proposed changes</h2>
+        <span class="spacer"></span>
+        <span class="pill" id="analysisPill"></span>
+      </div>
+
+      <div id="beforeAfter" style="margin-top:12px"></div>
+
+      <div id="reasons" style="margin-top:14px"></div>
+
+      <div class="row" style="margin-top:16px">
+        <button class="ghost" id="cancelBtn">Cancel</button>
+        <span class="spacer"></span>
+        <button class="primary" id="applyBtn">Apply changes</button>
+      </div>
+    </section>
+
+    <div class="center muted hidden" id="loading"><span class="spinner"></span></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

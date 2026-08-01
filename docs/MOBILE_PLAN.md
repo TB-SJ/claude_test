@@ -27,7 +27,15 @@ on a real phone via **ngrok** first, then deploy to **Render** if you keep it.
 | Terminal dashboard (`dashboardCli`, `dashboard/*`) | ❌ | Terminal-only; replaced by the web UI. The reusable logic (`routeCommand`, Before/After model) can be ported to the browser |
 | Server-side mic (`audio.js`, `node-record-lpcm16`) | ❌ for mobile | Phone can't reach the server's mic; capture moves into the browser |
 
-## Phase 1 — Mobile web dashboard (tap-first)  ← the core mobile experience
+## Phase 1 — Mobile web dashboard (tap-first)  ✅ BUILT
+
+> Implemented: responsive UI in `public/`, single-user password gate
+> (`src/webAuth.js`), browser-timezone passthrough, OAuth callback now redirects
+> back into the app, and `/schedule/analyze` accepts a `range` and returns the
+> analyzed events. Run with `APP_PASSWORD=… npm start`. Remaining items below
+> are covered; Phases 2–3 are still open.
+
+### (original design, for reference)  ← the core mobile experience
 
 A single responsive page served by the existing Express app.
 
