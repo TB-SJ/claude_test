@@ -289,6 +289,53 @@ curl -X POST http://localhost:3000/schedule/google/apply \
   -d '{"confirm":true,"moves":[ /* moves from /analyze */ ]}'
 ```
 
+## Voice dashboard (main entry point)
+
+An interactive CLI that ties the whole app together into one loop:
+
+```
+launch → wait for hotkey → 🎙 listen (mic → Whisper → intent)
+       → run command → (for "Optimize my day") show Before/After → confirm → save
+```
+
+```bash
+npm run dashboard -- --provider google --tz-offset -420
+```
+
+- Press **SPACE** to start listening; say a command; press **q** to quit.
+- **"Optimize my day"** (or *my week*) runs the optimization engine and prints a
+  side-by-side **Before / After** view of your calendar, with each change and the
+  reason for it, then asks for confirmation **before** writing anything.
+- Also understands **"add … "**, **"remove … "**, **"move … "** (via the voice
+  intent extractor), and **"help"** / **"quit"**.
+
+```text
+BEFORE                                   │ AFTER
+─────────────────────────────────────────┼─────────────────────────────────
+Mon 2026-08-03
+09:30-09:45 Standup                      │ ▸ 13:00-13:15 Standup
+10:00-11:00 Design review                │ ▸ 13:30-14:30 Design review
+13:00-13:30 1:1 with Alice               │ ▸ 14:45-15:15 1:1 with Alice
+...
+Apply these 5 change(s)? [y/N]
+```
+
+The dashboard core (`src/dashboard/core.js`) takes its I/O, voice, and calendar
+as **injected dependencies**, so the whole loop is driven end-to-end in tests
+without a real microphone, API key, or calendar auth.
+
+## Testing
+
+```bash
+npm test        # node --test
+```
+
+`test/dashboard.e2e.test.js` exercises the full loop with in-memory fakes:
+hotkey → "Optimize my day" → Before/After → confirm → the fake calendar is
+verified to be rewritten to a conflict-free, deep-work-clear schedule. It also
+covers the abort path (calendar untouched), an already-optimized week (no
+changes proposed), voice "add", and command routing.
+
 **Connect an account:** open `http://localhost:3000/auth/google` (or
 `/auth/outlook`) in a browser, complete consent, and you'll be redirected back
 and see a `connected` confirmation.
@@ -342,6 +389,10 @@ src/
   httpError.js        # Maps typed errors to HTTP status codes
   voiceCli.js         # CLI: mic -> intent JSON
   optimizeCli.js      # CLI: analyze week -> propose -> confirm -> apply
+  dashboardCli.js     # Interactive dashboard (main entry point)
+  dashboard/
+    core.js           # Injectable dashboard loop + command routing
+    render.js         # Before/After side-by-side rendering
   routes/
     health.js         # GET /health
     auth.js           # OAuth start/callback/logout
@@ -360,4 +411,6 @@ src/
     voice.js          # record -> transcribe -> intent pipeline
     scheduleRules.js  # Optimization ruleset + helpers
     scheduleOptimizer.js  # analyze() + optimize() engine
+test/
+  dashboard.e2e.test.js   # End-to-end loop test (node --test)
 ```

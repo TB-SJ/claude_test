@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "voice": "node src/voiceCli.js",
-    "optimize": "node src/optimizeCli.js"
+    "optimize": "node src/optimizeCli.js",
+    "dashboard": "node src/dashboardCli.js",
+    "test": "node --test"
   },
   "keywords": [
     "express",

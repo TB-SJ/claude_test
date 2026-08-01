@@ -278,7 +278,11 @@ function optimize(events, ruleOverrides = {}) {
       if (!placed) continue;
       const newStart = fromLocal(dayKey, placed.startMin, off);
       const newEnd = fromLocal(dayKey, placed.endMin, off);
-      if (newStart === ev.start && newEnd === ev.end) {
+      // Compare by instant, not string — fromLocal emits millis (…00.000Z) that
+      // a stored …00Z would otherwise appear to differ from.
+      const sameStart = new Date(newStart).getTime() === new Date(ev.start).getTime();
+      const sameEnd = new Date(newEnd).getTime() === new Date(ev.end).getTime();
+      if (sameStart && sameEnd) {
         unchanged += 1;
         continue;
       }
