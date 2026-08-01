@@ -54,7 +54,31 @@ git checkout claude/nodejs-calendar-oauth-setup-5d7rj5
 npm install
 ```
 
-### A4. Create Google OAuth credentials
+### A4 (Outlook). Create a Microsoft/Azure app registration
+
+Use this if you're connecting an **Outlook** calendar. (For Google, skip to
+"A4 (Google)" below instead.)
+
+> **Account type note:** a **personal** `outlook.com`/`hotmail`/`live` account
+> works fine. A **work/school** account managed by an employer may block app
+> registration or require an admin's consent — if that happens, that's an IT
+> restriction on your account, not a bug.
+
+1. Go to the [Azure Portal](https://portal.azure.com) → search **App registrations** → **New registration**.
+2. **Name**: anything (e.g. "Calendar Optimizer").
+3. **Supported account types**: choose **"Accounts in any organizational directory (any tenant) and personal Microsoft accounts"** (this is required for a personal Outlook account).
+4. **Redirect URI**: platform **Web**, value (use your ngrok domain):
+   ```
+   https://myschedule.ngrok-free.app/auth/outlook/callback
+   ```
+   → **Register**.
+5. On the app's **Overview** page, copy the **Application (client) ID** → this is `MS_CLIENT_ID`.
+6. **Certificates & secrets → New client secret** → add → **immediately copy the secret _Value_** (not the Secret ID; Azure only shows it once) → this is `MS_CLIENT_SECRET`.
+7. **API permissions → Add a permission → Microsoft Graph → Delegated permissions** → check **Calendars.ReadWrite** → **Add permissions**. (`User.Read` is already there; `offline_access` is handled automatically.)
+
+Then use the **Outlook** `.env` template in A5. ✅ You're done with A4 — skip the Google section.
+
+### A4 (Google). Create Google OAuth credentials
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com).
 2. **Create a project** (top bar → project dropdown → *New Project* → name it → *Create*).
@@ -84,8 +108,21 @@ Copy the template and edit it:
 cp .env.example .env      # Windows: copy .env.example .env
 ```
 
-Set these values in `.env` (leave everything else as-is; Outlook/OpenAI/audio are
-not needed for Phase 1):
+Set these values in `.env` (leave everything else as-is; OpenAI/audio are not
+needed for Phase 1). **Use the block for the calendar you're connecting.**
+
+**Outlook:**
+```ini
+PORT=3000
+BASE_URL=https://myschedule.ngrok-free.app
+TOKEN_ENCRYPTION_KEY=<paste the generated key>
+MS_CLIENT_ID=<Application (client) ID from A4>
+MS_CLIENT_SECRET=<client secret VALUE from A4>
+MS_TENANT_ID=common
+APP_PASSWORD=<choose a password you'll type on your phone>
+```
+
+**Google:**
 ```ini
 PORT=3000
 BASE_URL=https://myschedule.ngrok-free.app
@@ -95,8 +132,10 @@ GOOGLE_CLIENT_SECRET=<from step A4>
 APP_PASSWORD=<choose a password you'll type on your phone>
 ```
 
-> `BASE_URL` must match your ngrok domain exactly, and the Google redirect URI must
-> be `BASE_URL` + `/auth/google/callback`. No trailing slash on `BASE_URL`.
+> `BASE_URL` must match your ngrok domain exactly (no trailing slash), and the
+> redirect URI in Azure/Google must be `BASE_URL` + `/auth/outlook/callback`
+> (or `/auth/google/callback`). The dashboard auto-detects whichever calendar
+> you connect.
 
 ---
 
@@ -120,11 +159,10 @@ ngrok http --domain=myschedule.ngrok-free.app 3000
 1. Open `https://myschedule.ngrok-free.app` in your browser.
 2. If ngrok shows a blue "You are about to visit…" page, tap **Visit Site** (once per session).
 3. Enter your **APP_PASSWORD** → *Sign in*.
-4. Tap **Connect Google Calendar** → choose your Google account.
-5. You'll see **"Google hasn't verified this app"** — tap **Advanced → Go to (your app)**,
-   then **Allow**. (This is normal for a personal app; you added yourself as a test user.)
-6. You land back on the app showing **Connected ✓** and today's schedule.
-7. Tap **Optimize my day** → review **Before / After** → **Apply changes**.
+4. Tap **Connect Outlook Calendar** (or Google) → sign in to your account and **Accept** the permissions.
+   - Google only: you'll first see "Google hasn't verified this app" — tap **Advanced → Go to (your app) → Allow**.
+5. You land back on the app showing **Connected ✓** and today's schedule.
+6. Tap **Optimize my day** → review **Before / After** → **Apply changes**.
 
 That's it. 🎉 Add the page to your home screen for quick access
 (Chrome → ⋮ → *Add to Home screen*).
@@ -135,7 +173,8 @@ That's it. 🎉 Add the page to your home screen for quick access
 
 | Symptom | Fix |
 | --- | --- |
-| **`redirect_uri_mismatch`** | The Google redirect URI must exactly equal `https://<your-domain>/auth/google/callback`, and `.env` `BASE_URL` must be `https://<your-domain>` (no trailing slash). Restart `npm start` after editing `.env`. |
+| **`redirect_uri_mismatch`** | The redirect URI must exactly equal `https://<your-domain>/auth/outlook/callback` (or `/auth/google/callback`), and `.env` `BASE_URL` must be `https://<your-domain>` (no trailing slash). Restart `npm start` after editing `.env`. |
+| **Outlook: "account doesn't exist in tenant"** | In Azure, set **Supported account types** to include **personal Microsoft accounts** (re-register if you picked single-tenant), and keep `MS_TENANT_ID=common`. |
 | **"App isn't verified"** | Expected for a personal app. *Advanced → Go to … → Allow*. Make sure your email is added as a **Test user** (step A4.4). |
 | **`access_denied` / blocked** | Add your Google email as a Test user on the OAuth consent screen. |
 | **ngrok warning page every time** | Free ngrok shows it once per browser session — tap *Visit Site*. |

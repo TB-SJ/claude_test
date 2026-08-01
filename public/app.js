@@ -1,12 +1,16 @@
 'use strict';
 
 // Single-user mobile dashboard. Talks to the same-origin API (cookie auth).
-const PROVIDER = 'google';
+// The active provider is auto-detected from whichever calendar is connected.
+const PROVIDER_ORDER = ['outlook', 'google'];
+const PROVIDER_LABEL = { google: 'Google Calendar', outlook: 'Outlook Calendar' };
 // Minutes to add to UTC to get local time (matches the optimizer's convention).
 const TZ_OFFSET = -new Date().getTimezoneOffset();
 
+let activeProvider = null;
 let scope = 'day';
 let proposal = null; // last analyze() result
+let tzBase = '';
 
 // --- DOM helpers -----------------------------------------------------------
 const $ = (id) => document.getElementById(id);
@@ -113,12 +117,22 @@ function escapeHtml(s) {
 async function refreshConnection() {
   try {
     const health = await api('/health');
-    const connected = health.providers && health.providers[PROVIDER] && health.providers[PROVIDER].connected;
-    if (connected) {
+    const provs = health.providers || {};
+    // Use the first connected provider (Outlook preferred, then Google).
+    activeProvider = PROVIDER_ORDER.find((p) => provs[p] && provs[p].connected) || null;
+
+    if (activeProvider) {
+      $('tzLabel').textContent = `${tzBase} · ${PROVIDER_LABEL[activeProvider]}`;
       hide($('connectCard'));
       show($('todayCard'));
       await loadEvents();
     } else {
+      // Offer a connect button for each configured-but-unconnected provider.
+      const configured = PROVIDER_ORDER.filter((p) => provs[p] && provs[p].reason !== 'not_configured');
+      const list = configured.length ? configured : PROVIDER_ORDER;
+      $('connectButtons').innerHTML = list
+        .map((p) => `<a class="btn primary full" style="margin-top:8px" href="/auth/${p}">Connect ${PROVIDER_LABEL[p]}</a>`)
+        .join('');
       show($('connectCard'));
       hide($('todayCard'));
       hide($('proposalCard'));
@@ -131,7 +145,7 @@ async function refreshConnection() {
 async function loadEvents() {
   setLoading(true);
   try {
-    const data = await api(`/calendar/${PROVIDER}/events?range=${scope}`);
+    const data = await api(`/calendar/${activeProvider}/events?range=${scope}`);
     renderSchedule($('eventList'), data.events || []);
   } catch (err) {
     $('eventList').innerHTML = `<p class="muted">Couldn't load events: ${escapeHtml(err.message)}</p>`;
@@ -144,7 +158,7 @@ async function runOptimize() {
   setLoading(true);
   hide($('proposalCard'));
   try {
-    proposal = await api(`/schedule/${PROVIDER}/analyze`, {
+    proposal = await api(`/schedule/${activeProvider}/analyze`, {
       method: 'POST',
       body: { range: scope, rules: { tzOffsetMinutes: TZ_OFFSET } },
     });
@@ -188,7 +202,7 @@ async function applyProposal() {
   if (!proposal || !proposal.moves.length) return;
   setLoading(true);
   try {
-    const result = await api(`/schedule/${PROVIDER}/apply`, {
+    const result = await api(`/schedule/${activeProvider}/apply`, {
       method: 'POST',
       body: { confirm: true, moves: proposal.moves },
     });
@@ -213,7 +227,8 @@ function setScope(next) {
 }
 
 function init() {
-  $('tzLabel').textContent = `UTC${TZ_OFFSET >= 0 ? '+' : ''}${(TZ_OFFSET / 60).toFixed(0)}h · ${Intl.DateTimeFormat().resolvedOptions().timeZone || ''}`;
+  tzBase = `UTC${TZ_OFFSET >= 0 ? '+' : ''}${(TZ_OFFSET / 60).toFixed(0)}h · ${Intl.DateTimeFormat().resolvedOptions().timeZone || ''}`;
+  $('tzLabel').textContent = tzBase;
 
   // Handle OAuth redirect results.
   const params = new URLSearchParams(window.location.search);
