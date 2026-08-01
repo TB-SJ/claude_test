@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Secrets & environment
+.env
+.env.local
+
+# Encrypted, persisted OAuth tokens (never commit)
+data/tokens.enc
+data/*.enc
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store

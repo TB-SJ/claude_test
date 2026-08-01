@@ -1,0 +1,26 @@
+{
+  "name": "calendar-oauth-server",
+  "version": "1.0.0",
+  "description": "Local Express server integrating Google Calendar and Outlook Graph APIs via OAuth2 with encrypted local token storage.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "express",
+    "oauth2",
+    "google-calendar",
+    "microsoft-graph",
+    "outlook"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@azure/msal-node": "^2.16.2",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0"
+  }
+}
