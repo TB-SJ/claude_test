@@ -6,14 +6,17 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "voice": "node src/voiceCli.js"
   },
   "keywords": [
     "express",
     "oauth2",
     "google-calendar",
     "microsoft-graph",
-    "outlook"
+    "outlook",
+    "whisper",
+    "voice"
   ],
   "license": "MIT",
   "dependencies": {
@@ -21,6 +24,8 @@
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "googleapis": "^144.0.0"
+    "googleapis": "^144.0.0",
+    "node-record-lpcm16": "^1.0.1",
+    "openai": "^4.77.0"
   }
 }

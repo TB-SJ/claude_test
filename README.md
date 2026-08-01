@@ -87,6 +87,8 @@ The server prints its endpoints on startup.
 | `POST /calendar/:provider/events` | Create an event. |
 | `PATCH /calendar/:provider/events/:id` | Update an event's time/duration. |
 | `DELETE /calendar/:provider/events/:id` | Delete an event by ID. |
+| `POST /voice/capture` | Record from the mic → transcribe → intent JSON. |
+| `POST /voice/intent` | Extract intent JSON from already-transcribed text. |
 
 `:provider` is `google` or `outlook`.
 
@@ -150,6 +152,75 @@ Error responses use `400` (invalid input), `401` (not authenticated), and
 > (`https://www.googleapis.com/auth/calendar`, Graph `Calendars.ReadWrite`). If
 > you authorized an earlier read-only build, re-run the OAuth flow to re-consent.
 
+## Voice interface
+
+Speak a calendar command; the app captures your microphone, transcribes it with
+**OpenAI Whisper**, and passes the text to a language model that extracts a
+structured intent.
+
+**Setup:** set `OPENAI_API_KEY` in `.env`, and install a system recorder for
+microphone capture:
+
+```bash
+# macOS
+brew install sox
+# Debian/Ubuntu
+sudo apt-get install sox          # or: alsa-utils (arecord); set AUDIO_RECORDER=arecord
+```
+
+**Pipeline** (`src/services/voice.js`):
+
+1. `audio.recordToFile()` — capture mic audio via `node-record-lpcm16`.
+2. `transcribe.transcribeFile()` — Whisper speech-to-text.
+3. `intent.extractIntent()` — language model → structured intent.
+
+**Intent output schema:**
+
+```jsonc
+{
+  "action": "add" | "remove" | "move" | null,
+  "event_details": {
+    "title":      "string | null",
+    "date":       "YYYY-MM-DD | null",
+    "start_time": "HH:MM | null",   // 24-hour
+    "end_time":   "HH:MM | null"
+  }
+}
+```
+
+The model resolves relative dates ("tomorrow", "next Friday") against today, and
+`normalizeIntent()` guarantees the exact shape (mapping synonyms like
+*schedule → add*, *cancel → remove*, *reschedule → move*, coercing times to
+24-hour, defaulting unknowns to `null`).
+
+**CLI** — record and print the intent:
+
+```bash
+npm run voice -- 6      # listen for 6 seconds
+# Heard: "reschedule my dentist appointment to next Monday at 3pm"
+# { "action": "move", "event_details": { "title": "dentist appointment",
+#   "date": "2026-08-10", "start_time": "15:00", "end_time": null } }
+```
+
+**HTTP:**
+
+```bash
+# Text you already have (no audio) -> intent
+curl -X POST http://localhost:3000/voice/intent \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"add a team sync tomorrow from 10 to 10:30am"}'
+
+# Record from the server's microphone, then transcribe + parse
+curl -X POST http://localhost:3000/voice/capture \
+  -H 'Content-Type: application/json' -d '{"seconds":5}'
+```
+
+Both return `{ "transcript": "...", "intent": { ... } }`. Errors map to `400`
+(bad input), `502` (Whisper/LLM API error), and `503` (`OPENAI_API_KEY` unset).
+Because `action` aligns with the calendar helpers (`add`→`createEvent`,
+`remove`→`deleteEvent`, `move`→`updateEvent`), the intent can be fed straight
+into the calendar layer to execute the command.
+
 **Connect an account:** open `http://localhost:3000/auth/google` (or
 `/auth/outlook`) in a browser, complete consent, and you'll be redirected back
 and see a `connected` confirmation.
@@ -198,10 +269,23 @@ src/
   config.js           # Env loading + validation
   crypto.js           # AES-256-GCM encrypt/decrypt
   tokenStore.js       # Encrypted-at-rest token persistence
+  logger.js           # Structured logging
+  errors.js           # Typed errors + precise API-error extraction/logging
+  httpError.js        # Maps typed errors to HTTP status codes
+  voiceCli.js         # CLI: mic -> intent JSON
   routes/
     health.js         # GET /health
     auth.js           # OAuth start/callback/logout
+    calendar.js       # Event CRUD endpoints
+    voice.js          # Voice capture + intent endpoints
   services/
     google.js         # Google Calendar (googleapis)
     outlook.js        # Microsoft Graph (msal-node)
+    calendar.js       # Provider-agnostic calendar dispatcher
+    calendarUtils.js  # Date-range + time-resolution helpers
+    openaiClient.js   # Lazy OpenAI client
+    audio.js          # Microphone capture (node-record-lpcm16)
+    transcribe.js     # Whisper speech-to-text
+    intent.js         # LLM intent extraction (+ normalizeIntent)
+    voice.js          # record -> transcribe -> intent pipeline
 ```

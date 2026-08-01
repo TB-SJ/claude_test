@@ -17,6 +17,13 @@ function notAuthenticatedError(provider) {
   return err;
 }
 
+/** A required integration is not configured (e.g. missing key). Maps to HTTP 503. */
+function notConfiguredError(message) {
+  const err = new Error(message);
+  err.code = 'NOT_CONFIGURED';
+  return err;
+}
+
 /**
  * Pulls precise details out of a provider SDK error. Handles both the
  * googleapis/gaxios shape (`err.response.data.error`) and the Microsoft Graph
@@ -42,6 +49,11 @@ function extractDetails(err) {
     }
   }
 
+  // OpenAI SDK (APIError)
+  if (err.status != null && details.status == null) details.status = err.status;
+  if (err.error && err.error.message) details.apiMessage = err.error.message;
+  if (err.type) details.type = err.type;
+
   // Microsoft Graph (GraphError)
   if (err.statusCode != null) details.status = err.statusCode;
   if (err.body) {
@@ -65,13 +77,13 @@ function extractDetails(err) {
  * the returned value so the stack originates at the call site.
  */
 function apiError(provider, operation, err, context = {}) {
-  // Don't re-wrap our own typed errors (e.g. an auth check that ran inside the
-  // try block) — let them keep their code so routes map them correctly.
-  if (err && (err.code === 'NOT_AUTHENTICATED' || err.code === 'VALIDATION')) {
+  // Don't re-wrap our own typed errors (e.g. an auth/config check that ran
+  // inside the try block) — let them keep their code so routes map correctly.
+  if (err && ['NOT_AUTHENTICATED', 'VALIDATION', 'NOT_CONFIGURED'].includes(err.code)) {
     return err;
   }
   const details = extractDetails(err);
-  logger.error(`calendar ${provider}.${operation} failed`, { provider, operation, ...context, ...details });
+  logger.error(`${provider}.${operation} API call failed`, { provider, operation, ...context, ...details });
   const wrapped = new Error(
     `[${provider}] ${operation} failed` +
       (details.status ? ` (HTTP ${details.status})` : '') +
@@ -85,4 +97,4 @@ function apiError(provider, operation, err, context = {}) {
   return wrapped;
 }
 
-module.exports = { validationError, notAuthenticatedError, apiError };
+module.exports = { validationError, notAuthenticatedError, notConfiguredError, apiError };

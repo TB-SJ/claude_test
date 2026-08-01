@@ -2,24 +2,9 @@
 
 const express = require('express');
 const calendar = require('../services/calendar');
+const { sendError } = require('../httpError');
 
 const router = express.Router();
-
-/** Maps helper/service errors to appropriate HTTP status codes. */
-function statusFor(err) {
-  if (err.code === 'VALIDATION') return 400;
-  if (err.code === 'NOT_AUTHENTICATED') return 401;
-  if (err.code === 'API_ERROR') return 502;
-  return 500;
-}
-
-function sendError(res, err) {
-  res.status(statusFor(err)).json({
-    error: err.message,
-    code: err.code || 'INTERNAL',
-    details: err.details,
-  });
-}
 
 /** GET /calendar/:provider/events?range=day|week&date=YYYY-MM-DD  (or ?start=&end=) */
 router.get('/:provider/events', async (req, res) => {

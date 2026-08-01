@@ -32,6 +32,20 @@ const config = {
     // logged in. `Calendars.ReadWrite` covers reading and mutating events.
     scopes: ['offline_access', 'Calendars.ReadWrite', 'User.Read'],
   },
+
+  // Voice interface: OpenAI Whisper (speech-to-text) + a chat model (intent).
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || '',
+    chatModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    whisperModel: process.env.WHISPER_MODEL || 'whisper-1',
+  },
+
+  // Microphone capture (node-record-lpcm16 shells out to sox/rec/arecord).
+  audio: {
+    sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
+    seconds: parseInt(process.env.AUDIO_SECONDS || '5', 10),
+    recorder: process.env.AUDIO_RECORDER || 'sox',
+  },
 };
 
 /**
@@ -53,12 +67,16 @@ function validate() {
   if (!config.outlook.clientId || !config.outlook.clientSecret) {
     warnings.push('Outlook OAuth is not configured (MS_CLIENT_ID / MS_CLIENT_SECRET).');
   }
+  if (!config.openai.apiKey) {
+    warnings.push('Voice interface is disabled (OPENAI_API_KEY is not set).');
+  }
   return warnings;
 }
 
 const providerConfigured = {
   google: () => Boolean(config.google.clientId && config.google.clientSecret),
   outlook: () => Boolean(config.outlook.clientId && config.outlook.clientSecret),
+  openai: () => Boolean(config.openai.apiKey),
 };
 
 module.exports = { config, validate, providerConfigured };
