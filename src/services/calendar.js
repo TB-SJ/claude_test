@@ -75,4 +75,9 @@ async function updateEvent(provider, eventId, changes = {}) {
   return service(provider).updateEvent(eventId, { start, end, duration });
 }
 
-module.exports = { getEvents, createEvent, deleteEvent, updateEvent };
+/** Throws a 400-style error if `provider` is not a known calendar provider. */
+function assertProvider(provider) {
+  service(provider);
+}
+
+module.exports = { getEvents, createEvent, deleteEvent, updateEvent, assertProvider };

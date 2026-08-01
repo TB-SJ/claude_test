@@ -6,6 +6,7 @@ const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
 const calendarRouter = require('./routes/calendar');
 const voiceRouter = require('./routes/voice');
+const scheduleRouter = require('./routes/schedule');
 
 const app = express();
 app.use(express.json());
@@ -25,6 +26,8 @@ app.get('/', (req, res) => {
       deleteEvent: 'DELETE /calendar/:provider/events/:id',
       voiceCapture: 'POST /voice/capture',
       voiceIntent: 'POST /voice/intent',
+      analyzeSchedule: 'POST /schedule/:provider/analyze',
+      applySchedule: 'POST /schedule/:provider/apply',
     },
   });
 });
@@ -33,6 +36,7 @@ app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 app.use('/calendar', calendarRouter);
 app.use('/voice', voiceRouter);
+app.use('/schedule', scheduleRouter);
 
 // 404 + error handlers.
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

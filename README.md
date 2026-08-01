@@ -221,6 +221,74 @@ Because `action` aligns with the calendar helpers (`add`→`createEvent`,
 `remove`→`deleteEvent`, `move`→`updateEvent`), the intent can be fed straight
 into the calendar layer to execute the command.
 
+## Schedule optimization engine
+
+Analyzes your upcoming week for **conflicts, double-bookings, and fragmented
+gaps**, then proposes a rearranged schedule that honors a set of rules — and
+**asks for confirmation before applying** any change via the calendar API.
+
+**Rules** (`src/services/scheduleRules.js`, all configurable):
+
+| Rule | Default |
+| --- | --- |
+| Work hours | 09:00–17:00 |
+| Buffer between events | 15 min |
+| Fragmented-gap threshold | gaps > buffer and < 30 min |
+| Protect deep-work block | 09:00–11:00, weekdays |
+| Group meetings into window | 13:00–17:00 (afternoon) |
+| Pinned events (never moved) | none (regex title patterns) |
+
+The engine (`src/services/scheduleOptimizer.js`) is pure and testable:
+`analyze(events, rules)` returns the issue report; `optimize(events, rules)`
+returns a set of proposed **moves** (each with the reasons it was moved).
+Movable events are re-placed **within their original day**, around fixed blocks
+and the deep-work window, packed into the meeting window with buffers —
+**durations are always preserved**.
+
+> **Timezone:** rule times are local wall-clock. Since events are stored in UTC,
+> pass `--tz-offset` (minutes; local = UTC + offset, e.g. `-420` for US Pacific
+> DST). Default `0` treats UTC as local.
+
+**CLI** — analyze, propose, and confirm before applying:
+
+```bash
+# Preview only (never writes)
+npm run optimize -- --provider google --dry-run
+
+# Full run: prints analysis + proposal, then prompts [y/N] before applying
+npm run optimize -- --provider google --tz-offset -420
+
+# Options: --date 2026-08-03  --rules ./my-rules.json  --yes (skip prompt)
+```
+
+Sample output:
+
+```text
+=== Weekly analysis ===
+  Conflicts / dbl-book: 1
+  Deep-work intrusions: 2
+
+=== Proposed schedule ===
+  Standup
+      Mon 09:30–09:45  →  Mon 13:00–13:15
+      ↳ Protect 9–11 AM deep-work block; Group into afternoon meeting block
+  ...
+Apply these 5 change(s)? [y/N]
+```
+
+**HTTP** (confirm-gated):
+
+```bash
+# Read-only: analysis + proposed moves, never writes
+curl -X POST http://localhost:3000/schedule/google/analyze \
+  -H 'Content-Type: application/json' -d '{"date":"2026-08-03"}'
+
+# Apply — requires confirm:true, else 400
+curl -X POST http://localhost:3000/schedule/google/apply \
+  -H 'Content-Type: application/json' \
+  -d '{"confirm":true,"moves":[ /* moves from /analyze */ ]}'
+```
+
 **Connect an account:** open `http://localhost:3000/auth/google` (or
 `/auth/outlook`) in a browser, complete consent, and you'll be redirected back
 and see a `connected` confirmation.
@@ -273,11 +341,13 @@ src/
   errors.js           # Typed errors + precise API-error extraction/logging
   httpError.js        # Maps typed errors to HTTP status codes
   voiceCli.js         # CLI: mic -> intent JSON
+  optimizeCli.js      # CLI: analyze week -> propose -> confirm -> apply
   routes/
     health.js         # GET /health
     auth.js           # OAuth start/callback/logout
     calendar.js       # Event CRUD endpoints
     voice.js          # Voice capture + intent endpoints
+    schedule.js       # Schedule analyze + confirm-gated apply
   services/
     google.js         # Google Calendar (googleapis)
     outlook.js        # Microsoft Graph (msal-node)
@@ -288,4 +358,6 @@ src/
     transcribe.js     # Whisper speech-to-text
     intent.js         # LLM intent extraction (+ normalizeIntent)
     voice.js          # record -> transcribe -> intent pipeline
+    scheduleRules.js  # Optimization ruleset + helpers
+    scheduleOptimizer.js  # analyze() + optimize() engine
 ```
