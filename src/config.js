@@ -15,9 +15,9 @@ const config = {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirectUri: `${BASE_URL}/auth/google/callback`,
-    // Read-only calendar access is enough for a health check; widen if needed.
+    // Full calendar access: list/read events plus create, update, and delete.
     scopes: [
-      'https://www.googleapis.com/auth/calendar.readonly',
+      'https://www.googleapis.com/auth/calendar',
       'openid',
       'email',
     ],
@@ -29,8 +29,8 @@ const config = {
     tenantId: process.env.MS_TENANT_ID || 'common',
     redirectUri: `${BASE_URL}/auth/outlook/callback`,
     // `offline_access` is required to receive a refresh token so the app stays
-    // logged in. `Calendars.Read` covers the calendar health check.
-    scopes: ['offline_access', 'Calendars.Read', 'User.Read'],
+    // logged in. `Calendars.ReadWrite` covers reading and mutating events.
+    scopes: ['offline_access', 'Calendars.ReadWrite', 'User.Read'],
   },
 };
 

@@ -4,6 +4,7 @@ const express = require('express');
 const { config, validate } = require('./config');
 const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
+const calendarRouter = require('./routes/calendar');
 
 const app = express();
 app.use(express.json());
@@ -17,12 +18,17 @@ app.get('/', (req, res) => {
       connectGoogle: 'GET /auth/google',
       connectOutlook: 'GET /auth/outlook',
       logout: 'POST /auth/:provider/logout',
+      listEvents: 'GET /calendar/:provider/events?range=day|week&date=YYYY-MM-DD',
+      createEvent: 'POST /calendar/:provider/events',
+      updateEvent: 'PATCH /calendar/:provider/events/:id',
+      deleteEvent: 'DELETE /calendar/:provider/events/:id',
     },
   });
 });
 
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
+app.use('/calendar', calendarRouter);
 
 // 404 + error handlers.
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

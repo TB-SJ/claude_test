@@ -4,9 +4,12 @@ const msal = require('@azure/msal-node');
 const { Client } = require('@microsoft/microsoft-graph-client');
 const { config } = require('../config');
 const tokenStore = require('../tokenStore');
+const { apiError, notAuthenticatedError } = require('../errors');
+const { resolveEventTimes } = require('./calendarUtils');
 
 const PROVIDER = 'outlook';
-const GRAPH_SCOPES = ['Calendars.Read', 'User.Read'];
+const GRAPH_SCOPES = ['Calendars.ReadWrite', 'User.Read'];
+const UTC_PREFER = 'outlook.timezone="UTC"';
 
 /**
  * MSAL cache plugin backed by our encrypted token store. MSAL serializes its
@@ -110,4 +113,128 @@ async function checkConnection() {
   }
 }
 
-module.exports = { getAuthUrl, handleCallback, getGraphClient, checkConnection, PROVIDER };
+// ---------------------------------------------------------------------------
+// Calendar helpers
+// ---------------------------------------------------------------------------
+
+/** Returns an authenticated Graph client, or throws if not logged in. */
+async function graphOrThrow() {
+  const client = await getGraphClient();
+  if (!client) throw notAuthenticatedError(PROVIDER);
+  return client;
+}
+
+/** Graph returns { dateTime, timeZone }; normalize to a UTC ISO string. */
+function graphToIso(dt) {
+  if (!dt || !dt.dateTime) return null;
+  const raw = dt.dateTime;
+  // With Prefer: outlook.timezone="UTC" the value has no offset; treat as UTC.
+  const withZone = /(Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : `${raw}Z`;
+  return new Date(withZone).toISOString();
+}
+
+/** Graph wants a naive local dateTime paired with a timeZone; strip the Z. */
+function toGraphDateTime(iso) {
+  return new Date(iso).toISOString().replace(/\.\d{3}Z$/, '').replace(/Z$/, '');
+}
+
+/** Maps a Graph event resource to the app's normalized event shape. */
+function normalizeEvent(ev) {
+  return {
+    id: ev.id,
+    provider: PROVIDER,
+    title: ev.subject || '',
+    description: ev.bodyPreview || (ev.body && ev.body.content) || '',
+    location: (ev.location && ev.location.displayName) || '',
+    start: graphToIso(ev.start),
+    end: graphToIso(ev.end),
+    status: ev.showAs,
+    htmlLink: ev.webLink,
+  };
+}
+
+/** Fetches a single event (used to resolve relative time/duration updates). */
+async function getEventById(eventId) {
+  try {
+    const ev = await graphOrThrow().then((c) =>
+      c.api(`/me/events/${eventId}`).header('Prefer', UTC_PREFER).get()
+    );
+    return normalizeEvent(ev);
+  } catch (err) {
+    throw apiError(PROVIDER, 'getEvent', err, { eventId });
+  }
+}
+
+/** 1) Lists events within an ISO time window [start, end). */
+async function listEvents({ start, end }) {
+  try {
+    const client = await graphOrThrow();
+    const res = await client
+      .api('/me/calendarView')
+      .header('Prefer', UTC_PREFER)
+      .query({ startDateTime: start, endDateTime: end })
+      .orderby('start/dateTime')
+      .top(1000)
+      .get();
+    return (res.value || []).map(normalizeEvent);
+  } catch (err) {
+    throw apiError(PROVIDER, 'listEvents', err, { start, end });
+  }
+}
+
+/** 2) Creates an event. Expects fully-resolved ISO `start`/`end`. */
+async function createEvent({ title, start, end, description, location }) {
+  try {
+    const client = await graphOrThrow();
+    const ev = await client.api('/me/events').post({
+      subject: title,
+      body: { contentType: 'text', content: description || '' },
+      start: { dateTime: toGraphDateTime(start), timeZone: 'UTC' },
+      end: { dateTime: toGraphDateTime(end), timeZone: 'UTC' },
+      location: location ? { displayName: location } : undefined,
+    });
+    return normalizeEvent(ev);
+  } catch (err) {
+    throw apiError(PROVIDER, 'createEvent', err, { title, start, end });
+  }
+}
+
+/** 3) Deletes an event by ID. */
+async function deleteEvent(eventId) {
+  try {
+    const client = await graphOrThrow();
+    await client.api(`/me/events/${eventId}`).delete();
+    return { id: eventId, provider: PROVIDER, deleted: true };
+  } catch (err) {
+    throw apiError(PROVIDER, 'deleteEvent', err, { eventId });
+  }
+}
+
+/** 4) Updates an existing event's time and/or duration. */
+async function updateEvent(eventId, { start, end, duration } = {}) {
+  const existing = await getEventById(eventId);
+  const times = resolveEventTimes({ start, end, duration }, existing);
+  try {
+    const client = await graphOrThrow();
+    const ev = await client.api(`/me/events/${eventId}`).patch({
+      start: { dateTime: toGraphDateTime(times.start), timeZone: 'UTC' },
+      end: { dateTime: toGraphDateTime(times.end), timeZone: 'UTC' },
+    });
+    return normalizeEvent(ev);
+  } catch (err) {
+    throw apiError(PROVIDER, 'updateEvent', err, { eventId, ...times });
+  }
+}
+
+module.exports = {
+  getAuthUrl,
+  handleCallback,
+  getGraphClient,
+  checkConnection,
+  listEvents,
+  createEvent,
+  deleteEvent,
+  updateEvent,
+  getEventById,
+  PROVIDER,
+};

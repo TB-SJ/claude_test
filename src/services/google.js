@@ -3,8 +3,11 @@
 const { google } = require('googleapis');
 const { config } = require('../config');
 const tokenStore = require('../tokenStore');
+const { apiError, notAuthenticatedError } = require('../errors');
+const { resolveEventTimes } = require('./calendarUtils');
 
 const PROVIDER = 'google';
+const CALENDAR_ID = 'primary';
 
 /** Builds a fresh OAuth2 client bound to our credentials + redirect URI. */
 function createOAuthClient() {
@@ -75,4 +78,117 @@ async function checkConnection() {
   }
 }
 
-module.exports = { getAuthUrl, handleCallback, getAuthenticatedClient, checkConnection, PROVIDER };
+// ---------------------------------------------------------------------------
+// Calendar helpers
+// ---------------------------------------------------------------------------
+
+/** Returns an authenticated Calendar API client, or throws if not logged in. */
+function calendarApi() {
+  const auth = getAuthenticatedClient();
+  if (!auth) throw notAuthenticatedError(PROVIDER);
+  return google.calendar({ version: 'v3', auth });
+}
+
+/** Maps a Google event resource to the app's normalized event shape. */
+function normalizeEvent(ev) {
+  return {
+    id: ev.id,
+    provider: PROVIDER,
+    title: ev.summary || '',
+    description: ev.description || '',
+    location: ev.location || '',
+    // All-day events use `date`; timed events use `dateTime`.
+    start: (ev.start && (ev.start.dateTime || ev.start.date)) || null,
+    end: (ev.end && (ev.end.dateTime || ev.end.date)) || null,
+    status: ev.status,
+    htmlLink: ev.htmlLink,
+  };
+}
+
+/** Fetches a single event (used to resolve relative time/duration updates). */
+async function getEventById(eventId) {
+  try {
+    const res = await calendarApi().events.get({ calendarId: CALENDAR_ID, eventId });
+    return normalizeEvent(res.data);
+  } catch (err) {
+    throw apiError(PROVIDER, 'getEvent', err, { eventId });
+  }
+}
+
+/** 1) Lists events within an ISO time window [start, end). */
+async function listEvents({ start, end }) {
+  try {
+    const res = await calendarApi().events.list({
+      calendarId: CALENDAR_ID,
+      timeMin: start,
+      timeMax: end,
+      singleEvents: true, // expand recurring events into instances
+      orderBy: 'startTime',
+      maxResults: 2500,
+    });
+    return (res.data.items || []).map(normalizeEvent);
+  } catch (err) {
+    throw apiError(PROVIDER, 'listEvents', err, { start, end });
+  }
+}
+
+/** 2) Creates an event. Expects fully-resolved ISO `start`/`end`. */
+async function createEvent({ title, start, end, description, location, timeZone }) {
+  try {
+    const res = await calendarApi().events.insert({
+      calendarId: CALENDAR_ID,
+      requestBody: {
+        summary: title,
+        description,
+        location,
+        start: { dateTime: start, timeZone },
+        end: { dateTime: end, timeZone },
+      },
+    });
+    return normalizeEvent(res.data);
+  } catch (err) {
+    throw apiError(PROVIDER, 'createEvent', err, { title, start, end });
+  }
+}
+
+/** 3) Deletes an event by ID. */
+async function deleteEvent(eventId) {
+  try {
+    await calendarApi().events.delete({ calendarId: CALENDAR_ID, eventId });
+    return { id: eventId, provider: PROVIDER, deleted: true };
+  } catch (err) {
+    throw apiError(PROVIDER, 'deleteEvent', err, { eventId });
+  }
+}
+
+/** 4) Updates an existing event's time and/or duration. */
+async function updateEvent(eventId, { start, end, duration } = {}) {
+  const existing = await getEventById(eventId);
+  const times = resolveEventTimes({ start, end, duration }, existing);
+  try {
+    const res = await calendarApi().events.patch({
+      calendarId: CALENDAR_ID,
+      eventId,
+      requestBody: {
+        start: { dateTime: times.start },
+        end: { dateTime: times.end },
+      },
+    });
+    return normalizeEvent(res.data);
+  } catch (err) {
+    throw apiError(PROVIDER, 'updateEvent', err, { eventId, ...times });
+  }
+}
+
+module.exports = {
+  getAuthUrl,
+  handleCallback,
+  getAuthenticatedClient,
+  checkConnection,
+  listEvents,
+  createEvent,
+  deleteEvent,
+  updateEvent,
+  getEventById,
+  PROVIDER,
+};

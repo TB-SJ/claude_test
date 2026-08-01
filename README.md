@@ -83,6 +83,72 @@ The server prints its endpoints on startup.
 | `GET /auth/google` | Start the Google OAuth flow (redirects to consent). |
 | `GET /auth/outlook` | Start the Outlook OAuth flow (redirects to consent). |
 | `POST /auth/:provider/logout` | Delete stored tokens for a provider. |
+| `GET /calendar/:provider/events` | List events for a day or week. |
+| `POST /calendar/:provider/events` | Create an event. |
+| `PATCH /calendar/:provider/events/:id` | Update an event's time/duration. |
+| `DELETE /calendar/:provider/events/:id` | Delete an event by ID. |
+
+`:provider` is `google` or `outlook`.
+
+## Calendar API helpers
+
+The backend calendar helpers live in `src/services/calendar.js` (a
+provider-agnostic dispatcher) and the per-provider implementations in
+`src/services/google.js` and `src/services/outlook.js`. All four operations
+return a normalized event shape and log precise, structured errors (provider,
+operation, HTTP status, API message, and context) on any API failure.
+
+```js
+const calendar = require('./src/services/calendar');
+
+// 1) Fetch all events for a given day or week
+await calendar.getEvents('google', { range: 'day', date: '2026-08-05' });
+await calendar.getEvents('outlook', { range: 'week', date: '2026-08-05' });
+await calendar.getEvents('google', { start: '2026-08-01T00:00:00Z', end: '2026-08-02T00:00:00Z' });
+
+// 2) Add a new event with a title, time, and description
+await calendar.createEvent('google', {
+  title: 'Design review',
+  start: '2026-08-05T15:00:00Z',
+  duration: 45,                       // minutes; or pass an explicit `end`
+  description: 'Q3 roadmap sync',
+  location: 'Room 4',
+});
+
+// 3) Delete an event using its ID
+await calendar.deleteEvent('google', eventId);
+
+// 4) Update an existing event's time or duration
+await calendar.updateEvent('google', eventId, { start: '2026-08-05T16:00:00Z' }); // move, keep duration
+await calendar.updateEvent('google', eventId, { duration: 30 });                  // resize in place
+await calendar.updateEvent('google', eventId, { start: '...', end: '...' });      // set both
+```
+
+The same operations are exposed over HTTP:
+
+```bash
+# List a week of Google events
+curl "http://localhost:3000/calendar/google/events?range=week&date=2026-08-05"
+
+# Create an Outlook event
+curl -X POST http://localhost:3000/calendar/outlook/events \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Standup","start":"2026-08-05T09:00:00Z","duration":15,"description":"Daily"}'
+
+# Update an event's time (duration preserved)
+curl -X PATCH http://localhost:3000/calendar/google/events/EVENT_ID \
+  -H 'Content-Type: application/json' -d '{"start":"2026-08-05T16:00:00Z"}'
+
+# Delete an event
+curl -X DELETE http://localhost:3000/calendar/google/events/EVENT_ID
+```
+
+Error responses use `400` (invalid input), `401` (not authenticated), and
+`502` (upstream API error, with `details`), each carrying a JSON `{ error, code }`.
+
+> **Note:** these helpers need read/write calendar scopes
+> (`https://www.googleapis.com/auth/calendar`, Graph `Calendars.ReadWrite`). If
+> you authorized an earlier read-only build, re-run the OAuth flow to re-consent.
 
 **Connect an account:** open `http://localhost:3000/auth/google` (or
 `/auth/outlook`) in a browser, complete consent, and you'll be redirected back
