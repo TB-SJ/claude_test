@@ -42,6 +42,12 @@ test('tokenStore (Supabase mode) persists encrypted, reads from cache', async ()
   assert.equal(tokenStore.getTokens('google'), null);
 });
 
+test('tokenStore.init tolerates undecryptable saved tokens (wrong key) without crashing', async () => {
+  backing.set('tokens', { data: 'not-valid-ciphertext-for-this-key' });
+  await assert.doesNotReject(() => tokenStore.init());
+  assert.equal(tokenStore.getTokens('google'), null); // starts disconnected, not a crash
+});
+
 test('taskStore (Supabase mode) round-trips through the KV', async () => {
   await taskStore.init();
   const t = taskStore.add({ title: 'Draft budget', estimatedMinutes: 45, priority: 'high' });

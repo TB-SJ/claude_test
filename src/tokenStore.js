@@ -51,8 +51,25 @@ function writeFile(all) {
 /** Loads the Supabase-backed cache once at startup. No-op in file mode. */
 async function init() {
   if (!useSupabase()) return;
+  // A reachability error (bad URL/key, missing GRANT, network) throws here and
+  // SHOULD fail startup — the app can't persist without storage.
   const v = await kv.get(KV_KEY);
-  cache = v && v.data ? JSON.parse(decrypt(v.data, config.encryptionKey)) : {};
+  if (!v || !v.data) {
+    cache = {};
+    return;
+  }
+  // But if the saved tokens are present yet unreadable (usually a
+  // TOKEN_ENCRYPTION_KEY that doesn't match the one that saved them), don't take
+  // the whole app down — start with none and let the user reconnect.
+  try {
+    cache = JSON.parse(decrypt(v.data, config.encryptionKey));
+  } catch (err) {
+    cache = {};
+    logger.error(
+      'tokenStore: saved tokens could not be decrypted — TOKEN_ENCRYPTION_KEY likely does not match the one used when they were saved. Starting disconnected; reconnect your calendar to re-save under the current key.',
+      { message: err.message }
+    );
+  }
 }
 
 function currentAll() {
