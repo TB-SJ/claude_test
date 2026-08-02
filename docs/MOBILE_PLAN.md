@@ -55,17 +55,18 @@ A single responsive page served by the existing Express app.
 **Frontend**: plain HTML/CSS/JS, mobile-first, no build step (keeps it simple and
 dependency-light). Can add a framework later if it grows.
 
-## Phase 2 — Browser voice (enhancement)
+## Phase 2 — Browser voice (enhancement)  ✅ BUILT
 
-Add a mic button that captures on the **phone's** microphone:
-- **Primary:** the browser's built-in `SpeechRecognition` (Web Speech API) —
-  free, on-device, no OpenAI key. Great on Android Chrome.
-- **Fallback:** `MediaRecorder` → upload the audio to a new
-  `POST /voice/transcribe` endpoint that runs Whisper (reuses `transcribe.js`),
-  for browsers where Web Speech is missing/unreliable (notably iOS Safari).
-- Recognized text → the existing `routeCommand` logic → analyze/apply or add/move.
-
-The spoken "Optimize my day" then does exactly what the button does.
+> Implemented: a floating mic button uses the browser's built-in
+> `SpeechRecognition` (Web Speech API — free, no OpenAI key, great on Android
+> Chrome) to capture speech. The transcript goes to `POST /voice/command`, which
+> parses it with a rules + `chrono-node` date parser (`src/services/voiceCommand.js`)
+> into optimize / add / remove / move. Every add/remove/move shows a
+> **confirmation card** before writing; "optimize" reuses the Before/After view.
+> Unit-tested in `test/voiceCommand.test.js`.
+>
+> Remaining/optional: a `MediaRecorder → Whisper` fallback for browsers without
+> Web Speech (notably iOS Safari) — not needed for Android Chrome.
 
 ## Phase 3 — Polish
 

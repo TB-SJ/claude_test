@@ -139,6 +139,44 @@ button.full { width: 100%; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Floating mic button */
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 28px;
+  padding: 0;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  z-index: 50;
+}
+.fab:active { transform: scale(0.94); }
+.fab.listening {
+  background: var(--danger);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229,72,77,0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(229,72,77,0); }
+}
+.mic-status {
+  position: fixed;
+  right: 18px;
+  bottom: 94px;
+  background: var(--card-2);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  z-index: 50;
+}
+
 /* Login page */
 .login-wrap { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
 .login-card { width: 100%; max-width: 360px; }

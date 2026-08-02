@@ -42,6 +42,21 @@
       </div>
     </section>
 
+    <!-- Voice command confirmation (add / remove / move) -->
+    <section class="card hidden" id="voiceCard">
+      <div class="row">
+        <h2 style="margin:0">🎤 Voice command</h2>
+        <span class="spacer"></span>
+      </div>
+      <p class="muted" id="voiceHeard" style="margin:8px 0 0"></p>
+      <p id="voiceSummary" style="margin:10px 0; font-weight:600"></p>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" id="voiceCancelBtn">Cancel</button>
+        <span class="spacer"></span>
+        <button class="primary" id="voiceConfirmBtn">Confirm</button>
+      </div>
+    </section>
+
     <!-- Optimization proposal -->
     <section class="card hidden" id="proposalCard">
       <div class="row">
@@ -63,6 +78,10 @@
 
     <div class="center muted hidden" id="loading"><span class="spinner"></span></div>
   </div>
+
+  <!-- Floating mic button (voice control) -->
+  <button id="micBtn" class="fab hidden" title="Speak a command" aria-label="Speak a command">🎤</button>
+  <div id="micStatus" class="mic-status hidden">Listening… speak now</div>
 
   <script src="/app.js"></script>
 </body>

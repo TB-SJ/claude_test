@@ -360,6 +360,22 @@ The dashboard core (`src/dashboard/core.js`) takes its I/O, voice, and calendar
 as **injected dependencies**, so the whole loop is driven end-to-end in tests
 without a real microphone, API key, or calendar auth.
 
+### Voice commands (mobile)
+
+The mobile dashboard has a floating 🎤 button that uses the browser's built-in
+speech recognition (free, no OpenAI key; works in Android Chrome). Speak a
+command and it's parsed server-side (`src/services/voiceCommand.js`, using
+`chrono-node` for natural dates) into one of:
+
+- **"Optimize my day / week"** → runs the optimizer, shows Before/After.
+- **"Add dentist tomorrow at 2pm"** → creates an event.
+- **"Move my standup to 4pm"** → reschedules (keeps duration; time-only keeps the day).
+- **"Cancel the roadmap sync"** → removes it.
+
+Every add/remove/move shows a **confirmation card** before anything is written.
+The endpoint is `POST /voice/command { provider, transcript, tzOffsetMinutes }`,
+which is read-only — the client confirms, then calls the normal calendar routes.
+
 ## Testing
 
 ```bash

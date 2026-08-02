@@ -125,8 +125,10 @@ async function refreshConnection() {
       $('tzLabel').textContent = `${tzBase} · ${PROVIDER_LABEL[activeProvider]}`;
       hide($('connectCard'));
       show($('todayCard'));
+      show($('micBtn')); // voice control available once connected
       await loadEvents();
     } else {
+      hide($('micBtn'));
       // Offer a connect button for each configured-but-unconnected provider.
       const configured = PROVIDER_ORDER.filter((p) => provs[p] && provs[p].reason !== 'not_configured');
       const list = configured.length ? configured : PROVIDER_ORDER;
@@ -154,6 +156,43 @@ async function loadEvents() {
   }
 }
 
+// Renders the current global `proposal` into the proposal card. Shared by the
+// Optimize button and the voice "optimize" command. `note` is an optional
+// header line (e.g. the transcript that triggered it).
+function renderProposalCard(note) {
+  hide($('voiceCard'));
+  const c = proposal.analysis.counts;
+  const issues = c.conflicts + c.bufferIssues + c.fragmentedGaps + c.deepWorkViolations;
+  const noteHtml = note ? `<p class="muted" style="margin:0 0 8px">${escapeHtml(note)}</p>` : '';
+
+  if (!proposal.moves.length) {
+    $('analysisPill').textContent = 'All clear';
+    $('analysisPill').className = 'pill ok';
+    $('beforeAfter').innerHTML = noteHtml + '<p class="center">✅ Already optimized — nothing to change.</p>';
+    $('reasons').innerHTML = '';
+    hide($('applyBtn'));
+  } else {
+    $('analysisPill').textContent = `${issues} issue${issues === 1 ? '' : 's'} found`;
+    $('analysisPill').className = issues ? 'pill warn' : 'pill';
+    const changedMap = new Map(proposal.moves.map((m) => [m.id, fmtRange(m.from.start, m.from.end)]));
+    const after = applyMoves(proposal.events, proposal.moves);
+    $('beforeAfter').innerHTML =
+      noteHtml +
+      '<h3 class="muted" style="margin:6px 0">Before</h3><div id="beforeList"></div>' +
+      '<h3 class="muted" style="margin:14px 0 6px">After</h3><div id="afterList"></div>';
+    renderSchedule($('beforeList'), proposal.events, null);
+    renderSchedule($('afterList'), after, changedMap);
+    $('reasons').innerHTML =
+      '<h3 class="muted" style="margin:0 0 6px">Why</h3>' +
+      proposal.moves
+        .map((m) => `<div class="reason" style="margin-left:0">• <b>${escapeHtml(m.title)}</b>: ${escapeHtml(m.reasons.join('; '))}</div>`)
+        .join('');
+    show($('applyBtn'));
+  }
+  show($('proposalCard'));
+  $('proposalCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function runOptimize() {
   setLoading(true);
   hide($('proposalCard'));
@@ -162,35 +201,7 @@ async function runOptimize() {
       method: 'POST',
       body: { range: scope, rules: { tzOffsetMinutes: TZ_OFFSET } },
     });
-    const c = proposal.analysis.counts;
-    const issues = c.conflicts + c.bufferIssues + c.fragmentedGaps + c.deepWorkViolations;
-
-    if (!proposal.moves.length) {
-      $('analysisPill').textContent = 'All clear';
-      $('analysisPill').className = 'pill ok';
-      $('beforeAfter').innerHTML = '<p class="center">✅ Your ' + scope + ' is already optimized — nothing to change.</p>';
-      $('reasons').innerHTML = '';
-      hide($('applyBtn'));
-    } else {
-      $('analysisPill').textContent = `${issues} issue${issues === 1 ? '' : 's'} found`;
-      $('analysisPill').className = issues ? 'pill warn' : 'pill';
-      // Map each moved event id -> its ORIGINAL (before) time, shown struck in the After list.
-      const changedMap = new Map(proposal.moves.map((m) => [m.id, fmtRange(m.from.start, m.from.end)]));
-      const after = applyMoves(proposal.events, proposal.moves);
-      $('beforeAfter').innerHTML =
-        '<h3 class="muted" style="margin:6px 0">Before</h3><div id="beforeList"></div>' +
-        '<h3 class="muted" style="margin:14px 0 6px">After</h3><div id="afterList"></div>';
-      renderSchedule($('beforeList'), proposal.events, null);
-      renderSchedule($('afterList'), after, changedMap);
-      $('reasons').innerHTML =
-        '<h3 class="muted" style="margin:0 0 6px">Why</h3>' +
-        proposal.moves
-          .map((m) => `<div class="reason" style="margin-left:0">• <b>${escapeHtml(m.title)}</b>: ${escapeHtml(m.reasons.join('; '))}</div>`)
-          .join('');
-      show($('applyBtn'));
-    }
-    show($('proposalCard'));
-    $('proposalCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    renderProposalCard();
   } catch (err) {
     toast(err.message, 'err');
   } finally {
@@ -209,6 +220,126 @@ async function applyProposal() {
     toast(`Saved: ${result.applied} updated${result.failed ? `, ${result.failed} failed` : ''}`, result.failed ? 'err' : 'ok');
     hide($('proposalCard'));
     proposal = null;
+    await loadEvents();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// --- Voice control ---------------------------------------------------------
+let listening = false;
+let pendingVoice = null; // add/remove/move command awaiting confirmation
+
+function setListening(on) {
+  listening = on;
+  $('micBtn').classList.toggle('listening', on);
+  $('micStatus').classList.toggle('hidden', !on);
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    toast('Voice input needs Chrome (Android/desktop). Not supported here.', 'err');
+    return;
+  }
+  if (listening) return;
+  const rec = new SR();
+  rec.lang = 'en-US';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  rec.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    setListening(false);
+    handleTranscript(transcript);
+  };
+  rec.onerror = (e) => {
+    setListening(false);
+    if (e.error !== 'aborted' && e.error !== 'no-speech') toast(`Mic: ${e.error}`, 'err');
+  };
+  rec.onend = () => setListening(false);
+  try {
+    rec.start();
+    setListening(true);
+  } catch (err) {
+    setListening(false);
+    toast(err.message, 'err');
+  }
+}
+
+async function handleTranscript(transcript) {
+  setLoading(true);
+  try {
+    const result = await api('/voice/command', {
+      method: 'POST',
+      body: { provider: activeProvider, transcript, tzOffsetMinutes: TZ_OFFSET },
+    });
+    dispatchVoice(result, transcript);
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+const VOICE_ERRORS = {
+  need_title: "I didn't catch what event you meant.",
+  need_time: "I didn't catch a time — try e.g. \"add lunch tomorrow at noon\".",
+  not_found: 'No matching event found in the next 3 weeks.',
+};
+
+function dispatchVoice(result, transcript) {
+  if (result.type === 'unknown') {
+    toast(`Heard "${transcript}" — try "optimize my day", "add…", "move…", or "remove…".`, 'err');
+    return;
+  }
+  if (result.type === 'optimize') {
+    proposal = result.proposal;
+    renderProposalCard(`🎤 "${transcript}"`);
+    return;
+  }
+  if (result.error) {
+    toast(VOICE_ERRORS[result.error] || 'Sorry, I couldn\'t do that.', 'err');
+    return;
+  }
+  pendingVoice = result;
+  let summary = '';
+  if (result.type === 'add') {
+    summary = `Add “${result.event.title}” — ${dayLabel(result.event.start)}, ${fmtRange(result.event.start, result.event.end)}`;
+  } else if (result.type === 'remove') {
+    summary = `Remove “${result.match.title}” — ${dayLabel(result.match.start)}, ${fmtRange(result.match.start, result.match.end)}`;
+  } else if (result.type === 'move') {
+    summary = `Move “${result.match.title}” → ${dayLabel(result.to.start)}, ${fmtRange(result.to.start, result.to.end)}`;
+  }
+  if (result.otherMatches) summary += `\n(+${result.otherMatches} other match${result.otherMatches > 1 ? 'es' : ''} — using the soonest)`;
+  $('voiceHeard').textContent = `Heard: "${transcript}"`;
+  $('voiceSummary').textContent = summary;
+  hide($('proposalCard'));
+  show($('voiceCard'));
+  $('voiceCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function confirmVoice() {
+  if (!pendingVoice) return;
+  const v = pendingVoice;
+  pendingVoice = null;
+  hide($('voiceCard'));
+  setLoading(true);
+  try {
+    if (v.type === 'add') {
+      await api(`/calendar/${activeProvider}/events`, { method: 'POST', body: v.event });
+      toast('Event added ✓', 'ok');
+    } else if (v.type === 'remove') {
+      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'DELETE' });
+      toast('Event removed ✓', 'ok');
+    } else if (v.type === 'move') {
+      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, {
+        method: 'PATCH',
+        body: { start: v.to.start, end: v.to.end },
+      });
+      toast('Event moved ✓', 'ok');
+    }
     await loadEvents();
   } catch (err) {
     toast(err.message, 'err');
@@ -241,6 +372,12 @@ function init() {
   $('optimizeBtn').addEventListener('click', runOptimize);
   $('applyBtn').addEventListener('click', applyProposal);
   $('cancelBtn').addEventListener('click', () => hide($('proposalCard')));
+  $('micBtn').addEventListener('click', startVoice);
+  $('voiceConfirmBtn').addEventListener('click', confirmVoice);
+  $('voiceCancelBtn').addEventListener('click', () => {
+    pendingVoice = null;
+    hide($('voiceCard'));
+  });
   $('logoutBtn').addEventListener('click', async () => {
     await api('/logout', { method: 'POST' }).catch(() => {});
     window.location.href = '/login';
