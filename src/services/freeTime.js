@@ -36,12 +36,15 @@ function weekdayKeys(dayKey) {
  * @param {object} opts           { minSlotMinutes = 15 }
  * @returns {Array} [{ dayKey, slots: [{ start, end, minutes }] }]
  */
-function freeForDays(events, dayKeys, ruleOverrides = {}, { minSlotMinutes = 15 } = {}) {
+function freeForDays(events, dayKeys, ruleOverrides = {}, { minSlotMinutes = 15, referenceDate } = {}) {
   const rules = resolveRules(ruleOverrides);
   const off = rules.tzOffsetMinutes;
   const workStart = parseHM(rules.workday.start);
   const workEnd = parseHM(rules.workday.end);
   const timed = events.filter(isTimed);
+  // Only count free time from "now" onward: a day already underway shows just
+  // what's left of it; future days are unaffected (now is before their window).
+  const nowMs = referenceDate ? referenceDate.getTime() : Date.now();
 
   return dayKeys.map((dayKey) => {
     const winStart = new Date(fromLocal(dayKey, workStart, off)).getTime();
@@ -62,7 +65,7 @@ function freeForDays(events, dayKeys, ruleOverrides = {}, { minSlotMinutes = 15 
     }
 
     const slots = [];
-    let cursor = winStart;
+    let cursor = Math.max(winStart, nowMs); // don't offer free time that's already passed
     for (const [s, e] of merged) {
       if (s - cursor >= minSlotMinutes * 60000) {
         slots.push({ start: new Date(cursor).toISOString(), end: new Date(s).toISOString(), minutes: Math.round((s - cursor) / 60000) });

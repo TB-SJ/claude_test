@@ -456,7 +456,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     const dayKeys = scope === 'week' ? weekdayKeys(dateKey) : [dateKey];
     const win = coveringWindow(dayKeys, { tzOffsetMinutes });
     const events = await calendar.getEvents(provider, { start: win.start, end: win.end });
-    const days = freeForDays(events, dayKeys, { tzOffsetMinutes });
+    const days = freeForDays(events, dayKeys, { tzOffsetMinutes }, { referenceDate });
     return { type: 'show_free', transcript, scope, date: dateKey, label, days };
   }
 

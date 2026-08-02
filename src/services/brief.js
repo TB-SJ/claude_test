@@ -39,7 +39,7 @@ function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new 
   const meetingMinutes = timedToday.reduce((sum, e) => sum + diffMinutes(e.start, e.end), 0);
   const nextEvent = timedToday.find((e) => new Date(e.start).getTime() > nowMs) || null;
 
-  const freeSlots = freeForDays(events, [todayKey], { tzOffsetMinutes }).find((d) => d.dayKey === todayKey);
+  const freeSlots = freeForDays(events, [todayKey], { tzOffsetMinutes }, { referenceDate }).find((d) => d.dayKey === todayKey);
   const freeMinutes = (freeSlots ? freeSlots.slots : []).reduce((sum, s) => sum + s.minutes, 0);
 
   // Deep-work protection for today.
