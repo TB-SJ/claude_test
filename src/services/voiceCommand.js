@@ -2,7 +2,9 @@
 
 const chrono = require('chrono-node');
 const calendar = require('./calendar');
+const taskStore = require('../taskStore');
 const { optimize } = require('./scheduleOptimizer');
+const { scheduleTasks } = require('./taskScheduler');
 const { addMinutes, diffMinutes } = require('./calendarUtils');
 
 // Action keyword detection. "optimize" is checked first (most specific);
@@ -72,9 +74,83 @@ function parseWhen(text, referenceDate) {
  *   { type:'move', title, when:{start,end,dateSpecified,timeSpecified}|null }
  *   { type:'unknown' }
  */
+/** Extracts an estimated duration in minutes from spoken text. */
+function extractDuration(text) {
+  let m;
+  if ((m = /\bfor\s+(an?|one)\s+hours?\b/i.exec(text)) || (m = /\b(an?|one)\s+hours?\b/i.exec(text))) {
+    return { minutes: 60, text: m[0] };
+  }
+  if ((m = /\bhalf\s+(an\s+)?hour\b/i.exec(text))) return { minutes: 30, text: m[0] };
+  if ((m = /(\d+)\s*(hours?|hrs?)\b/i.exec(text))) return { minutes: parseInt(m[1], 10) * 60, text: m[0] };
+  if ((m = /(\d+)\s*(minutes?|mins?)\b/i.exec(text))) return { minutes: parseInt(m[1], 10), text: m[0] };
+  return null;
+}
+
+function ymdLocal(d) {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+
+/** Parses "add a task to X for 30 minutes by Friday" into a task intent. */
+function parseAddTask(text, referenceDate) {
+  const priority = /\b(urgent|important|high priority|asap)\b/i.test(text) ? 'high'
+    : /\b(low priority|whenever|someday)\b/i.test(text) ? 'low' : 'med';
+  let w = text
+    .replace(/\bnote to self\b/i, ' ')
+    .replace(/\bremember to\b/i, ' ')
+    .replace(/\b(add|create|new|make|remember|note|put)\b/i, ' ')
+    .replace(/\b(a|the)\s+(task|to-?do)\b|\b(task|to-?do)\b/i, ' ')
+    .replace(/\b(urgent|important|high priority|asap|low priority|whenever|someday)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const dur = extractDuration(w);
+  if (dur) w = w.replace(dur.text, ' ');
+
+  let deadline = null;
+  let dlText = '';
+  const by = /\bby\b\s+(.+)$/i.exec(w);
+  const src = by ? by[1] : w;
+  const parsed = chrono.parse(src, referenceDate, { forwardDate: true });
+  if (parsed.length) {
+    deadline = ymdLocal(parsed[0].start.date());
+    dlText = by ? `by ${parsed[0].text}` : parsed[0].text;
+  }
+  if (dlText) w = w.replace(dlText, ' ');
+
+  let title = w.replace(/^(to|that|for|a|an|the)\s+/i, '').replace(/[,;.\s]+$/g, '').replace(/\s+/g, ' ').trim();
+  let prev;
+  do {
+    prev = title;
+    title = title.replace(/\s+(by|for|to)$/i, '').replace(/[,;.]+$/g, '').trim();
+  } while (title !== prev);
+
+  return {
+    type: 'add_task',
+    title,
+    estimatedMinutes: dur ? dur.minutes : 30,
+    priority,
+    deadline,
+    transcript: text,
+  };
+}
+
 function parseCommand(transcript, referenceDate = new Date()) {
   const text = String(transcript || '').trim();
   if (!text) return { type: 'unknown', transcript: text };
+
+  // Task commands take priority when they mention "task(s)" or "plan my day".
+  if (/\bplan my day\b/i.test(text) || (/\b(plan|schedule|organi[sz]e)\b/i.test(text) && /\btasks?\b/i.test(text))) {
+    return { type: 'plan_tasks', transcript: text };
+  }
+  const mentionsTask = /\b(tasks?|to-?dos?)\b/i.test(text);
+  if (
+    (mentionsTask && /\b(add|create|new|make|remember|note|put)\b/i.test(text)) ||
+    /\bremember to\b/i.test(text) ||
+    /\bnote to self\b/i.test(text)
+  ) {
+    return parseAddTask(text, referenceDate);
+  }
 
   const action = detectAction(text);
   if (action.type === 'optimize') {
@@ -144,6 +220,27 @@ async function findByTitle(provider, hint, referenceDate) {
  */
 async function buildCommand(provider, transcript, { referenceDate = new Date(), tzOffsetMinutes = 0 } = {}) {
   const parsed = parseCommand(transcript, referenceDate);
+
+  if (parsed.type === 'add_task') {
+    if (!parsed.title) return { type: 'add_task', error: 'need_title', transcript };
+    return {
+      type: 'add_task',
+      transcript,
+      task: {
+        title: parsed.title,
+        estimatedMinutes: parsed.estimatedMinutes,
+        priority: parsed.priority || 'med',
+        deadline: parsed.deadline || null,
+      },
+    };
+  }
+
+  if (parsed.type === 'plan_tasks') {
+    const tasks = taskStore.list();
+    const events = await calendar.getEvents(provider, { range: 'day' });
+    const plan = scheduleTasks(tasks, events, { tzOffsetMinutes }, { referenceDate });
+    return { type: 'plan_tasks', transcript, plan };
+  }
 
   if (parsed.type === 'optimize') {
     const events = await calendar.getEvents(provider, { range: parsed.scope });

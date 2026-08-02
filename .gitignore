@@ -15,3 +15,6 @@ npm-debug.log*
 
 # OS
 .DS_Store
+
+# Local app data (tasks, tokens)
+/data/

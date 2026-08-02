@@ -139,6 +139,26 @@ button.full { width: 100%; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Form inputs */
+input:not([type="checkbox"]), select {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 1rem;
+}
+
+/* Task list */
+.task { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
+.task:first-child { border-top: none; }
+.task .t-title { flex: 1; font-weight: 600; }
+.task.done .t-title { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.task .t-meta { font-size: 0.76rem; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.task input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+.task .del { background: none; border: none; color: var(--muted); font-size: 1.1rem; min-height: auto; padding: 4px 8px; }
+.event.task-slot .time, .event.task-slot .title { color: var(--accent); }
+
 /* Floating mic button */
 .fab {
   position: fixed;

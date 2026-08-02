@@ -8,6 +8,7 @@ const authRouter = require('./routes/auth');
 const calendarRouter = require('./routes/calendar');
 const voiceRouter = require('./routes/voice');
 const scheduleRouter = require('./routes/schedule');
+const tasksRouter = require('./routes/tasks');
 const webAuth = require('./webAuth');
 
 const app = express();
@@ -71,6 +72,7 @@ app.use('/auth', webAuth.requireAuthApi, authRouter);
 app.use('/calendar', webAuth.requireAuthApi, calendarRouter);
 app.use('/voice', webAuth.requireAuthApi, voiceRouter);
 app.use('/schedule', webAuth.requireAuthApi, scheduleRouter);
+app.use('/tasks', webAuth.requireAuthApi, tasksRouter);
 
 // 404 + error handlers.
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

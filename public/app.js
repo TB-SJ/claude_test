@@ -125,10 +125,13 @@ async function refreshConnection() {
       $('tzLabel').textContent = `${tzBase} · ${PROVIDER_LABEL[activeProvider]}`;
       hide($('connectCard'));
       show($('todayCard'));
+      show($('tasksCard'));
       show($('micBtn')); // voice control available once connected
       await loadEvents();
+      await loadTasks();
     } else {
       hide($('micBtn'));
+      hide($('tasksCard'));
       // Offer a connect button for each configured-but-unconnected provider.
       const configured = PROVIDER_ORDER.filter((p) => provs[p] && provs[p].reason !== 'not_configured');
       const list = configured.length ? configured : PROVIDER_ORDER;
@@ -299,6 +302,22 @@ function dispatchVoice(result, transcript) {
     renderProposalCard(`🎤 "${transcript}"`);
     return;
   }
+  if (result.type === 'plan_tasks') {
+    renderTaskPlan(result.plan);
+    return;
+  }
+  if (result.type === 'add_task') {
+    if (result.error) return toast(VOICE_ERRORS[result.error] || "Couldn't add that task.", 'err');
+    pendingVoice = result;
+    const t = result.task;
+    const meta = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.deadline ? `by ${t.deadline}` : null].filter(Boolean).join(' · ');
+    $('voiceHeard').textContent = `Heard: "${transcript}"`;
+    $('voiceSummary').textContent = `Add task: “${t.title}” (${meta})`;
+    hide($('proposalCard'));
+    show($('voiceCard'));
+    $('voiceCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   if (result.error) {
     toast(VOICE_ERRORS[result.error] || 'Sorry, I couldn\'t do that.', 'err');
     return;
@@ -327,6 +346,12 @@ async function confirmVoice() {
   hide($('voiceCard'));
   setLoading(true);
   try {
+    if (v.type === 'add_task') {
+      await api('/tasks', { method: 'POST', body: v.task });
+      toast('Task added ✓', 'ok');
+      await loadTasks();
+      return;
+    }
     if (v.type === 'add') {
       await api(`/calendar/${activeProvider}/events`, { method: 'POST', body: v.event });
       toast('Event added ✓', 'ok');
@@ -346,6 +371,116 @@ async function confirmVoice() {
   } finally {
     setLoading(false);
   }
+}
+
+// --- Tasks -----------------------------------------------------------------
+const PRIO_RANK = { high: 0, med: 1, low: 2 };
+const PRIO_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
+
+async function loadTasks() {
+  try {
+    const data = await api('/tasks');
+    renderTasks(data.tasks || []);
+  } catch (_) {
+    /* non-fatal */
+  }
+}
+
+function renderTasks(tasks) {
+  if (!tasks.length) {
+    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">No tasks yet. Add one, then tap “Plan my day.”</p>';
+    return;
+  }
+  tasks.sort((a, b) => a.done - b.done || (PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1));
+  $('taskList').innerHTML = tasks
+    .map((t) => {
+      const meta = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.deadline ? `by ${t.deadline}` : null]
+        .filter(Boolean)
+        .join(' · ');
+      return `<div class="task ${t.done ? 'done' : ''}">
+          <input type="checkbox" class="t-check" data-id="${t.id}" ${t.done ? 'checked' : ''} />
+          <div class="t-title">${escapeHtml(t.title)}<div class="t-meta">${escapeHtml(meta)}</div></div>
+          <button class="del" data-id="${t.id}" aria-label="delete">✕</button>
+        </div>`;
+    })
+    .join('');
+  for (const c of $('taskList').querySelectorAll('.t-check')) {
+    c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  }
+  for (const d of $('taskList').querySelectorAll('.del')) {
+    d.addEventListener('click', () => deleteTask(d.dataset.id));
+  }
+}
+
+async function toggleTask(id, done) {
+  await api(`/tasks/${id}`, { method: 'PATCH', body: { done } }).catch(() => {});
+  loadTasks();
+}
+
+async function deleteTask(id) {
+  await api(`/tasks/${id}`, { method: 'DELETE' }).catch(() => {});
+  loadTasks();
+}
+
+async function addTaskFromForm() {
+  const title = $('taskTitle').value.trim();
+  if (!title) return toast('Enter a task title', 'err');
+  const body = {
+    title,
+    estimatedMinutes: parseInt($('taskMins').value, 10) || 30,
+    priority: $('taskPriority').value,
+    deadline: $('taskDeadline').value || null,
+  };
+  try {
+    await api('/tasks', { method: 'POST', body });
+    $('taskTitle').value = '';
+    $('taskDeadline').value = '';
+    hide($('taskForm'));
+    toast('Task added ✓', 'ok');
+    loadTasks();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+async function planTasks() {
+  setLoading(true);
+  try {
+    const plan = await api(`/tasks/plan/${activeProvider}`, { method: 'POST', body: { tzOffsetMinutes: TZ_OFFSET } });
+    renderTaskPlan(plan);
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Merged timeline of today's events + suggested task slots (tasks marked 📋).
+function renderTaskPlan(plan) {
+  const items = [];
+  for (const e of plan.events || []) if (e.start.includes('T')) items.push({ kind: 'event', title: e.title, start: e.start, end: e.end });
+  for (const s of plan.slots || []) items.push({ kind: 'task', title: s.title, start: s.start, end: s.end });
+  items.sort((a, b) => new Date(a.start) - new Date(b.start));
+
+  let html = '<div class="daygroup">';
+  if (!items.length) html += '<p class="muted center">Nothing to plan — no events or tasks.</p>';
+  for (const it of items) {
+    const cls = it.kind === 'task' ? 'event task-slot' : 'event';
+    const badge = it.kind === 'task' ? '📋 ' : '';
+    html += `<div class="${cls}"><div class="time">${fmtRange(it.start, it.end)}</div><div class="title">${badge}${escapeHtml(it.title)}</div></div>`;
+  }
+  html += '</div>';
+  if (plan.unscheduled && plan.unscheduled.length) {
+    html += '<h3 class="muted" style="margin:12px 0 4px">Couldn’t fit today</h3>';
+    html += plan.unscheduled
+      .map((t) => `<div class="reason" style="margin-left:0">• ${escapeHtml(t.title)} (${t.estimatedMinutes} min)</div>`)
+      .join('');
+  }
+  $('planBody').innerHTML = html;
+  hide($('voiceCard'));
+  hide($('proposalCard'));
+  show($('taskPlanCard'));
+  $('taskPlanCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // --- Wire up ---------------------------------------------------------------
@@ -372,6 +507,10 @@ function init() {
   $('optimizeBtn').addEventListener('click', runOptimize);
   $('applyBtn').addEventListener('click', applyProposal);
   $('cancelBtn').addEventListener('click', () => hide($('proposalCard')));
+  $('addTaskToggle').addEventListener('click', () => $('taskForm').classList.toggle('hidden'));
+  $('taskAddBtn').addEventListener('click', addTaskFromForm);
+  $('planBtn').addEventListener('click', planTasks);
+  $('planCloseBtn').addEventListener('click', () => hide($('taskPlanCard')));
   $('micBtn').addEventListener('click', startVoice);
   $('voiceConfirmBtn').addEventListener('click', confirmVoice);
   $('voiceCancelBtn').addEventListener('click', () => {

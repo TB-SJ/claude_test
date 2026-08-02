@@ -42,6 +42,41 @@
       </div>
     </section>
 
+    <!-- Tasks (flexible to-dos, app-only) -->
+    <section class="card hidden" id="tasksCard">
+      <div class="row">
+        <h2 style="margin:0">✅ Tasks</h2>
+        <span class="spacer"></span>
+        <button class="ghost" id="addTaskToggle">＋ Add</button>
+      </div>
+      <div id="taskForm" class="hidden" style="margin-top:10px">
+        <input id="taskTitle" placeholder="What do you need to do?" style="width:100%" />
+        <div class="row" style="margin-top:8px">
+          <input id="taskMins" type="number" min="5" step="5" value="30" style="width:84px" title="minutes" />
+          <select id="taskPriority" style="flex:1">
+            <option value="high">High</option>
+            <option value="med" selected>Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <input id="taskDeadline" type="date" style="flex:1" title="deadline (optional)" />
+        </div>
+        <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
+      </div>
+      <div id="taskList" style="margin-top:10px"></div>
+      <button class="primary full" id="planBtn" style="margin-top:12px">🗓 Plan my day</button>
+    </section>
+
+    <!-- Suggested task plan (read-only; not written to the calendar) -->
+    <section class="card hidden" id="taskPlanCard">
+      <div class="row">
+        <h2 style="margin:0">🗓 Suggested plan</h2>
+        <span class="spacer"></span>
+        <button class="ghost" id="planCloseBtn">Close</button>
+      </div>
+      <p class="muted" style="margin:6px 0">Tasks (📋) fit around today's events — a suggestion, not saved to your calendar.</p>
+      <div id="planBody" style="margin-top:6px"></div>
+    </section>
+
     <!-- Voice command confirmation (add / remove / move) -->
     <section class="card hidden" id="voiceCard">
       <div class="row">
