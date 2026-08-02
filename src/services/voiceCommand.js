@@ -8,6 +8,7 @@ const logger = require('../logger');
 const { optimize } = require('./scheduleOptimizer');
 const { scheduleTasks } = require('./taskScheduler');
 const { composeBrief } = require('./brief');
+const { computeReview } = require('./reviewService');
 const { freeForDays, coveringWindow, weekdayKeys } = require('./freeTime');
 const { addMinutes, diffMinutes } = require('./calendarUtils');
 
@@ -172,6 +173,13 @@ function parseCommand(transcript, referenceDate = new Date()) {
   let md;
   if ((md = /\bmark\s+(.+?)\s+(?:as\s+)?(?:done|complete|completed|finished)\b/i.exec(text))) {
     return { type: 'edit_task', title: cleanPhrase(md[1]), done: true, transcript: text };
+  }
+
+  // Weekly review: "how was my week", "weekly review".
+  if (/\bweekly review\b/i.test(text)
+      || /\breview my week\b/i.test(text)
+      || /\bhow (?:was|did|has) my week\b/i.test(text)) {
+    return { type: 'review', transcript: text };
   }
 
   // Daily brief: "how's my day", "brief me", "what does my day look like".
@@ -441,6 +449,14 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     const events = await calendar.getEvents(provider, { range: 'day' });
     const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
     return { type: 'brief', transcript, brief };
+  }
+
+  if (parsed.type === 'review') {
+    const start = new Date(referenceDate.getTime() - 15 * 86400000).toISOString();
+    const end = new Date(referenceDate.getTime() + 86400000).toISOString();
+    const events = await calendar.getEvents(provider, { start, end });
+    const review = computeReview(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
+    return { type: 'review', transcript, review };
   }
 
   if (parsed.type === 'show_schedule' || parsed.type === 'show_free') {

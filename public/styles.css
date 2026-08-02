@@ -131,6 +131,15 @@ button.ghost.active { color: var(--green); border-color: var(--green); }
 .brief-stat { padding: 5px 0; font-size: 0.95rem; }
 .brief-stat.warn { color: var(--amber); }
 
+.daychips { display: inline-flex; gap: 4px; }
+.daychips button {
+  min-height: 34px; width: 34px; padding: 0; border-radius: 8px;
+  font-size: 0.82rem; font-weight: 700; background: var(--card-2); color: var(--muted);
+}
+.daychips button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.t-badge { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
+.t-badge.streak { color: var(--amber); }
+
 .collapse-btn {
   background: none; border: none; color: var(--muted);
   font-size: 0.85rem; line-height: 1; min-height: auto;

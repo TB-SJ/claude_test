@@ -403,6 +403,7 @@ command and it's parsed server-side (`src/services/voiceCommand.js`, using
 - **"Show me my schedule for Friday"** / **"what do I have this week"** → read-only agenda view.
 - **"When am I free tomorrow"** / **"show my free time this week"** → free-time view (gaps within work hours).
 - **"How's my day"** / **"brief me"** → the daily brief (see below).
+- **"How was my week"** / **"weekly review"** → the weekly look-back (see below).
 
 Every write (add/remove/move/edit) shows a **confirmation card** first; the two
 **"show …"** queries are read-only and just display a result card. The endpoint is
@@ -423,6 +424,21 @@ your next event, your top task, and any **at-risk deadlines** (overdue / due tod
 voice ("how's my day"). Endpoint: `GET /brief/:provider?tzOffsetMinutes=&date=` —
 read-only. Tasks are ordered **deadline-aware**: anything due within two days (or
 overdue) jumps ahead of priority, so pressing deadlines never get buried.
+
+### Recurring tasks & habits
+
+Tasks can repeat on chosen weekdays (the **Repeat** chips in the task form —
+e.g. Mon/Wed/Fri, weekdays, or daily). A recurring task shows up as due only on
+its days, tracks a **🔥 streak** of consecutive completions, and flows into Plan
+my day and the brief on the days it's due. Completion is per-day (checking it off
+today doesn't remove it — it comes back next occurrence).
+
+### Weekly review
+
+Tap **📊** on the Today card (or say *"how was my week"*) for a look-back over the
+last 7 days: meeting count + hours (with a trend vs the previous week), free/focus
+time, deep-work days protected, tasks completed vs. open (and overdue), and your
+current habit streaks. Read-only; endpoint `GET /review/:provider`.
 
 ### Time-blocking (opt-in)
 

@@ -2,6 +2,7 @@
 
 const { resolveRules, parseHM } = require('./scheduleRules');
 const { localParts, fromLocal, earliestSlot } = require('./scheduleOptimizer');
+const { isPending } = require('../taskStore');
 
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 
@@ -81,7 +82,7 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     busy.push([Math.max(s.minute, 0), e.dayKey === dayKey ? e.minute : workEnd]);
   }
 
-  const pending = tasks.filter((t) => !t.done).slice().sort((a, b) => taskOrder(a, b, dayKey));
+  const pending = tasks.filter((t) => isPending(t, dayKey)).slice().sort((a, b) => taskOrder(a, b, dayKey));
   const slots = [];
   const unscheduled = [];
   const placed = busy.slice();

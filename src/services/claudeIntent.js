@@ -15,7 +15,7 @@ const INTENT_SCHEMA = {
       enum: [
         'add', 'remove', 'move', 'edit', 'optimize',
         'add_task', 'edit_task', 'plan_tasks',
-        'show_schedule', 'show_free', 'brief', 'unknown',
+        'show_schedule', 'show_free', 'brief', 'review', 'unknown',
       ],
     },
     scope: { anyOf: [{ type: 'string', enum: ['day', 'week'] }, { type: 'null' }] },
@@ -70,6 +70,7 @@ function buildSystemPrompt(now, offsetMin) {
     '- action "edit_task": change an existing task. title = words identifying the task; set new_title (rename), estimated_minutes, priority, deadline, and/or done (true when marking complete) — only the fields the user changed.',
     '- action "plan_tasks": user wants their tasks fitted into free time ("plan my day", "schedule my tasks").',
     '- action "brief": user wants a summary of their day ("how\'s my day", "brief me", "what does my day look like").',
+    '- action "review": user wants a look-back over the past week ("weekly review", "how was my week").',
     '- action "show_schedule": user wants to see their events ("show my schedule", "what\'s on Friday", "what do I have this week"). Set scope (day/week) and date if a specific day was named.',
     '- action "show_free": user wants to see free/open time ("when am I free", "show my free time this week"). Set scope (day/week) and date if a specific day was named.',
     '- action "unknown": anything not about the calendar or tasks.',
@@ -92,6 +93,8 @@ function adaptToParsed(raw) {
       return { type: 'plan_tasks', transcript: '' };
     case 'brief':
       return { type: 'brief', transcript: '' };
+    case 'review':
+      return { type: 'review', transcript: '' };
     case 'show_schedule':
       return { type: 'show_schedule', scope: scopeOf(raw), date: clean(raw.date), transcript: '' };
     case 'show_free':

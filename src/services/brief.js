@@ -5,6 +5,7 @@ const { localParts } = require('./scheduleOptimizer');
 const { diffMinutes } = require('./calendarUtils');
 const { freeForDays } = require('./freeTime');
 const { taskOrder, taskUrgency } = require('./taskScheduler');
+const { isPending, isRecurring } = require('../taskStore');
 
 function isTimed(ev) {
   return Boolean(ev.start && ev.end && ev.start.includes('T') && ev.end.includes('T') && ev.status !== 'cancelled');
@@ -55,7 +56,7 @@ function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new 
     });
   }
 
-  const pending = tasks.filter((t) => !t.done).slice().sort((a, b) => taskOrder(a, b, todayKey));
+  const pending = tasks.filter((t) => isPending(t, todayKey)).slice().sort((a, b) => taskOrder(a, b, todayKey));
   const topTask = pending[0] || null;
   const atRisk = pending
     .map((t) => ({ task: t, urg: taskUrgency(t, todayKey) }))

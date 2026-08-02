@@ -33,6 +33,7 @@
         <button class="collapse-btn" id="briefCollapse" aria-label="Collapse brief">▾</button>
         <h2 style="margin:0" id="briefTitle">🌅 Today</h2>
         <span class="spacer"></span>
+        <button class="ghost" id="reviewBtn" title="Weekly review">📊</button>
         <button class="ghost hidden" id="notifyBtn" title="Enable reminders">🔔 Reminders</button>
         <button class="ghost" id="briefRefresh" title="Refresh">↻</button>
       </div>
@@ -96,6 +97,18 @@
               <option value="low">Low</option>
             </select>
             <input id="taskDeadline" type="date" style="flex:1" title="deadline (optional)" />
+          </div>
+          <div class="row" style="margin-top:8px; gap:8px; align-items:center">
+            <span class="muted" style="font-size:.82rem">Repeat</span>
+            <div class="daychips" id="taskRepeat">
+              <button type="button" data-d="0">S</button>
+              <button type="button" data-d="1">M</button>
+              <button type="button" data-d="2">T</button>
+              <button type="button" data-d="3">W</button>
+              <button type="button" data-d="4">T</button>
+              <button type="button" data-d="5">F</button>
+              <button type="button" data-d="6">S</button>
+            </div>
           </div>
           <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
         </div>

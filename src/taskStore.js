@@ -72,18 +72,67 @@ function normPriority(p) {
   return PRIORITIES.includes(s) ? s : 'med';
 }
 
+/** Normalizes a repeat rule to a sorted array of unique weekdays (0=Sun..6=Sat),
+ *  or null for a one-off. Accepts an array, 'daily', or 'weekdays'. */
+function normRepeat(v) {
+  if (v == null || v === 'none' || v === '') return null;
+  if (v === 'daily') return [0, 1, 2, 3, 4, 5, 6];
+  if (v === 'weekdays') return [1, 2, 3, 4, 5];
+  if (!Array.isArray(v)) return null;
+  const days = [...new Set(v.map((n) => parseInt(n, 10)).filter((n) => n >= 0 && n <= 6))].sort((a, b) => a - b);
+  return days.length ? days : null;
+}
+
+function isRecurring(task) {
+  return Array.isArray(task.repeat) && task.repeat.length > 0;
+}
+
+function weekdayOfKey(dateKey) {
+  return new Date(`${dateKey}T00:00:00Z`).getUTCDay();
+}
+
+/** True when a recurring task recurs on this local day. */
+function isDueOn(task, dateKey) {
+  return isRecurring(task) && task.repeat.includes(weekdayOfKey(dateKey));
+}
+
+/** True when a task should appear as actionable on `dateKey`. */
+function isPending(task, dateKey) {
+  if (isRecurring(task)) return isDueOn(task, dateKey) && task.lastDone !== dateKey;
+  return !task.done;
+}
+
+/** The most recent recurrence day strictly before `dateKey`, or null. */
+function previousDue(repeat, dateKey) {
+  const base = new Date(`${dateKey}T00:00:00Z`);
+  for (let i = 1; i <= 7; i += 1) {
+    const d = new Date(base);
+    d.setUTCDate(base.getUTCDate() - i);
+    if (repeat.includes(d.getUTCDay())) return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function todayKeyUTC() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function list() {
   return currentAll();
 }
 
-function add({ title, estimatedMinutes, priority, deadline }) {
+function add({ title, estimatedMinutes, priority, deadline, repeat }) {
   const t = {
     id: crypto.randomUUID(),
     title: String(title || '').trim(),
     estimatedMinutes: clampMinutes(estimatedMinutes),
     priority: normPriority(priority),
     deadline: deadline || null, // YYYY-MM-DD or null
-    done: false,
+    repeat: normRepeat(repeat), // null (one-off) or [weekdays]
+    streak: 0,
+    lastDone: null, // last completion date (recurring) — YYYY-MM-DD
+    done: false, // one-off completion
+    completedAt: null,
     createdAt: new Date().toISOString(),
   };
   const all = currentAll();
@@ -96,13 +145,33 @@ function update(id, patch = {}) {
   const all = currentAll();
   const i = all.findIndex((t) => t.id === id);
   if (i < 0) return null;
+  const t = all[i];
   const clean = {};
   if (patch.title != null) clean.title = String(patch.title).trim();
   if (patch.estimatedMinutes != null) clean.estimatedMinutes = clampMinutes(patch.estimatedMinutes);
   if (patch.priority != null) clean.priority = normPriority(patch.priority);
   if (patch.deadline !== undefined) clean.deadline = patch.deadline || null;
-  if (patch.done != null) clean.done = Boolean(patch.done);
-  all[i] = { ...all[i], ...clean };
+  if (patch.repeat !== undefined) clean.repeat = normRepeat(patch.repeat);
+
+  if (patch.done != null) {
+    const dateKey = patch.date || todayKeyUTC(); // client passes its local date
+    const repeat = clean.repeat !== undefined ? clean.repeat : t.repeat;
+    if (Array.isArray(repeat) && repeat.length) {
+      // Recurring: completion is per-day and feeds the streak.
+      if (patch.done) {
+        clean.streak = t.lastDone === previousDue(repeat, dateKey) ? (t.streak || 0) + 1 : 1;
+        clean.lastDone = dateKey;
+      } else if (t.lastDone === dateKey) {
+        clean.lastDone = null;
+        clean.streak = Math.max(0, (t.streak || 0) - 1);
+      }
+    } else {
+      clean.done = Boolean(patch.done);
+      clean.completedAt = patch.done ? new Date().toISOString() : null;
+    }
+  }
+
+  all[i] = { ...t, ...clean };
   persist(all);
   return all[i];
 }
@@ -119,4 +188,8 @@ async function flush() {
   await pending;
 }
 
-module.exports = { init, list, add, update, remove, flush, PRIORITIES };
+module.exports = {
+  init, list, add, update, remove, flush, PRIORITIES,
+  // recurring/habit helpers (also used by the scheduler, brief, and review):
+  isRecurring, isDueOn, isPending, previousDue, normRepeat, weekdayOfKey,
+};
