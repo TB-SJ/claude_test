@@ -125,6 +125,19 @@ button.full { width: 100%; }
 .ai-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); margin-right: 10px; cursor: pointer; user-select: none; }
 .ai-toggle input { width: 16px; height: 16px; }
 
+.collapse-btn {
+  background: none; border: none; color: var(--muted);
+  font-size: 0.85rem; line-height: 1; min-height: auto;
+  padding: 4px 8px 4px 0; margin-right: 2px; cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.collapse-btn:hover { color: var(--accent); }
+.card.collapsed .collapse-btn { transform: rotate(-90deg); }
+.card.collapsed .card-body { display: none; }
+/* When collapsed, show only the chevron + title (hide add / scope controls). */
+.card.collapsed .row .ghost,
+.card.collapsed .row .toggle { display: none; }
+
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .hidden { display: none !important; }

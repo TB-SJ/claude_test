@@ -253,6 +253,22 @@ function primeEventForm() {
   }
 }
 
+// --- Collapsible cards (persisted, to save screen space) --------------------
+function setupCollapse(cardId, btnId, storeKey) {
+  const card = $(cardId);
+  const btn = $(btnId);
+  const apply = (collapsed) => {
+    card.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+  };
+  apply(localStorage.getItem(storeKey) === '1');
+  btn.addEventListener('click', () => {
+    const collapsed = !card.classList.contains('collapsed');
+    apply(collapsed);
+    localStorage.setItem(storeKey, collapsed ? '1' : '0');
+  });
+}
+
 // --- Claude optimizer toggle (shown only when the server has a key) ----------
 function setupClaudeToggle() {
   const wrap = $('claudeToggleWrap');
@@ -760,6 +776,8 @@ function init() {
   $('planBtn').addEventListener('click', planTasks);
   $('planCloseBtn').addEventListener('click', () => hide($('taskPlanCard')));
   $('queryCloseBtn').addEventListener('click', () => hide($('queryCard')));
+  setupCollapse('todayCard', 'todayCollapse', 'collapse.schedule');
+  setupCollapse('tasksCard', 'tasksCollapse', 'collapse.tasks');
   $('micBtn').addEventListener('click', startVoice);
   $('voiceConfirmBtn').addEventListener('click', confirmVoice);
   $('voiceCancelBtn').addEventListener('click', () => {

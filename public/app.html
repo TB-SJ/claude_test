@@ -27,6 +27,7 @@
     <!-- Connected: today -->
     <section class="card hidden" id="todayCard">
       <div class="row">
+        <button class="collapse-btn" id="todayCollapse" aria-label="Collapse schedule">▾</button>
         <h2 style="margin:0">Your schedule</h2>
         <span class="spacer"></span>
         <button class="ghost" id="addEventToggle">＋ Add</button>
@@ -36,51 +37,56 @@
         </div>
       </div>
 
-      <!-- Quick-add event: typed fields → saved directly (no AI, no cost) -->
-      <div id="eventForm" class="hidden" style="margin-top:10px">
-        <input id="evTitle" placeholder="Event title" style="width:100%" />
-        <div class="row" style="margin-top:8px">
-          <input id="evDate" type="date" style="flex:1" title="date" />
-          <input id="evTime" type="time" style="flex:1" title="start time" />
-          <input id="evMins" type="number" min="5" step="5" value="60" style="width:84px" title="minutes" />
+      <div class="card-body" id="todayBody">
+        <!-- Quick-add event: typed fields → saved directly (no AI, no cost) -->
+        <div id="eventForm" class="hidden" style="margin-top:10px">
+          <input id="evTitle" placeholder="Event title" style="width:100%" />
+          <div class="row" style="margin-top:8px">
+            <input id="evDate" type="date" style="flex:1" title="date" />
+            <input id="evTime" type="time" style="flex:1" title="start time" />
+            <input id="evMins" type="number" min="5" step="5" value="60" style="width:84px" title="minutes" />
+          </div>
+          <input id="evDesc" placeholder="Notes (optional)" style="width:100%; margin-top:8px" />
+          <button class="primary full" id="evAddBtn" style="margin-top:8px">Add event</button>
         </div>
-        <input id="evDesc" placeholder="Notes (optional)" style="width:100%; margin-top:8px" />
-        <button class="primary full" id="evAddBtn" style="margin-top:8px">Add event</button>
-      </div>
 
-      <div id="eventList" style="margin-top:10px"></div>
-      <div class="row" style="margin-top:14px">
-        <button class="ghost" id="refreshBtn">↻ Refresh</button>
-        <span class="spacer"></span>
-        <label class="ai-toggle hidden" id="claudeToggleWrap" title="Let Claude propose the rearrangement (small API cost). Off = free rules engine.">
-          <input type="checkbox" id="claudeToggle" /> 🧠 Claude
-        </label>
-        <button class="primary" id="optimizeBtn">✨ Optimize my <span id="optScope">day</span></button>
+        <div id="eventList" style="margin-top:10px"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="ghost" id="refreshBtn">↻ Refresh</button>
+          <span class="spacer"></span>
+          <label class="ai-toggle hidden" id="claudeToggleWrap" title="Let Claude propose the rearrangement (small API cost). Off = free rules engine.">
+            <input type="checkbox" id="claudeToggle" /> 🧠 Claude
+          </label>
+          <button class="primary" id="optimizeBtn">✨ Optimize my <span id="optScope">day</span></button>
+        </div>
       </div>
     </section>
 
     <!-- Tasks (flexible to-dos, app-only) -->
     <section class="card hidden" id="tasksCard">
       <div class="row">
+        <button class="collapse-btn" id="tasksCollapse" aria-label="Collapse tasks">▾</button>
         <h2 style="margin:0">✅ Tasks</h2>
         <span class="spacer"></span>
         <button class="ghost" id="addTaskToggle">＋ Add</button>
       </div>
-      <div id="taskForm" class="hidden" style="margin-top:10px">
-        <input id="taskTitle" placeholder="What do you need to do?" style="width:100%" />
-        <div class="row" style="margin-top:8px">
-          <input id="taskMins" type="number" min="5" step="5" value="30" style="width:84px" title="minutes" />
-          <select id="taskPriority" style="flex:1">
-            <option value="high">High</option>
-            <option value="med" selected>Medium</option>
-            <option value="low">Low</option>
-          </select>
-          <input id="taskDeadline" type="date" style="flex:1" title="deadline (optional)" />
+      <div class="card-body" id="tasksBody">
+        <div id="taskForm" class="hidden" style="margin-top:10px">
+          <input id="taskTitle" placeholder="What do you need to do?" style="width:100%" />
+          <div class="row" style="margin-top:8px">
+            <input id="taskMins" type="number" min="5" step="5" value="30" style="width:84px" title="minutes" />
+            <select id="taskPriority" style="flex:1">
+              <option value="high">High</option>
+              <option value="med" selected>Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <input id="taskDeadline" type="date" style="flex:1" title="deadline (optional)" />
+          </div>
+          <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
         </div>
-        <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
+        <div id="taskList" style="margin-top:10px"></div>
+        <button class="primary full" id="planBtn" style="margin-top:12px">🗓 Plan my day</button>
       </div>
-      <div id="taskList" style="margin-top:10px"></div>
-      <button class="primary full" id="planBtn" style="margin-top:12px">🗓 Plan my day</button>
     </section>
 
     <!-- Suggested task plan (read-only; not written to the calendar) -->
