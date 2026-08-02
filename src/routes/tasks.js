@@ -15,27 +15,31 @@ router.get('/', (req, res) => {
 });
 
 /** POST /tasks — create a task { title, estimatedMinutes?, priority?, deadline? }. */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { title } = req.body || {};
     if (!title || !String(title).trim()) throw validationError('`title` is required.');
-    res.status(201).json({ task: taskStore.add(req.body || {}) });
+    const task = taskStore.add(req.body || {});
+    await taskStore.flush();
+    res.status(201).json({ task });
   } catch (err) {
     sendError(res, err);
   }
 });
 
 /** PATCH /tasks/:id — update a task (e.g. mark done). */
-router.patch('/:id', (req, res) => {
+router.patch('/:id', async (req, res) => {
   const updated = taskStore.update(req.params.id, req.body || {});
   if (!updated) return res.status(404).json({ error: 'Task not found', code: 'NOT_FOUND' });
+  await taskStore.flush();
   res.json({ task: updated });
 });
 
 /** DELETE /tasks/:id — remove a task. */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   const ok = taskStore.remove(req.params.id);
   if (!ok) return res.status(404).json({ error: 'Task not found', code: 'NOT_FOUND' });
+  await taskStore.flush();
   res.json({ deleted: true, id: req.params.id });
 });
 
@@ -87,6 +91,7 @@ router.post('/commit/:provider', async (req, res) => {
         results.push({ taskId: s.taskId || null, ok: false, error: err.message, code: err.code });
       }
     }
+    await taskStore.flush();
     const created = results.filter((r) => r.ok).length;
     res.json({ created, failed: results.length - created, results });
   } catch (err) {

@@ -54,6 +54,14 @@ const config = {
     sessionSecret: process.env.APP_SESSION_SECRET || '',
   },
 
+  // Optional Supabase-backed persistence. When both are set, the token and task
+  // stores use a Supabase table instead of local files (needed on hosts with an
+  // ephemeral disk). Unset = local files (default, for local dev).
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
+  },
+
   // Microphone capture (node-record-lpcm16 shells out to sox/rec/arecord).
   audio: {
     sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
@@ -92,6 +100,7 @@ const providerConfigured = {
   outlook: () => Boolean(config.outlook.clientId && config.outlook.clientSecret),
   openai: () => Boolean(config.openai.apiKey),
   anthropic: () => Boolean(config.anthropic.apiKey),
+  supabase: () => Boolean(config.supabase.url && config.supabase.serviceKey),
 };
 
 module.exports = { config, validate, providerConfigured };

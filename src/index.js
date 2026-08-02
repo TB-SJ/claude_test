@@ -2,7 +2,7 @@
 
 const path = require('path');
 const express = require('express');
-const { config, validate } = require('./config');
+const { config, validate, providerConfigured } = require('./config');
 const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
 const calendarRouter = require('./routes/calendar');
@@ -10,6 +10,8 @@ const voiceRouter = require('./routes/voice');
 const scheduleRouter = require('./routes/schedule');
 const tasksRouter = require('./routes/tasks');
 const briefRouter = require('./routes/brief');
+const tokenStore = require('./tokenStore');
+const taskStore = require('./taskStore');
 const webAuth = require('./webAuth');
 
 const app = express();
@@ -85,17 +87,33 @@ app.use((err, req, res, next) => {
 
 // Only start listening when run directly (keeps the app importable in tests).
 if (require.main === module) {
-  const warnings = validate();
-  warnings.forEach((w) => console.warn(`[config] ${w}`));
-  if (!webAuth.enabled()) {
-    console.warn('[config] APP_PASSWORD is not set — the web dashboard has NO login gate. Set it before hosting.');
-  }
+  (async () => {
+    const warnings = validate();
+    warnings.forEach((w) => console.warn(`[config] ${w}`));
+    if (!webAuth.enabled()) {
+      console.warn('[config] APP_PASSWORD is not set — the web dashboard has NO login gate. Set it before hosting.');
+    }
 
-  app.listen(config.port, () => {
-    console.log(`calendar-oauth-server listening on ${config.baseUrl}`);
-    console.log(`  Dashboard:   ${config.baseUrl}/`);
-    console.log(`  Health:      ${config.baseUrl}/health`);
-  });
+    // Load the persistent stores before serving. In Supabase mode this fetches
+    // the token/task documents; in file mode it's a no-op.
+    if (providerConfigured.supabase()) {
+      try {
+        await Promise.all([tokenStore.init(), taskStore.init()]);
+        console.log('[storage] Using Supabase for token + task persistence.');
+      } catch (err) {
+        console.error(`[storage] Supabase init failed: ${err.message}`);
+        process.exit(1);
+      }
+    } else {
+      console.log('[storage] Using local files (data/) for persistence.');
+    }
+
+    app.listen(config.port, () => {
+      console.log(`calendar-oauth-server listening on ${config.baseUrl}`);
+      console.log(`  Dashboard:   ${config.baseUrl}/`);
+      console.log(`  Health:      ${config.baseUrl}/health`);
+    });
+  })();
 }
 
 module.exports = app;

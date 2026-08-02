@@ -35,6 +35,8 @@ router.get('/', async (req, res) => {
     providers,
     // Optional AI features the client can surface (e.g. the Claude optimizer toggle).
     ai: { claude: providerConfigured.anthropic() },
+    // Which persistence backend is active — handy to confirm after deploy.
+    storage: providerConfigured.supabase() ? 'supabase' : 'file',
   });
 });
 

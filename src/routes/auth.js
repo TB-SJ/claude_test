@@ -63,6 +63,7 @@ router.get('/:provider/callback', async (req, res) => {
 
   try {
     await service.handleCallback(String(code));
+    await tokenStore.flush(); // make sure the tokens are persisted before redirecting
     res.redirect(`/?connected=${encodeURIComponent(provider)}`);
   } catch (err) {
     res.redirect(`/?auth_error=${encodeURIComponent(err.message)}`);
@@ -70,10 +71,11 @@ router.get('/:provider/callback', async (req, res) => {
 });
 
 /** POST /auth/:provider/logout — remove stored tokens for a provider. */
-router.post('/:provider/logout', (req, res) => {
+router.post('/:provider/logout', async (req, res) => {
   const { provider } = req.params;
   if (!services[provider]) return res.status(404).json({ error: `Unknown provider: ${provider}` });
   tokenStore.clearTokens(provider);
+  await tokenStore.flush();
   res.json({ status: 'disconnected', provider });
 });
 

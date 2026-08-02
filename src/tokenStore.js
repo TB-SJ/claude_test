@@ -3,23 +3,36 @@
 const fs = require('fs');
 const path = require('path');
 const { encrypt, decrypt } = require('./crypto');
-const { config } = require('./config');
+const { config, providerConfigured } = require('./config');
+const logger = require('./logger');
+const kv = require('./storage/supabaseKv');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const TOKEN_FILE = path.join(DATA_DIR, 'tokens.enc');
+const KV_KEY = 'tokens';
 
 /**
- * Persists OAuth tokens locally, encrypted at rest with AES-256-GCM.
+ * Persists OAuth tokens encrypted at rest with AES-256-GCM.
  *
- * The entire token document (one entry per provider) is serialized to JSON,
- * encrypted with the master key, and written to `data/tokens.enc`. This keeps
- * refresh tokens on disk so the app stays logged in across restarts without
- * ever storing them in plaintext.
+ * Two backends, chosen by config:
+ *  - Local file `data/tokens.enc` (default; fine for local dev).
+ *  - Supabase, when SUPABASE_URL + SUPABASE_SERVICE_KEY are set (for hosts with
+ *    an ephemeral disk). The ciphertext is what's stored — the encryption key
+ *    never leaves the app's environment.
+ *
+ * In Supabase mode the decrypted document is cached in memory (loaded once by
+ * `init()` at startup) so reads stay synchronous for the OAuth client callbacks;
+ * writes update the cache immediately and persist in the background (`flush()`
+ * awaits the last write for the login path).
  */
-function readAll() {
-  if (!fs.existsSync(TOKEN_FILE)) {
-    return {};
-  }
+const useSupabase = () => providerConfigured.supabase();
+
+let cache = null; // in-memory decrypted document (Supabase mode)
+let pending = Promise.resolve();
+
+// --- File backend (synchronous, durable) -----------------------------------
+function readFile() {
+  if (!fs.existsSync(TOKEN_FILE)) return {};
   try {
     const payload = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
     if (!payload) return {};
@@ -28,37 +41,67 @@ function readAll() {
     throw new Error(`Failed to read/decrypt token store: ${err.message}`);
   }
 }
-
-function writeAll(all) {
+function writeFile(all) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const payload = encrypt(JSON.stringify(all, null, 0), config.encryptionKey);
-  // Write with restrictive permissions (owner read/write only).
   fs.writeFileSync(TOKEN_FILE, payload, { mode: 0o600 });
+}
+
+// --- Unified accessors ------------------------------------------------------
+/** Loads the Supabase-backed cache once at startup. No-op in file mode. */
+async function init() {
+  if (!useSupabase()) return;
+  const v = await kv.get(KV_KEY);
+  cache = v && v.data ? JSON.parse(decrypt(v.data, config.encryptionKey)) : {};
+}
+
+function currentAll() {
+  if (useSupabase()) {
+    if (cache === null) cache = {};
+    return cache;
+  }
+  return readFile();
+}
+
+function persist(all) {
+  if (useSupabase()) {
+    cache = all;
+    const ciphertext = encrypt(JSON.stringify(all), config.encryptionKey);
+    pending = pending
+      .then(() => kv.set(KV_KEY, { data: ciphertext }))
+      .catch((err) => logger.error('tokenStore: Supabase write failed', { message: err.message }));
+    return;
+  }
+  writeFile(all);
 }
 
 /** Returns the stored token object for a provider, or null if none. */
 function getTokens(provider) {
-  const all = readAll();
-  return all[provider] || null;
+  return currentAll()[provider] || null;
 }
 
 /** Merges and persists tokens for a provider, stamping an updatedAt time. */
 function saveTokens(provider, tokens) {
-  const all = readAll();
+  const all = currentAll();
   all[provider] = { ...(all[provider] || {}), ...tokens, updatedAt: new Date().toISOString() };
-  writeAll(all);
+  persist(all);
   return all[provider];
 }
 
 /** Removes a provider's tokens (logout). */
 function clearTokens(provider) {
-  const all = readAll();
+  const all = currentAll();
   delete all[provider];
-  writeAll(all);
+  persist(all);
 }
 
 function hasTokens(provider) {
   return Boolean(getTokens(provider));
 }
 
-module.exports = { getTokens, saveTokens, clearTokens, hasTokens, TOKEN_FILE };
+/** Awaits the last background write (Supabase mode); no-op in file mode. */
+async function flush() {
+  await pending;
+}
+
+module.exports = { init, getTokens, saveTokens, clearTokens, hasTokens, flush, TOKEN_FILE };
