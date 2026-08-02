@@ -67,6 +67,16 @@ test('plan for a future day ignores the current time (starts at work open)', () 
   assert.equal(plan.slots[0].start, '2026-08-05T09:00:00.000Z');
 });
 
+test('plan timeline drops events that already ended today', () => {
+  const ref = new Date('2026-08-03T12:00:00Z'); // noon
+  const events = [
+    { id: 'm1', title: 'Morning standup', start: '2026-08-03T09:30:00Z', end: '2026-08-03T10:00:00Z', status: 'confirmed' },
+    { id: 'm2', title: 'Afternoon review', start: '2026-08-03T14:00:00Z', end: '2026-08-03T15:00:00Z', status: 'confirmed' },
+  ];
+  const plan = scheduleTasks([], events, { tzOffsetMinutes: 0 }, { referenceDate: ref });
+  assert.deepEqual(plan.events.map((e) => e.id), ['m2']); // the 9:30 event is gone
+});
+
 test('voice: brief phrasings', () => {
   assert.equal(parseCommand("how's my day", REF).type, 'brief');
   assert.equal(parseCommand('brief me', REF).type, 'brief');

@@ -105,7 +105,14 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     placed.push([slot, slot + dur]);
   }
 
-  return { dayKey, slots, unscheduled, events };
+  // For a forward-looking plan of TODAY, don't show events that already ended —
+  // only what's left of the day. (All-day and future-day plans keep everything.)
+  const now = referenceDate.getTime();
+  const visibleEvents = dayKey === todayKey
+    ? events.filter((e) => !isTimed(e) || new Date(e.end).getTime() > now)
+    : events;
+
+  return { dayKey, slots, unscheduled, events: visibleEvents };
 }
 
 module.exports = { scheduleTasks, taskOrder, taskUrgency };
