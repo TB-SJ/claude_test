@@ -31,6 +31,15 @@ function setLoading(on) {
   else hide($('loading'));
 }
 
+// --- Theme (default / One Piece pirate) ------------------------------------
+function applyTheme(themed) {
+  document.body.classList.toggle('theme-onepiece', themed);
+  $('brandIcon').textContent = themed ? '👒' : '🗓';
+  $('brandName').textContent = themed ? 'Grand Line Planner' : 'Calendar Optimizer';
+  $('themeBtn').textContent = themed ? '🗓' : '👒';
+  $('themeBtn').title = themed ? 'Switch to the default theme' : 'Switch to the pirate theme';
+}
+
 // --- Time formatting (browser is already in the user's timezone) -----------
 function fmtTime(iso) {
   if (!iso.includes('T')) return 'All day';
@@ -937,6 +946,12 @@ function init() {
   $('voiceCancelBtn').addEventListener('click', () => {
     pendingVoice = null;
     hide($('voiceCard'));
+  });
+  applyTheme(localStorage.getItem('appTheme') === 'onepiece');
+  $('themeBtn').addEventListener('click', () => {
+    const themed = !document.body.classList.contains('theme-onepiece');
+    applyTheme(themed);
+    localStorage.setItem('appTheme', themed ? 'onepiece' : 'default');
   });
   $('logoutBtn').addEventListener('click', async () => {
     await api('/logout', { method: 'POST' }).catch(() => {});

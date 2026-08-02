@@ -243,3 +243,88 @@ input:not([type="checkbox"]), select {
   color: var(--text);
   margin: 8px 0 14px;
 }
+
+/* ==========================================================================
+   One Piece–inspired "Grand Line" pirate theme (toggle via body.theme-onepiece)
+   Original styling only — no copyrighted logos or artwork. Aged-parchment
+   "wanted poster" cards on an ocean backdrop, straw-hat gold + Luffy red.
+   ========================================================================== */
+body.theme-onepiece {
+  --bg: #123a52;
+  --card: #f4e5c2;        /* parchment */
+  --card-2: #ecd9ad;
+  --text: #3b2a15;        /* sepia ink */
+  --muted: #8a6d43;
+  --accent: #c0392b;      /* Luffy red */
+  --accent-press: #9c2b20;
+  --green: #2e7d4f;
+  --amber: #b8791b;
+  --danger: #a83232;
+  --border: #c8a86a;      /* aged gold */
+  --radius: 12px;
+  background:
+    radial-gradient(1200px 500px at 50% -120px, #1d5b7a 0%, rgba(29,91,122,0) 60%),
+    linear-gradient(180deg, #0f3348 0%, #123a52 40%, #0c2b3d 100%);
+  background-attachment: fixed;
+}
+
+/* Header reads on the dark ocean, not on parchment. */
+body.theme-onepiece header h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #ffe08a;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+body.theme-onepiece header .sub { color: #bfe0e6; }
+
+/* Cards become weathered wanted-posters. */
+body.theme-onepiece .card {
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(150, 110, 50, 0.10) 0%, rgba(150, 110, 50, 0) 45%),
+    radial-gradient(circle at 85% 90%, rgba(120, 85, 35, 0.12) 0%, rgba(120, 85, 35, 0) 50%);
+}
+body.theme-onepiece .card h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5a3a1c;
+}
+
+/* Buttons: red primary with a gold rim; ghosts look like inked paper. */
+body.theme-onepiece button.primary,
+body.theme-onepiece .btn.primary {
+  background: linear-gradient(180deg, #d24436 0%, var(--accent) 100%);
+  border: 1.5px solid #7d3b12;
+  color: #fff4d8;
+  box-shadow: 0 2px 0 #7d3b12;
+  font-weight: 700;
+}
+body.theme-onepiece button.ghost {
+  border: 1.5px solid var(--border);
+  color: #5a3a1c;
+  background: rgba(255, 255, 255, 0.25);
+}
+body.theme-onepiece .toggle { border-color: var(--border); }
+body.theme-onepiece .toggle button.active { background: var(--accent); color: #fff4d8; }
+
+/* Accents: pills, links, the focus/deep-work stat. */
+body.theme-onepiece .pill { border-color: var(--border); color: #6b4a25; background: rgba(255,255,255,0.35); }
+body.theme-onepiece .event { border-top-color: rgba(120, 90, 45, 0.35); }
+body.theme-onepiece .daygroup h3 { color: #7a5a2e; font-family: Georgia, serif; }
+
+/* Floating mic → a gold "log pose" compass button. */
+body.theme-onepiece .fab {
+  background: radial-gradient(circle at 35% 30%, #ffdf7e 0%, #e0a92e 55%, #b9821f 100%);
+  border: 2px solid #7d5a12;
+  color: #3b2a15;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+body.theme-onepiece .mic-status {
+  background: var(--card); color: var(--text); border: 1.5px solid var(--border);
+}
+
+/* Toasts as little log entries. */
+body.theme-onepiece .toast { background: var(--card); color: var(--text); border: 1.5px solid var(--border); }
