@@ -85,6 +85,27 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error', detail: err.message });
 });
 
+// Loads both persistent stores, retrying transient failures. A brand-new
+// Supabase key can briefly be rejected with PGRST303 "JWT issued at future"
+// (clock skew) or a network blip; a few retries ride that out instead of
+// failing the whole deploy. Permanent misconfig (bad key, missing GRANT) still
+// throws after the attempts are exhausted.
+async function initStorageWithRetry() {
+  const delaysMs = [3000, 5000, 8000, 12000]; // ~28s total across 5 attempts
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await Promise.all([tokenStore.init(), taskStore.init()]);
+      return;
+    } catch (err) {
+      const transient = /PGRST303|issued at future|not yet valid|fetch failed|network|ECONN|ETIMEDOUT|timeout|50\d\b/i.test(err.message);
+      if (attempt >= delaysMs.length || !transient) throw err;
+      const wait = delaysMs[attempt];
+      console.warn(`[storage] init attempt ${attempt + 1} failed (${err.message}); retrying in ${wait / 1000}s...`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+}
+
 // Only start listening when run directly (keeps the app importable in tests).
 if (require.main === module) {
   (async () => {
@@ -98,13 +119,17 @@ if (require.main === module) {
     // the token/task documents; in file mode it's a no-op.
     if (providerConfigured.supabase()) {
       try {
-        await Promise.all([tokenStore.init(), taskStore.init()]);
+        await initStorageWithRetry();
         console.log('[storage] Using Supabase for token + task persistence.');
       } catch (err) {
         console.error(`[storage] Supabase init failed: ${err.message}`);
         if (/permission denied|42501/.test(err.message)) {
           console.error('[storage] Fix: run the GRANT in docs/DEPLOY.md (Step 1b):');
           console.error('         grant select, insert, update, delete on table public.app_state to service_role;');
+        }
+        if (/PGRST303|issued at future|not yet valid|JWT/i.test(err.message)) {
+          console.error('[storage] This is a clock-skew error on a new Supabase key. It usually clears on');
+          console.error('[storage] its own — redeploy, or regenerate the API keys in Supabase settings.');
         }
         // Exit non-zero without a hard process.exit() (which can trip a libuv
         // assertion on Windows while the failed request's socket is closing).
