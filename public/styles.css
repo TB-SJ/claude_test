@@ -95,7 +95,18 @@ button.full { width: 100%; }
   gap: 12px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
+  align-items: center;
 }
+.event .ev-edit {
+  background: none; border: none; color: var(--muted); font-size: 1rem;
+  min-height: auto; padding: 4px 8px; cursor: pointer; flex: 0 0 auto;
+}
+.event .ev-edit:hover { color: var(--accent); }
+.task .t-edit {
+  background: none; border: none; color: var(--muted); font-size: 1rem;
+  min-height: auto; padding: 4px 6px; cursor: pointer;
+}
+.task .t-edit:hover { color: var(--accent); }
 .event:first-child { border-top: none; }
 .event .time { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 96px; font-size: 0.9rem; }
 .event .title { font-weight: 600; }

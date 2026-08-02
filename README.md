@@ -396,11 +396,22 @@ command and it's parsed server-side (`src/services/voiceCommand.js`, using
 - **"Optimize my day / week"** → runs the optimizer, shows Before/After.
 - **"Add dentist tomorrow at 2pm"** → creates an event.
 - **"Move my standup to 4pm"** → reschedules (keeps duration; time-only keeps the day).
+- **"Rename standup to team sync"** / **"make the review 30 minutes"** → edits an event.
 - **"Cancel the roadmap sync"** → removes it.
+- **"Add a task to draft the budget for 45 minutes by Friday"** → creates a flexible task.
+- **"Mark budget review as done"** / **"change budget to high priority"** → edits a task.
+- **"Show me my schedule for Friday"** / **"what do I have this week"** → read-only agenda view.
+- **"When am I free tomorrow"** / **"show my free time this week"** → free-time view (gaps within work hours).
 
-Every add/remove/move shows a **confirmation card** before anything is written.
-The endpoint is `POST /voice/command { provider, transcript, tzOffsetMinutes }`,
-which is read-only — the client confirms, then calls the normal calendar routes.
+Every write (add/remove/move/edit) shows a **confirmation card** first; the two
+**"show …"** queries are read-only and just display a result card. The endpoint is
+`POST /voice/command { provider, transcript, tzOffsetMinutes }`, which never
+writes — the client confirms, then calls the normal calendar/task routes.
+
+**Manual editing** (no voice): every event and task row has a **✎** button that
+opens the same inline form prefilled, so you can edit by typing too — events save
+via `PATCH /calendar/:provider/events/:id` (title, time, duration, notes), tasks
+via `PATCH /tasks/:id`.
 
 #### Smarter understanding with Claude (optional)
 

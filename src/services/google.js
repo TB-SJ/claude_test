@@ -161,22 +161,27 @@ async function deleteEvent(eventId) {
   }
 }
 
-/** 4) Updates an existing event's time and/or duration. */
-async function updateEvent(eventId, { start, end, duration } = {}) {
+/** 4) Updates an existing event's time, duration, title, and/or description. */
+async function updateEvent(eventId, { start, end, duration, title, description } = {}) {
   const existing = await getEventById(eventId);
-  const times = resolveEventTimes({ start, end, duration }, existing);
+  const requestBody = {};
+  let times = null;
+  if (start != null || end != null || duration != null) {
+    times = resolveEventTimes({ start, end, duration }, existing);
+    requestBody.start = { dateTime: times.start };
+    requestBody.end = { dateTime: times.end };
+  }
+  if (title != null) requestBody.summary = String(title).trim();
+  if (description != null) requestBody.description = String(description);
   try {
     const res = await calendarApi().events.patch({
       calendarId: CALENDAR_ID,
       eventId,
-      requestBody: {
-        start: { dateTime: times.start },
-        end: { dateTime: times.end },
-      },
+      requestBody,
     });
     return normalizeEvent(res.data);
   } catch (err) {
-    throw apiError(PROVIDER, 'updateEvent', err, { eventId, ...times });
+    throw apiError(PROVIDER, 'updateEvent', err, { eventId, ...(times || {}) });
   }
 }
 

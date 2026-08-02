@@ -56,6 +56,30 @@ test('adaptToParsed maps each action to the internal shape', () => {
   assert.equal(claudeIntent.adaptToParsed({ action: 'weird' }).type, 'unknown');
 });
 
+test('adaptToParsed maps the query + edit actions', () => {
+  assert.deepEqual(claudeIntent.adaptToParsed({ action: 'show_schedule', scope: 'week', date: '2026-08-07' }), {
+    type: 'show_schedule', scope: 'week', date: '2026-08-07', transcript: '',
+  });
+  assert.deepEqual(claudeIntent.adaptToParsed({ action: 'show_free', scope: 'day', date: null }), {
+    type: 'show_free', scope: 'day', date: null, transcript: '',
+  });
+
+  const edit = claudeIntent.adaptToParsed({
+    action: 'edit', title: 'standup', new_title: 'Team Sync', estimated_minutes: 30, time_specified: false, date_specified: false,
+  });
+  assert.equal(edit.type, 'edit');
+  assert.equal(edit.newTitle, 'Team Sync');
+  assert.equal(edit.durationMinutes, 30);
+
+  const editTask = claudeIntent.adaptToParsed({
+    action: 'edit_task', title: 'budget', priority: 'high', done: true, estimated_minutes: null,
+  });
+  assert.deepEqual(
+    { t: editTask.type, p: editTask.priority, d: editTask.done },
+    { t: 'edit_task', p: 'high', d: true }
+  );
+});
+
 test('parse() sends a dated system prompt + JSON schema and returns adapted intent', async () => {
   fakeReply = { action: 'add', title: 'Lunch', start: '2026-08-04T12:00:00+00:00', end: null, time_specified: true };
   shouldThrow = false;

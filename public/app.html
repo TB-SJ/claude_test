@@ -94,7 +94,18 @@
       <div id="planBody" style="margin-top:6px"></div>
     </section>
 
-    <!-- Voice command confirmation (add / remove / move) -->
+    <!-- Read-only query result (show schedule / show free time) -->
+    <section class="card hidden" id="queryCard">
+      <div class="row">
+        <h2 style="margin:0" id="queryTitle">Schedule</h2>
+        <span class="spacer"></span>
+        <button class="ghost" id="queryCloseBtn">Close</button>
+      </div>
+      <p class="muted" id="queryHeard" style="margin:8px 0 0"></p>
+      <div id="queryBody" style="margin-top:10px"></div>
+    </section>
+
+    <!-- Voice command confirmation (add / remove / move / edit) -->
     <section class="card hidden" id="voiceCard">
       <div class="row">
         <h2 style="margin:0">🎤 Voice command</h2>

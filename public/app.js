@@ -83,19 +83,22 @@ function applyMoves(events, moves) {
 }
 
 // `wasRange` (a formatted old time string) marks a changed event: the row shows
-// the event's current time plus a struck-through "was <old>" note.
-function eventRow(ev, wasRange) {
+// the event's current time plus a struck-through "was <old>" note. `editable`
+// adds a ✎ button that opens the inline edit form.
+function eventRow(ev, wasRange, editable) {
   const changed = Boolean(wasRange);
+  const edit = editable ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">✎</button>` : '';
   return `<div class="event ${changed ? 'changed' : ''}">
       <div class="time">${fmtRange(ev.start, ev.end)}</div>
-      <div>
+      <div style="flex:1">
         <div class="title">${escapeHtml(ev.title || '(untitled)')}</div>
         ${changed ? `<div class="muted" style="font-size:.82rem">was <span class="old">${wasRange}</span></div>` : ''}
       </div>
+      ${edit}
     </div>`;
 }
 
-function renderSchedule(container, events, changedMap) {
+function renderSchedule(container, events, changedMap, opts = {}) {
   const groups = groupByDay(events);
   if (groups.size === 0) {
     container.innerHTML = '<p class="muted center">No events.</p>';
@@ -104,10 +107,15 @@ function renderSchedule(container, events, changedMap) {
   let html = '';
   for (const [, list] of groups) {
     html += `<div class="daygroup"><h3>${dayLabel(list[0].start)}</h3>`;
-    for (const ev of list) html += eventRow(ev, changedMap ? changedMap.get(ev.id) : null);
+    for (const ev of list) html += eventRow(ev, changedMap ? changedMap.get(ev.id) : null, opts.editable);
     html += '</div>';
   }
   container.innerHTML = html;
+  if (opts.editable) {
+    for (const b of container.querySelectorAll('.ev-edit')) {
+      b.addEventListener('click', () => startEditEvent(b.dataset.id));
+    }
+  }
 }
 
 function escapeHtml(s) {
@@ -150,11 +158,14 @@ async function refreshConnection() {
   }
 }
 
+let currentEvents = []; // last-loaded events, for the inline edit form
+
 async function loadEvents() {
   setLoading(true);
   try {
     const data = await api(`/calendar/${activeProvider}/events?range=${scope}`);
-    renderSchedule($('eventList'), data.events || []);
+    currentEvents = data.events || [];
+    renderSchedule($('eventList'), currentEvents, null, { editable: true });
   } catch (err) {
     $('eventList').innerHTML = `<p class="muted">Couldn't load events: ${escapeHtml(err.message)}</p>`;
   } finally {
@@ -162,7 +173,13 @@ async function loadEvents() {
   }
 }
 
-// --- Quick-add event (typed fields → saved directly; no AI, no cost) --------
+// --- Quick-add / edit event (typed fields → saved directly; no AI, no cost) --
+let editingEventId = null; // when set, the form saves an edit instead of adding
+
+const pad2 = (n) => String(n).padStart(2, '0');
+function dateInputValue(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function timeInputValue(d) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+
 async function addEventFromForm() {
   const title = $('evTitle').value.trim();
   const date = $('evDate').value; // YYYY-MM-DD (local)
@@ -172,19 +189,23 @@ async function addEventFromForm() {
   // Build a local Date from the picker values, then send as a UTC ISO instant.
   const start = new Date(`${date}T${time}`);
   if (Number.isNaN(start.getTime())) return toast('Invalid date/time', 'err');
+  const editing = editingEventId;
   const body = {
     title,
     start: start.toISOString(),
     duration: parseInt($('evMins').value, 10) || 60,
-    description: $('evDesc').value.trim() || undefined,
+    description: editing ? $('evDesc').value.trim() : ($('evDesc').value.trim() || undefined),
   };
   setLoading(true);
   try {
-    await api(`/calendar/${activeProvider}/events`, { method: 'POST', body });
-    $('evTitle').value = '';
-    $('evDesc').value = '';
+    if (editing) {
+      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(editing)}`, { method: 'PATCH', body });
+    } else {
+      await api(`/calendar/${activeProvider}/events`, { method: 'POST', body });
+    }
+    resetEventForm();
     hide($('eventForm'));
-    toast('Event added ✓', 'ok');
+    toast(editing ? 'Event updated ✓' : 'Event added ✓', 'ok');
     await loadEvents();
   } catch (err) {
     toast(err.message, 'err');
@@ -193,14 +214,38 @@ async function addEventFromForm() {
   }
 }
 
+function resetEventForm() {
+  editingEventId = null;
+  $('evTitle').value = '';
+  $('evDesc').value = '';
+  $('evDate').value = '';
+  $('evTime').value = '';
+  $('evAddBtn').textContent = 'Add event';
+}
+
+// Opens the form prefilled to edit an existing event.
+function startEditEvent(id) {
+  const ev = currentEvents.find((e) => e.id === id);
+  if (!ev || !ev.start.includes('T')) return toast("This event can't be edited here.", 'err');
+  const start = new Date(ev.start);
+  editingEventId = id;
+  $('evTitle').value = ev.title || '';
+  $('evDate').value = dateInputValue(start);
+  $('evTime').value = timeInputValue(start);
+  $('evMins').value = Math.max(5, Math.round((new Date(ev.end) - start) / 60000)) || 60;
+  $('evDesc').value = ev.description || '';
+  $('evAddBtn').textContent = 'Save changes';
+  show($('eventForm'));
+  $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 // Defaults the quick-add date/time to now (next quarter-hour) when opened empty.
 function primeEventForm() {
   if (!$('evDate').value) {
     const now = new Date();
     now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
-    const pad = (n) => String(n).padStart(2, '0');
-    $('evDate').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    $('evTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    $('evDate').value = dateInputValue(now);
+    $('evTime').value = timeInputValue(now);
   }
 }
 
@@ -351,13 +396,57 @@ async function handleTranscript(transcript) {
 }
 
 const VOICE_ERRORS = {
-  need_title: "I didn't catch what event you meant.",
+  need_title: "I didn't catch what you meant.",
   need_time: "I didn't catch a time — try e.g. \"add lunch tomorrow at noon\".",
-  not_found: 'No matching event found in the next 3 weeks.',
+  need_change: "I didn't catch what to change.",
+  not_found: 'No match found in the next 3 weeks.',
 };
 
 // Small badge shown when Claude (not the rules parser) understood the command.
 const engineSuffix = (result) => (result && result.engine === 'claude' ? '  ·  🧠 Claude' : '');
+
+// --- Read-only query views (show schedule / show free time) ----------------
+function dayLabelFromKey(key) {
+  return new Date(`${key}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+function fmtDur(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
+}
+function showQueryCard() {
+  hide($('voiceCard'));
+  hide($('proposalCard'));
+  hide($('taskPlanCard'));
+  show($('queryCard'));
+  $('queryCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderQuerySchedule(result, transcript) {
+  $('queryTitle').textContent = `🗓 ${result.label || 'Schedule'}`;
+  $('queryHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
+  renderSchedule($('queryBody'), result.events || [], null);
+  showQueryCard();
+}
+function renderQueryFree(result, transcript) {
+  $('queryTitle').textContent = `🕓 Free time · ${result.label || ''}`;
+  $('queryHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
+  const days = result.days || [];
+  let html = '';
+  if (!days.some((d) => d.slots.length)) {
+    html = '<p class="muted center">No free time within working hours.</p>';
+  } else {
+    for (const d of days) {
+      if (!d.slots.length) continue;
+      html += `<div class="daygroup"><h3>${dayLabelFromKey(d.dayKey)}</h3>`;
+      for (const s of d.slots) {
+        html += `<div class="event"><div class="time">${fmtRange(s.start, s.end)}</div><div class="title" style="flex:1">Free · ${fmtDur(s.minutes)}</div></div>`;
+      }
+      html += '</div>';
+    }
+  }
+  $('queryBody').innerHTML = html;
+  showQueryCard();
+}
 
 function dispatchVoice(result, transcript) {
   if (result.type === 'unknown') {
@@ -371,6 +460,14 @@ function dispatchVoice(result, transcript) {
   }
   if (result.type === 'plan_tasks') {
     renderTaskPlan(result.plan);
+    return;
+  }
+  if (result.type === 'show_schedule') {
+    renderQuerySchedule(result, transcript);
+    return;
+  }
+  if (result.type === 'show_free') {
+    renderQueryFree(result, transcript);
     return;
   }
   if (result.type === 'add_task') {
@@ -397,6 +494,22 @@ function dispatchVoice(result, transcript) {
     summary = `Remove “${result.match.title}” — ${dayLabel(result.match.start)}, ${fmtRange(result.match.start, result.match.end)}`;
   } else if (result.type === 'move') {
     summary = `Move “${result.match.title}” → ${dayLabel(result.to.start)}, ${fmtRange(result.to.start, result.to.end)}`;
+  } else if (result.type === 'edit') {
+    const ch = result.changes;
+    const parts = [];
+    if (ch.title) parts.push(`rename to “${ch.title}”`);
+    if (ch.duration) parts.push(`${ch.duration} min long`);
+    if (ch.start) parts.push(`→ ${dayLabel(ch.start)}, ${fmtTime(ch.start)}`);
+    summary = `Edit “${result.match.title}”: ${parts.join(', ')}`;
+  } else if (result.type === 'edit_task') {
+    const p = result.patch;
+    const parts = [];
+    if (p.title) parts.push(`rename to “${p.title}”`);
+    if (p.estimatedMinutes) parts.push(`${p.estimatedMinutes} min`);
+    if (p.priority) parts.push(`${PRIO_LABEL[p.priority]} priority`);
+    if (p.deadline) parts.push(`by ${p.deadline}`);
+    if (p.done != null) parts.push(p.done ? 'mark done' : 'reopen');
+    summary = `Edit task “${result.task.title}”: ${parts.join(', ')}`;
   }
   if (result.otherMatches) summary += `\n(+${result.otherMatches} other match${result.otherMatches > 1 ? 'es' : ''} — using the soonest)`;
   $('voiceHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
@@ -417,6 +530,18 @@ async function confirmVoice() {
       await api('/tasks', { method: 'POST', body: v.task });
       toast('Task added ✓', 'ok');
       await loadTasks();
+      return;
+    }
+    if (v.type === 'edit_task') {
+      await api(`/tasks/${v.task.id}`, { method: 'PATCH', body: v.patch });
+      toast('Task updated ✓', 'ok');
+      await loadTasks();
+      return;
+    }
+    if (v.type === 'edit') {
+      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'PATCH', body: v.changes });
+      toast('Event updated ✓', 'ok');
+      await loadEvents();
       return;
     }
     if (v.type === 'add') {
@@ -453,7 +578,10 @@ async function loadTasks() {
   }
 }
 
+let lastTasks = []; // last-loaded tasks, for the inline edit form
+
 function renderTasks(tasks) {
+  lastTasks = tasks;
   if (!tasks.length) {
     $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">No tasks yet. Add one, then tap “Plan my day.”</p>';
     return;
@@ -467,12 +595,16 @@ function renderTasks(tasks) {
       return `<div class="task ${t.done ? 'done' : ''}">
           <input type="checkbox" class="t-check" data-id="${t.id}" ${t.done ? 'checked' : ''} />
           <div class="t-title">${escapeHtml(t.title)}<div class="t-meta">${escapeHtml(meta)}</div></div>
+          <button class="t-edit" data-id="${t.id}" aria-label="edit">✎</button>
           <button class="del" data-id="${t.id}" aria-label="delete">✕</button>
         </div>`;
     })
     .join('');
   for (const c of $('taskList').querySelectorAll('.t-check')) {
     c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  }
+  for (const e of $('taskList').querySelectorAll('.t-edit')) {
+    e.addEventListener('click', () => startEditTask(e.dataset.id));
   }
   for (const d of $('taskList').querySelectorAll('.del')) {
     d.addEventListener('click', () => deleteTask(d.dataset.id));
@@ -489,9 +621,12 @@ async function deleteTask(id) {
   loadTasks();
 }
 
+let editingTaskId = null; // when set, the task form saves an edit instead of adding
+
 async function addTaskFromForm() {
   const title = $('taskTitle').value.trim();
   if (!title) return toast('Enter a task title', 'err');
+  const editing = editingTaskId;
   const body = {
     title,
     estimatedMinutes: parseInt($('taskMins').value, 10) || 30,
@@ -499,15 +634,40 @@ async function addTaskFromForm() {
     deadline: $('taskDeadline').value || null,
   };
   try {
-    await api('/tasks', { method: 'POST', body });
-    $('taskTitle').value = '';
-    $('taskDeadline').value = '';
+    if (editing) {
+      await api(`/tasks/${editing}`, { method: 'PATCH', body });
+    } else {
+      await api('/tasks', { method: 'POST', body });
+    }
+    resetTaskForm();
     hide($('taskForm'));
-    toast('Task added ✓', 'ok');
+    toast(editing ? 'Task updated ✓' : 'Task added ✓', 'ok');
     loadTasks();
   } catch (err) {
     toast(err.message, 'err');
   }
+}
+
+function resetTaskForm() {
+  editingTaskId = null;
+  $('taskTitle').value = '';
+  $('taskDeadline').value = '';
+  $('taskMins').value = '30';
+  $('taskPriority').value = 'med';
+  $('taskAddBtn').textContent = 'Add task';
+}
+
+function startEditTask(id) {
+  const t = lastTasks.find((x) => x.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  $('taskTitle').value = t.title || '';
+  $('taskMins').value = t.estimatedMinutes || 30;
+  $('taskPriority').value = t.priority || 'med';
+  $('taskDeadline').value = t.deadline || '';
+  $('taskAddBtn').textContent = 'Save changes';
+  show($('taskForm'));
+  $('taskForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function planTasks() {
@@ -573,8 +733,12 @@ function init() {
   $('refreshBtn').addEventListener('click', loadEvents);
   $('addEventToggle').addEventListener('click', () => {
     const form = $('eventForm');
+    const opening = form.classList.contains('hidden');
+    if (opening) {
+      resetEventForm();
+      primeEventForm();
+    }
     form.classList.toggle('hidden');
-    if (!form.classList.contains('hidden')) primeEventForm();
   });
   $('evAddBtn').addEventListener('click', addEventFromForm);
   $('claudeToggle').addEventListener('change', () => {
@@ -583,10 +747,15 @@ function init() {
   $('optimizeBtn').addEventListener('click', runOptimize);
   $('applyBtn').addEventListener('click', applyProposal);
   $('cancelBtn').addEventListener('click', () => hide($('proposalCard')));
-  $('addTaskToggle').addEventListener('click', () => $('taskForm').classList.toggle('hidden'));
+  $('addTaskToggle').addEventListener('click', () => {
+    const form = $('taskForm');
+    if (form.classList.contains('hidden')) resetTaskForm();
+    form.classList.toggle('hidden');
+  });
   $('taskAddBtn').addEventListener('click', addTaskFromForm);
   $('planBtn').addEventListener('click', planTasks);
   $('planCloseBtn').addEventListener('click', () => hide($('taskPlanCard')));
+  $('queryCloseBtn').addEventListener('click', () => hide($('queryCard')));
   $('micBtn').addEventListener('click', startVoice);
   $('voiceConfirmBtn').addEventListener('click', confirmVoice);
   $('voiceCancelBtn').addEventListener('click', () => {

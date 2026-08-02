@@ -7,6 +7,7 @@ const claudeIntent = require('./claudeIntent');
 const logger = require('../logger');
 const { optimize } = require('./scheduleOptimizer');
 const { scheduleTasks } = require('./taskScheduler');
+const { freeForDays, coveringWindow, weekdayKeys } = require('./freeTime');
 const { addMinutes, diffMinutes } = require('./calendarUtils');
 
 // Action keyword detection. "optimize" is checked first (most specific);
@@ -93,6 +94,13 @@ function ymdLocal(d) {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 }
 
+/** Trims filler words off a spoken phrase (e.g. "my standup" -> "standup"). */
+function cleanPhrase(s) {
+  let t = String(s || '').replace(/\s+/g, ' ').trim();
+  t = t.replace(/^(my|the|a|an|to)\s+/i, '').replace(/[,.;\s]+$/g, '').trim();
+  return t;
+}
+
 /** Parses "add a task to X for 30 minutes by Friday" into a task intent. */
 function parseAddTask(text, referenceDate) {
   const priority = /\b(urgent|important|high priority|asap)\b/i.test(text) ? 'high'
@@ -154,6 +162,30 @@ function parseCommand(transcript, referenceDate = new Date()) {
     return parseAddTask(text, referenceDate);
   }
 
+  // Rename an event: "rename standup to team sync".
+  let rn;
+  if ((rn = /\brename\s+(.+?)\s+to\s+(.+)$/i.exec(text))) {
+    return { type: 'edit', title: cleanPhrase(rn[1]), newTitle: cleanPhrase(rn[2]), transcript: text };
+  }
+  // Mark a task complete: "mark budget review as done".
+  let md;
+  if ((md = /\bmark\s+(.+?)\s+(?:as\s+)?(?:done|complete|completed|finished)\b/i.exec(text))) {
+    return { type: 'edit_task', title: cleanPhrase(md[1]), done: true, transcript: text };
+  }
+
+  // Read-only queries. Free-time first (more specific than "show").
+  const scope = /\bweek\b/i.test(text) ? 'week' : 'day';
+  const queryWhen = parseWhen(text, referenceDate);
+  const queryDate = queryWhen && queryWhen.dateSpecified ? ymdLocal(queryWhen.start) : null;
+  if (/\bfree\b|\bavailable\b|\bavailability\b|\bopen (?:time|slots?)\b/i.test(text)
+      && /\b(time|slots?|day|week|today|tomorrow|when|free|available)\b/i.test(text)) {
+    return { type: 'show_free', scope, date: queryDate, transcript: text };
+  }
+  if (/\b(show|display|list|view|see|pull up|bring up|what'?s|what is|what do i have|do i have|agenda)\b/i.test(text)
+      && /\b(schedule|calendar|agenda|events?|meetings?|day|week|today|tomorrow|on|have|got)\b/i.test(text)) {
+    return { type: 'show_schedule', scope, date: queryDate, transcript: text };
+  }
+
   const action = detectAction(text);
   if (action.type === 'optimize') {
     return { type: 'optimize', scope: /\bweek\b/i.test(text) ? 'week' : 'day', transcript: text };
@@ -213,6 +245,32 @@ async function findByTitle(provider, hint, referenceDate) {
   return events
     .filter((e) => e.start.includes('T') && (e.title || '').toLowerCase().includes(q))
     .sort((a, b) => new Date(a.start) - new Date(b.start));
+}
+
+/** Finds a pending-first task whose title contains `hint`. */
+function findTaskByTitle(hint) {
+  const q = String(hint || '').toLowerCase().trim();
+  if (!q) return null;
+  const matches = taskStore.list().filter((t) => (t.title || '').toLowerCase().includes(q));
+  if (!matches.length) return null;
+  return matches.sort((a, b) => a.done - b.done)[0]; // prefer not-yet-done
+}
+
+/** Local YYYY-MM-DD for "now", given the client's UTC offset. */
+function localTodayKey(referenceDate, offsetMin) {
+  return new Date(referenceDate.getTime() + offsetMin * 60000).toISOString().slice(0, 10);
+}
+
+/** Friendly label for a queried day/week. */
+function rangeLabel(scope, dateKey, todayKey) {
+  const d = new Date(`${dateKey}T12:00:00Z`);
+  if (scope === 'week') {
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    return `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`;
+  }
+  if (dateKey === todayKey) return 'Today';
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 /**
@@ -328,6 +386,62 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
       ? parsed.when.end
       : addMinutes(start, diffMinutes(target.start, target.end));
     return { type: 'move', transcript, match: target, otherMatches: matches.length - 1, to: { start, end } };
+  }
+
+  if (parsed.type === 'edit') {
+    if (!parsed.title) return { type: 'edit', error: 'need_title', transcript };
+    const matches = await findByTitle(provider, parsed.title, referenceDate);
+    if (matches.length === 0) return { type: 'edit', error: 'not_found', title: parsed.title, transcript };
+    const target = matches[0];
+    const changes = {};
+    if (parsed.newTitle) changes.title = parsed.newTitle;
+    if (parsed.durationMinutes) changes.duration = parsed.durationMinutes;
+    if (parsed.start) {
+      let start;
+      if (parsed.dateSpecified) {
+        start = parsed.start;
+      } else {
+        const spoken = new Date(parsed.start);
+        const d = new Date(target.start);
+        d.setHours(spoken.getHours(), spoken.getMinutes(), 0, 0);
+        start = d.toISOString();
+      }
+      changes.start = start;
+      if (parsed.end) changes.end = parsed.end;
+    }
+    if (Object.keys(changes).length === 0) return { type: 'edit', error: 'need_change', title: parsed.title, transcript };
+    return { type: 'edit', transcript, match: target, otherMatches: matches.length - 1, changes };
+  }
+
+  if (parsed.type === 'edit_task') {
+    if (!parsed.title) return { type: 'edit_task', error: 'need_title', transcript };
+    const task = findTaskByTitle(parsed.title);
+    if (!task) return { type: 'edit_task', error: 'not_found', title: parsed.title, transcript };
+    const patch = {};
+    if (parsed.newTitle) patch.title = parsed.newTitle;
+    if (parsed.estimatedMinutes) patch.estimatedMinutes = parsed.estimatedMinutes;
+    if (parsed.priority) patch.priority = parsed.priority;
+    if (parsed.deadline != null) patch.deadline = parsed.deadline;
+    if (parsed.done != null) patch.done = parsed.done;
+    if (Object.keys(patch).length === 0) return { type: 'edit_task', error: 'need_change', title: parsed.title, transcript };
+    return { type: 'edit_task', transcript, task, patch };
+  }
+
+  if (parsed.type === 'show_schedule' || parsed.type === 'show_free') {
+    const scope = parsed.scope === 'week' ? 'week' : 'day';
+    const todayKey = localTodayKey(referenceDate, tzOffsetMinutes);
+    const dateKey = parsed.date || todayKey;
+    const label = rangeLabel(scope, dateKey, todayKey);
+
+    if (parsed.type === 'show_schedule') {
+      const events = await calendar.getEvents(provider, { range: scope, date: `${dateKey}T12:00:00Z` });
+      return { type: 'show_schedule', transcript, scope, date: dateKey, label, events };
+    }
+    const dayKeys = scope === 'week' ? weekdayKeys(dateKey) : [dateKey];
+    const win = coveringWindow(dayKeys, { tzOffsetMinutes });
+    const events = await calendar.getEvents(provider, { start: win.start, end: win.end });
+    const days = freeForDays(events, dayKeys, { tzOffsetMinutes });
+    return { type: 'show_free', transcript, scope, date: dateKey, label, days };
   }
 
   return { type: 'unknown', transcript };

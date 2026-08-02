@@ -61,3 +61,41 @@ test('"change" and "update" are treated as move', () => {
 test('unrecognized input is unknown', () => {
   assert.equal(parseCommand('what is the weather', REF).type, 'unknown');
 });
+
+test('show schedule — day and week', () => {
+  const a = parseCommand('show me my schedule for today', REF);
+  assert.equal(a.type, 'show_schedule');
+  assert.equal(a.scope, 'day');
+  const b = parseCommand('what do I have this week', REF);
+  assert.equal(b.type, 'show_schedule');
+  assert.equal(b.scope, 'week');
+});
+
+test('show schedule for a named day sets the date', () => {
+  const r = parseCommand('show my schedule for Friday', REF);
+  assert.equal(r.type, 'show_schedule');
+  assert.equal(r.date, '2026-08-07'); // Friday after Mon Aug 3
+});
+
+test('show free time — week and specific day', () => {
+  const a = parseCommand('show me my free time this week', REF);
+  assert.equal(a.type, 'show_free');
+  assert.equal(a.scope, 'week');
+  const b = parseCommand('when am I free tomorrow', REF);
+  assert.equal(b.type, 'show_free');
+  assert.equal(b.date, '2026-08-04');
+});
+
+test('rename parses into an edit intent', () => {
+  const r = parseCommand('rename my standup to team sync', REF);
+  assert.equal(r.type, 'edit');
+  assert.equal(r.title, 'standup');
+  assert.equal(r.newTitle, 'team sync');
+});
+
+test('mark done parses into an edit_task intent', () => {
+  const r = parseCommand('mark budget review as done', REF);
+  assert.equal(r.type, 'edit_task');
+  assert.equal(r.title, 'budget review');
+  assert.equal(r.done, true);
+});

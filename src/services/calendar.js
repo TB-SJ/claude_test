@@ -62,17 +62,21 @@ async function deleteEvent(provider, eventId) {
 }
 
 /**
- * 4) Update an existing event's time or duration.
+ * 4) Update an existing event's time, duration, title, or description.
  *
- * @param {object} changes  { start?, end?, duration? } — at least one required.
+ * @param {object} changes  { start?, end?, duration?, title?, description? }
+ *                          — at least one required.
  */
 async function updateEvent(provider, eventId, changes = {}) {
   if (!eventId) throw validationError('`eventId` is required.');
-  const { start, end, duration } = changes;
-  if (start == null && end == null && duration == null) {
-    throw validationError('Provide at least one of `start`, `end`, or `duration` to update.');
+  const { start, end, duration, title, description } = changes;
+  if (start == null && end == null && duration == null && title == null && description == null) {
+    throw validationError('Provide at least one of `start`, `end`, `duration`, `title`, or `description` to update.');
   }
-  return service(provider).updateEvent(eventId, { start, end, duration });
+  if (title != null && !String(title).trim()) {
+    throw validationError('`title` cannot be empty.');
+  }
+  return service(provider).updateEvent(eventId, { start, end, duration, title, description });
 }
 
 /** Throws a 400-style error if `provider` is not a known calendar provider. */

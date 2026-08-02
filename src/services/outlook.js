@@ -210,19 +210,24 @@ async function deleteEvent(eventId) {
   }
 }
 
-/** 4) Updates an existing event's time and/or duration. */
-async function updateEvent(eventId, { start, end, duration } = {}) {
+/** 4) Updates an existing event's time, duration, title, and/or description. */
+async function updateEvent(eventId, { start, end, duration, title, description } = {}) {
   const existing = await getEventById(eventId);
-  const times = resolveEventTimes({ start, end, duration }, existing);
+  const patch = {};
+  let times = null;
+  if (start != null || end != null || duration != null) {
+    times = resolveEventTimes({ start, end, duration }, existing);
+    patch.start = { dateTime: toGraphDateTime(times.start), timeZone: 'UTC' };
+    patch.end = { dateTime: toGraphDateTime(times.end), timeZone: 'UTC' };
+  }
+  if (title != null) patch.subject = String(title).trim();
+  if (description != null) patch.body = { contentType: 'text', content: String(description) };
   try {
     const client = await graphOrThrow();
-    const ev = await client.api(`/me/events/${eventId}`).patch({
-      start: { dateTime: toGraphDateTime(times.start), timeZone: 'UTC' },
-      end: { dateTime: toGraphDateTime(times.end), timeZone: 'UTC' },
-    });
+    const ev = await client.api(`/me/events/${eventId}`).patch(patch);
     return normalizeEvent(ev);
   } catch (err) {
-    throw apiError(PROVIDER, 'updateEvent', err, { eventId, ...times });
+    throw apiError(PROVIDER, 'updateEvent', err, { eventId, ...(times || {}) });
   }
 }
 
