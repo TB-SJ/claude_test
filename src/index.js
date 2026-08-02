@@ -18,8 +18,14 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 // --- Static assets (login page, app shell, css, js). No auth: these carry no
 // data; the data lives behind the gated API below. index:false so "/" is routed
-// explicitly (auth-gated) rather than auto-serving index.html.
-app.use(express.static(PUBLIC_DIR, { index: false }));
+// explicitly (auth-gated) rather than auto-serving index.html. `no-cache` forces
+// the browser to revalidate, so app updates show up on refresh (no stale JS/CSS).
+app.use(
+  express.static(PUBLIC_DIR, {
+    index: false,
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+  })
+);
 
 // --- Login gate (single-user). No-op when APP_PASSWORD is unset.
 app.get('/login', (req, res) => {
@@ -40,6 +46,7 @@ app.post('/logout', (req, res) => {
 
 // --- The app shell (mobile dashboard).
 app.get('/', webAuth.requireAuthPage, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(PUBLIC_DIR, 'app.html'));
 });
 
