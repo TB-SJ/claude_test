@@ -231,7 +231,7 @@ gaps**, then proposes a rearranged schedule that honors a set of rules — and
 
 | Rule | Default |
 | --- | --- |
-| Work hours | 09:00–17:00 |
+| Work hours (awake window) | 06:00–21:00 |
 | Buffer between events | 15 min |
 | Fragmented-gap threshold | gaps > buffer and < 30 min |
 | Protect deep-work block | 09:00–11:00, weekdays |

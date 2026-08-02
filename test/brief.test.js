@@ -16,8 +16,9 @@ test('composeBrief summarizes meetings, free time, and next event', () => {
   assert.equal(b.meetingCount, 2);
   assert.equal(b.meetingMinutes, 90);
   assert.equal(b.nextEvent.title, 'Standup'); // first event after 08:00
-  // 09:00–17:00 work window minus 14:00–14:30 and 15:00–16:00 = 8h - 1.5h = 390m.
-  assert.equal(b.freeMinutes, 390);
+  // Free counted from "now" (08:00) to 21:00 = 13h, minus 14:00–14:30 and
+  // 15:00–16:00 (90m) = 690m.
+  assert.equal(b.freeMinutes, 690);
   assert.equal(b.deepWorkClear, true); // no meeting in 09:00–11:00
 });
 

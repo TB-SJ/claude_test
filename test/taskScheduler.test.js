@@ -25,12 +25,12 @@ test('tasks fill free gaps without overlapping meetings', () => {
 test('done tasks are skipped; oversized tasks are unscheduled', () => {
   const tasks = [
     { id: 'd', title: 'Done thing', estimatedMinutes: 60, priority: 'high', deadline: null, done: true },
-    { id: 'big', title: 'Huge', estimatedMinutes: 600, priority: 'med', deadline: null, done: false },
+    { id: 'big', title: 'Huge', estimatedMinutes: 960, priority: 'med', deadline: null, done: false },
   ];
   const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03' });
   assert.equal(plan.slots.length, 0);
   assert.equal(plan.unscheduled.length, 1);
-  assert.equal(plan.unscheduled[0].id, 'big');
+  assert.equal(plan.unscheduled[0].id, 'big'); // 960 min > the 15h (900 min) window
 });
 
 test('higher priority is scheduled before lower', () => {
@@ -64,7 +64,7 @@ test('plan for a future day ignores the current time (starts at work open)', () 
   const ref = new Date('2026-08-03T13:00:00Z');
   const tasks = [{ id: 't1', title: 'A', estimatedMinutes: 60, priority: 'high', deadline: null, done: false }];
   const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-05', referenceDate: ref });
-  assert.equal(plan.slots[0].start, '2026-08-05T09:00:00.000Z');
+  assert.equal(plan.slots[0].start, '2026-08-05T06:00:00.000Z');
 });
 
 test('plan timeline drops events that already ended today', () => {

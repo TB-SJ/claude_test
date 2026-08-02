@@ -95,7 +95,7 @@ test('buildValidatedResult rejects a move outside work hours', () => {
   const result = claudeOptimizer.buildValidatedResult(
     events(),
     [
-      { id: 'a', new_start: '18:00', reason: 'x' }, // after 17:00 workday end
+      { id: 'a', new_start: '22:00', reason: 'x' }, // after 21:00 workday end
       { id: 'b', new_start: '13:00', reason: 'x' },
     ],
     rules

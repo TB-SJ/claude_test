@@ -10,8 +10,8 @@ const { validationError } = require('../errors');
 const DEFAULT_RULES = {
   tzOffsetMinutes: 0,
 
-  // Only schedule within these hours.
-  workday: { start: '09:00', end: '17:00' },
+  // Only schedule within these hours (your awake window — personal calendar).
+  workday: { start: '06:00', end: '21:00' },
 
   // Leave at least this many minutes between events.
   bufferMinutes: 15,

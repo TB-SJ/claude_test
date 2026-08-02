@@ -28,14 +28,14 @@ test('resolveParsed show_schedule returns the day\'s events + label', async () =
 });
 
 test('resolveParsed show_free computes remaining gaps from now', async () => {
-  // CTX reference time is 15:00 on the queried day, so only 15:00–17:00 is left
+  // CTX reference time is 15:00 on the queried day, so only 15:00–21:00 is left
   // (the 10:00–11:00 event is already past).
   const events = [{ id: '1', title: 'Sync', start: '2026-08-05T10:00:00Z', end: '2026-08-05T11:00:00Z' }];
   await withEvents(events, async () => {
     const r = await resolveParsed('google', { type: 'show_free', scope: 'day', date: '2026-08-05' }, CTX);
     assert.equal(r.type, 'show_free');
     assert.equal(r.days.length, 1);
-    assert.deepEqual(r.days[0].slots.map((s) => s.minutes), [120]);
+    assert.deepEqual(r.days[0].slots.map((s) => s.minutes), [360]);
   });
 });
 
