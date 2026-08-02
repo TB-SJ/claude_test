@@ -3,6 +3,8 @@
 const chrono = require('chrono-node');
 const calendar = require('./calendar');
 const taskStore = require('../taskStore');
+const claudeIntent = require('./claudeIntent');
+const logger = require('../logger');
 const { optimize } = require('./scheduleOptimizer');
 const { scheduleTasks } = require('./taskScheduler');
 const { addMinutes, diffMinutes } = require('./calendarUtils');
@@ -214,13 +216,40 @@ async function findByTitle(provider, hint, referenceDate) {
 }
 
 /**
- * Parses the transcript and resolves it into an actionable, confirmable command
- * (fetching/optimizing the calendar as needed). Never writes — the caller
- * confirms and then calls the normal calendar/schedule endpoints.
+ * Parses the transcript and resolves it into an actionable, confirmable command.
+ *
+ * Uses Claude for natural-language understanding when configured, falling back
+ * to the rules parser if Claude is unavailable or errors. Never writes — the
+ * caller confirms and then calls the normal calendar/schedule endpoints. The
+ * returned command carries an `engine` field ("claude" | "rules" | "rules-fallback").
  */
 async function buildCommand(provider, transcript, { referenceDate = new Date(), tzOffsetMinutes = 0 } = {}) {
-  const parsed = parseCommand(transcript, referenceDate);
+  let parsed;
+  let engine;
+  if (claudeIntent.isEnabled()) {
+    try {
+      parsed = await claudeIntent.parse(transcript, { referenceDate, tzOffsetMinutes });
+      engine = 'claude';
+    } catch (err) {
+      logger.warn('Claude intent failed; using rules parser', { message: err.message });
+      parsed = parseCommand(transcript, referenceDate);
+      engine = 'rules-fallback';
+    }
+  } else {
+    parsed = parseCommand(transcript, referenceDate);
+    engine = 'rules';
+  }
 
+  const result = await resolveParsed(provider, parsed, { referenceDate, tzOffsetMinutes, transcript });
+  if (result && typeof result === 'object') result.engine = engine;
+  return result;
+}
+
+/**
+ * Resolves a parsed intent into a confirmable command, fetching/optimizing the
+ * calendar as needed. Shared by both the Claude and rules paths.
+ */
+async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzOffsetMinutes = 0, transcript } = {}) {
   if (parsed.type === 'add_task') {
     if (!parsed.title) return { type: 'add_task', error: 'need_title', transcript };
     return {
@@ -304,4 +333,4 @@ async function buildCommand(provider, transcript, { referenceDate = new Date(), 
   return { type: 'unknown', transcript };
 }
 
-module.exports = { parseCommand, buildCommand, findByTitle };
+module.exports = { parseCommand, buildCommand, resolveParsed, findByTitle };

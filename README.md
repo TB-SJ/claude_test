@@ -376,6 +376,26 @@ Every add/remove/move shows a **confirmation card** before anything is written.
 The endpoint is `POST /voice/command { provider, transcript, tzOffsetMinutes }`,
 which is read-only — the client confirms, then calls the normal calendar routes.
 
+#### Smarter understanding with Claude (optional)
+
+By default commands are parsed by a deterministic **rules parser** (keywords +
+`chrono-node`). If you set `ANTHROPIC_API_KEY` in `.env`, the same transcript is
+first sent to **Claude Sonnet 5** (`src/services/claudeIntent.js`), which handles
+looser, more natural phrasing ("push my 3 o'clock back an hour", "pencil in a
+budget review for Thursday") and returns the same structured intent.
+
+- **Zero-regression:** with no key set, nothing changes — the rules parser runs
+  exactly as before.
+- **Automatic fallback:** if the Claude call errors for any reason, it silently
+  falls back to the rules parser, so voice never breaks.
+- A small **🧠 Claude** badge appears on the confirmation/heard line when Claude
+  did the parsing.
+
+Setup: create a key at [console.anthropic.com](https://console.anthropic.com)
+(pay-as-you-go API billing, **separate** from a Claude.ai/Max subscription), add
+`ANTHROPIC_API_KEY=...` to `.env`, `npm install`, and restart. Each command is a
+tiny request (~$0.0001), so real-world cost is negligible.
+
 ## Testing
 
 ```bash

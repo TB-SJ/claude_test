@@ -292,6 +292,9 @@ const VOICE_ERRORS = {
   not_found: 'No matching event found in the next 3 weeks.',
 };
 
+// Small badge shown when Claude (not the rules parser) understood the command.
+const engineSuffix = (result) => (result && result.engine === 'claude' ? '  ·  🧠 Claude' : '');
+
 function dispatchVoice(result, transcript) {
   if (result.type === 'unknown') {
     toast(`Heard "${transcript}" — try "optimize my day", "add…", "move…", or "remove…".`, 'err');
@@ -299,7 +302,7 @@ function dispatchVoice(result, transcript) {
   }
   if (result.type === 'optimize') {
     proposal = result.proposal;
-    renderProposalCard(`🎤 "${transcript}"`);
+    renderProposalCard(`🎤 "${transcript}"${engineSuffix(result)}`);
     return;
   }
   if (result.type === 'plan_tasks') {
@@ -311,7 +314,7 @@ function dispatchVoice(result, transcript) {
     pendingVoice = result;
     const t = result.task;
     const meta = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.deadline ? `by ${t.deadline}` : null].filter(Boolean).join(' · ');
-    $('voiceHeard').textContent = `Heard: "${transcript}"`;
+    $('voiceHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
     $('voiceSummary').textContent = `Add task: “${t.title}” (${meta})`;
     hide($('proposalCard'));
     show($('voiceCard'));
@@ -332,7 +335,7 @@ function dispatchVoice(result, transcript) {
     summary = `Move “${result.match.title}” → ${dayLabel(result.to.start)}, ${fmtRange(result.to.start, result.to.end)}`;
   }
   if (result.otherMatches) summary += `\n(+${result.otherMatches} other match${result.otherMatches > 1 ? 'es' : ''} — using the soonest)`;
-  $('voiceHeard').textContent = `Heard: "${transcript}"`;
+  $('voiceHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
   $('voiceSummary').textContent = summary;
   hide($('proposalCard'));
   show($('voiceCard'));

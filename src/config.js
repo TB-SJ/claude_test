@@ -40,6 +40,13 @@ const config = {
     whisperModel: process.env.WHISPER_MODEL || 'whisper-1',
   },
 
+  // Optional Claude layer for natural-language voice understanding. When set,
+  // it becomes the primary intent engine; the rules parser stays as a fallback.
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+  },
+
   // Web dashboard single-user gate. Leave APP_PASSWORD empty to disable the
   // login gate (fine for localhost); set it before hosting.
   app: {
@@ -84,6 +91,7 @@ const providerConfigured = {
   google: () => Boolean(config.google.clientId && config.google.clientSecret),
   outlook: () => Boolean(config.outlook.clientId && config.outlook.clientSecret),
   openai: () => Boolean(config.openai.apiKey),
+  anthropic: () => Boolean(config.anthropic.apiKey),
 };
 
 module.exports = { config, validate, providerConfigured };
