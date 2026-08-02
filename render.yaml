@@ -1,0 +1,32 @@
+# Render Blueprint — deploys the calendar app as a free web service.
+#
+# Persistence is via Supabase (see docs/DEPLOY.md Step 1), so NO disk is needed
+# and the free plan is fine. The secret env vars below are marked `sync: false`,
+# so Render prompts you to enter them in the dashboard on first deploy — they
+# never live in this repo. BASE_URL is auto-detected from RENDER_EXTERNAL_URL,
+# and PORT is injected by Render, so neither needs to be set.
+services:
+  - type: web
+    name: calendar-optimizer
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false

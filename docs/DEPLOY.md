@@ -71,3 +71,58 @@ grant select, insert, update, delete on table public.app_state to service_role;
 
 That's it for storage. Steps 2–4 (Render deploy, the reminder cron, and web
 push) build on top of this.
+
+---
+
+## Step 2 — Deploy to Render (free)
+
+The repo has a `render.yaml` Blueprint that defines the service. Persistence is
+Supabase (Step 1), so no disk is needed and the **free plan** works.
+
+### 2a. Create the service
+
+1. Go to <https://render.com> → sign up (log in with GitHub is easiest).
+2. **New → Blueprint**.
+3. Connect your GitHub and pick the **`tb-sj/claude_test`** repo.
+4. Choose the branch that has the code (`claude/nodejs-calendar-oauth-setup-5d7rj5`,
+   or `main` if you've merged). Render reads `render.yaml` and shows the service.
+
+### 2b. Enter the secret env vars
+
+Render will prompt for each `sync: false` variable. Paste these in:
+
+| Variable | Where it comes from |
+| --- | --- |
+| `TOKEN_ENCRYPTION_KEY` | the same 32-byte hex key from your local `.env` — **must match**, or the tokens already saved in Supabase can't be decrypted |
+| `APP_PASSWORD` | the dashboard login password you choose (set one — it's public now) |
+| `GOOGLE_CLIENT_ID` | from your local `.env` (Google Cloud Console) |
+| `GOOGLE_CLIENT_SECRET` | from your local `.env` |
+| `ANTHROPIC_API_KEY` | from your local `.env` (optional — omit to disable Claude) |
+| `SUPABASE_URL` | your Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | your Supabase `service_role` secret |
+
+> `BASE_URL` and `PORT` are handled automatically — don't set them.
+
+Click **Apply / Deploy**. First build takes a few minutes.
+
+### 2c. Point Google OAuth at the new URL
+
+Once live you'll have a URL like `https://calendar-optimizer.onrender.com`.
+
+In **Google Cloud Console → APIs & Services → Credentials → your OAuth client**:
+
+- Under **Authorized redirect URIs**, add:
+  `https://<your-app>.onrender.com/auth/google/callback`
+- Save. (The app derives this path from its own URL automatically — you just
+  have to allow-list it on Google's side.)
+
+### 2d. Verify
+
+1. Open `https://<your-app>.onrender.com` → log in with `APP_PASSWORD`.
+2. Visit `https://<your-app>.onrender.com/health` — confirm `"storage":"supabase"`.
+3. Connect Google (`/auth/google`) once. Because tokens live in Supabase now,
+   this connection survives redeploys.
+
+> **Free-tier note:** the service sleeps after ~15 min idle, so the first open
+> after a while takes ~30–60s to wake. Step 3 (the reminder cron) also keeps it
+> warm around notification times.

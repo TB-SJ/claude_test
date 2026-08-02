@@ -113,6 +113,13 @@ if (require.main === module) {
       }
     } else {
       console.log('[storage] Using local files (data/) for persistence.');
+      // On a host with an ephemeral disk, file storage is wiped on every
+      // deploy/restart — so warn loudly if we're clearly deployed without it.
+      if (process.env.RENDER || process.env.RENDER_EXTERNAL_URL) {
+        console.warn('[storage] WARNING: deployed without SUPABASE_URL/SUPABASE_SERVICE_KEY.');
+        console.warn('[storage] This host has an ephemeral disk — tokens and tasks will be LOST on redeploy.');
+        console.warn('[storage] Set the Supabase env vars (docs/DEPLOY.md, Step 1).');
+      }
     }
 
     app.listen(config.port, () => {
