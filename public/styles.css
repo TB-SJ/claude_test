@@ -131,6 +131,25 @@ button.ghost.active { color: var(--green); border-color: var(--green); }
 .brief-stat { padding: 5px 0; font-size: 0.95rem; }
 .brief-stat.warn { color: var(--amber); }
 
+/* Focus timer bar */
+.focus-bar {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  width: calc(100% - 36px); max-width: 524px;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1.5px solid var(--accent); border-radius: 14px;
+  padding: 10px 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); z-index: 60;
+}
+.focus-bar .focus-info { flex: 1; min-width: 0; }
+.focus-title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.focus-time { font-variant-numeric: tabular-nums; color: var(--accent); font-size: 1.3rem; font-weight: 700; }
+.focus-time.over { color: var(--danger); }
+
+/* Category chips + task filter */
+.cat-chip { font-size: 0.7rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: 6px; }
+.filter-chip { font-size: 0.8rem; min-height: 32px; padding: 5px 12px; border-radius: 999px; }
+.filter-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.task.overdue .t-title { color: var(--danger); }
+
 .daychips { display: inline-flex; gap: 4px; }
 .daychips button {
   min-height: 34px; width: 34px; padding: 0; border-radius: 8px;

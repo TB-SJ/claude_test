@@ -539,6 +539,10 @@ function dispatchVoice(result, transcript) {
     renderReview(result.review);
     return;
   }
+  if (result.type === 'whatnow') {
+    renderFocus(result.focus);
+    return;
+  }
   if (result.type === 'show_schedule') {
     renderQuerySchedule(result, transcript);
     return;
@@ -709,6 +713,87 @@ function renderReview(r) {
   showQueryCard();
 }
 
+// --- "What should I do now?" + focus timer ---------------------------------
+async function loadFocus() {
+  setLoading(true);
+  try {
+    const focus = await api(`/focus/${activeProvider}?tzOffsetMinutes=${TZ_OFFSET}`);
+    renderFocus(focus);
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderFocus(f) {
+  $('queryTitle').textContent = '▶ What now?';
+  $('queryHeard').textContent = '';
+  let html;
+  if (f.status === 'ok') {
+    const t = f.task;
+    const metaBits = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.category].filter(Boolean).join(' · ');
+    html = `<div class="brief-stat">Work on <b>${escapeHtml(t.title)}</b></div>
+      <div class="brief-stat muted">${escapeHtml(metaBits)}</div>
+      <div class="brief-stat">🕒 ${fmtDur(f.availableMinutes)} until ${fmtTime(f.until)}${f.fits ? '' : ' — enough to make a start'}</div>
+      <button class="primary full" id="startFocusBtn" style="margin-top:10px">▶ Start focus (${Math.min(t.estimatedMinutes, f.availableMinutes)} min)</button>`;
+  } else if (f.status === 'busy') {
+    html = `<div class="brief-stat">You're in <b>${escapeHtml(f.event.title)}</b> until ${fmtTime(f.event.end)}.</div>`;
+  } else if (f.status === 'free_no_tasks') {
+    html = `<div class="brief-stat">🌊 ${fmtDur(f.availableMinutes)} free and nothing due — enjoy it, or add a task.</div>`;
+  } else {
+    html = `<div class="brief-stat">Nothing to suggest right now${f.reason === 'day_over' ? " — your day's work window is over." : '.'}</div>`;
+  }
+  $('queryBody').innerHTML = html;
+  showQueryCard();
+  if (f.status === 'ok') {
+    const mins = Math.min(f.task.estimatedMinutes, f.availableMinutes);
+    $('startFocusBtn').addEventListener('click', () => startFocus(f.task, mins));
+  }
+}
+
+let focusTimer = null;
+let focusState = null; // { taskId, title, endMs }
+
+function startFocus(task, minutes) {
+  hide($('queryCard'));
+  focusState = { taskId: task.id, title: task.title, endMs: Date.now() + minutes * 60000 };
+  $('focusTitle').textContent = task.title;
+  show($('focusBar'));
+  tickFocus();
+  if (focusTimer) clearInterval(focusTimer);
+  focusTimer = setInterval(tickFocus, 1000);
+}
+
+function tickFocus() {
+  if (!focusState) return;
+  const remain = focusState.endMs - Date.now();
+  const over = remain < 0;
+  const abs = Math.abs(remain);
+  const mm = Math.floor(abs / 60000);
+  const ss = Math.floor((abs % 60000) / 1000);
+  const el = $('focusTime');
+  el.textContent = `${over ? '+' : ''}${mm}:${String(ss).padStart(2, '0')}`;
+  el.classList.toggle('over', over);
+}
+
+function stopFocus() {
+  if (focusTimer) clearInterval(focusTimer);
+  focusTimer = null;
+  focusState = null;
+  hide($('focusBar'));
+}
+
+async function focusDone() {
+  const id = focusState && focusState.taskId;
+  stopFocus();
+  if (!id) return;
+  await api(`/tasks/${id}`, { method: 'PATCH', body: { done: true, date: localTodayKey() } }).catch(() => {});
+  toast('Nice — task done ✓', 'ok');
+  loadTasks();
+  loadBrief();
+}
+
 // --- Push notifications (daily brief + reminders) --------------------------
 let notifyOn = false;
 
@@ -817,12 +902,24 @@ function repeatLabel(days) {
   return days.slice().sort((a, b) => a - b).map((d) => DOW_ABBR[d]).join(' ');
 }
 
+let taskFilterCat = null; // active category filter (null = All)
+
+function isOverdue(t, todayKey) {
+  return !isRecurring(t) && !t.done && t.deadline && t.deadline < todayKey;
+}
+
 function renderTasks(tasks) {
   lastTasks = tasks;
   const todayKey = localTodayKey();
   const todayDow = new Date().getDay();
-  // For today's list: one-off tasks always; recurring only if due today (or done today).
-  const view = tasks
+
+  // Category suggestions for the form.
+  const allCats = [...new Set(tasks.map((t) => t.category).filter(Boolean))].sort();
+  $('catList').innerHTML = allCats.map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
+
+  // Active (not deferred) tasks relevant today; recurring only on due days.
+  const active = tasks
+    .filter((t) => !t.deferred)
     .map((t) => {
       const recurring = isRecurring(t);
       const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
@@ -830,32 +927,80 @@ function renderTasks(tasks) {
     })
     .filter(({ t, recurring, checked }) => !recurring || t.repeat.includes(todayDow) || checked);
 
-  if (!view.length) {
-    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing for today. Add a task, then tap “Plan my day.”</p>';
-    return;
+  renderTaskFilter([...new Set(active.map(({ t }) => t.category).filter(Boolean))].sort());
+  const shown = taskFilterCat ? active.filter(({ t }) => t.category === taskFilterCat) : active;
+
+  if (!shown.length) {
+    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing here. Add a task, then tap “Plan my day.”</p>';
+  } else {
+    shown.sort((a, b) =>
+      a.checked - b.checked
+      || (isOverdue(b.t, todayKey) - isOverdue(a.t, todayKey))
+      || (PRIO_RANK[a.t.priority] ?? 1) - (PRIO_RANK[b.t.priority] ?? 1));
+    $('taskList').innerHTML = shown
+      .map(({ t, recurring, checked }) => {
+        const overdue = isOverdue(t, todayKey);
+        const bits = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority]];
+        if (!recurring && t.deadline) bits.push(overdue ? `⚠️ was due ${t.deadline}` : `by ${t.deadline}`);
+        if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
+        const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
+        const cat = t.category ? `<span class="cat-chip">${escapeHtml(t.category)}</span>` : '';
+        return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''}">
+            <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
+            <div class="t-title">${escapeHtml(t.title)} ${streak}${cat}<div class="t-meta">${escapeHtml(bits.join(' · '))}</div></div>
+            <button class="t-edit" data-id="${t.id}" aria-label="edit">✎</button>
+            <button class="t-defer" data-id="${t.id}" title="Move to Someday">💤</button>
+            <button class="del" data-id="${t.id}" aria-label="delete">✕</button>
+          </div>`;
+      })
+      .join('');
+    for (const c of $('taskList').querySelectorAll('.t-check')) {
+      c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+    }
+    for (const e of $('taskList').querySelectorAll('.t-edit')) {
+      e.addEventListener('click', () => startEditTask(e.dataset.id));
+    }
+    for (const b of $('taskList').querySelectorAll('.t-defer')) {
+      b.addEventListener('click', () => deferTask(b.dataset.id, true));
+    }
+    for (const d of $('taskList').querySelectorAll('.del')) {
+      d.addEventListener('click', () => deleteTask(d.dataset.id));
+    }
   }
-  view.sort((a, b) => a.checked - b.checked || (PRIO_RANK[a.t.priority] ?? 1) - (PRIO_RANK[b.t.priority] ?? 1));
-  $('taskList').innerHTML = view
-    .map(({ t, recurring, checked }) => {
-      const bits = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority]];
-      if (!recurring && t.deadline) bits.push(`by ${t.deadline}`);
-      if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
-      const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
-      return `<div class="task ${checked ? 'done' : ''}">
-          <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
-          <div class="t-title">${escapeHtml(t.title)} ${streak}<div class="t-meta">${escapeHtml(bits.join(' · '))}</div></div>
-          <button class="t-edit" data-id="${t.id}" aria-label="edit">✎</button>
+
+  renderSomeday(tasks.filter((t) => t.deferred));
+}
+
+function renderTaskFilter(cats) {
+  const el = $('taskFilter');
+  if (!cats.length) { el.innerHTML = ''; return; }
+  const chip = (label, val) =>
+    `<button class="ghost filter-chip ${taskFilterCat === val ? 'on' : ''}" data-cat="${val == null ? '' : escapeHtml(val)}">${escapeHtml(label)}</button>`;
+  el.innerHTML = chip('All', null) + cats.map((c) => chip(c, c)).join('');
+  for (const b of el.querySelectorAll('.filter-chip')) {
+    b.addEventListener('click', () => { taskFilterCat = b.dataset.cat || null; renderTasks(lastTasks); });
+  }
+}
+
+function renderSomeday(deferred) {
+  const section = $('somedaySection');
+  if (!deferred.length) { hide(section); return; }
+  show(section);
+  $('somedayCount').textContent = deferred.length;
+  $('somedayList').innerHTML = deferred
+    .map((t) => {
+      const meta = [PRIO_LABEL[t.priority], t.category].filter(Boolean).join(' · ');
+      return `<div class="task">
+          <div class="t-title">${escapeHtml(t.title)}<div class="t-meta">${escapeHtml(meta)}</div></div>
+          <button class="t-wake" data-id="${t.id}" title="Move back to active">☀️</button>
           <button class="del" data-id="${t.id}" aria-label="delete">✕</button>
         </div>`;
     })
     .join('');
-  for (const c of $('taskList').querySelectorAll('.t-check')) {
-    c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  for (const b of $('somedayList').querySelectorAll('.t-wake')) {
+    b.addEventListener('click', () => deferTask(b.dataset.id, false));
   }
-  for (const e of $('taskList').querySelectorAll('.t-edit')) {
-    e.addEventListener('click', () => startEditTask(e.dataset.id));
-  }
-  for (const d of $('taskList').querySelectorAll('.del')) {
+  for (const d of $('somedayList').querySelectorAll('.del')) {
     d.addEventListener('click', () => deleteTask(d.dataset.id));
   }
 }
@@ -865,6 +1010,11 @@ async function toggleTask(id, done) {
   await api(`/tasks/${id}`, { method: 'PATCH', body: { done, date: localTodayKey() } }).catch(() => {});
   loadTasks();
   loadBrief();
+}
+
+async function deferTask(id, deferred) {
+  await api(`/tasks/${id}`, { method: 'PATCH', body: { deferred } }).catch(() => {});
+  loadTasks();
 }
 
 async function deleteTask(id) {
@@ -895,6 +1045,7 @@ async function addTaskFromForm() {
     priority: $('taskPriority').value,
     deadline: $('taskDeadline').value || null,
     repeat: selectedRepeatDays(), // [] → one-off
+    category: $('taskCategory').value.trim() || null,
   };
   try {
     if (editing) {
@@ -917,6 +1068,7 @@ function resetTaskForm() {
   $('taskDeadline').value = '';
   $('taskMins').value = '30';
   $('taskPriority').value = 'med';
+  $('taskCategory').value = '';
   setRepeatDays([]);
   $('taskAddBtn').textContent = 'Add task';
 }
@@ -929,6 +1081,7 @@ function startEditTask(id) {
   $('taskMins').value = t.estimatedMinutes || 30;
   $('taskPriority').value = t.priority || 'med';
   $('taskDeadline').value = t.deadline || '';
+  $('taskCategory').value = t.category || '';
   setRepeatDays(t.repeat || []);
   $('taskAddBtn').textContent = 'Save changes';
   show($('taskForm'));
@@ -1044,6 +1197,14 @@ function init() {
   $('taskRepeat').addEventListener('click', (e) => {
     if (e.target.matches('button[data-d]')) e.target.classList.toggle('on');
   });
+  $('whatnowBtn').addEventListener('click', loadFocus);
+  $('somedayToggle').addEventListener('click', () => {
+    const list = $('somedayList');
+    list.classList.toggle('hidden');
+    $('somedayChevron').textContent = list.classList.contains('hidden') ? '▸' : '▾';
+  });
+  $('focusDoneBtn').addEventListener('click', focusDone);
+  $('focusStopBtn').addEventListener('click', stopFocus);
   $('planBtn').addEventListener('click', planTasks);
   $('planCloseBtn').addEventListener('click', () => hide($('taskPlanCard')));
   $('commitPlanBtn').addEventListener('click', commitPlan);

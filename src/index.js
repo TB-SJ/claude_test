@@ -11,6 +11,7 @@ const scheduleRouter = require('./routes/schedule');
 const tasksRouter = require('./routes/tasks');
 const briefRouter = require('./routes/brief');
 const reviewRouter = require('./routes/review');
+const focusRouter = require('./routes/focus');
 const pushRouter = require('./routes/push');
 const cronRouter = require('./routes/cron');
 const tokenStore = require('./tokenStore');
@@ -81,6 +82,7 @@ app.use('/schedule', webAuth.requireAuthApi, scheduleRouter);
 app.use('/tasks', webAuth.requireAuthApi, tasksRouter);
 app.use('/brief', webAuth.requireAuthApi, briefRouter);
 app.use('/review', webAuth.requireAuthApi, reviewRouter);
+app.use('/focus', webAuth.requireAuthApi, focusRouter);
 app.use('/push', webAuth.requireAuthApi, pushRouter);
 // /cron is NOT behind the login gate — it's called by an external scheduler and
 // is secured by CRON_SECRET inside the route instead.

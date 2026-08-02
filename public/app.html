@@ -84,6 +84,7 @@
         <button class="collapse-btn" id="tasksCollapse" aria-label="Collapse tasks">▾</button>
         <h2 style="margin:0">✅ Tasks</h2>
         <span class="spacer"></span>
+        <button class="ghost" id="whatnowBtn" title="What should I do now?">▶ Now</button>
         <button class="ghost" id="addTaskToggle">＋ Add</button>
       </div>
       <div class="card-body" id="tasksBody">
@@ -98,6 +99,8 @@
             </select>
             <input id="taskDeadline" type="date" style="flex:1" title="deadline (optional)" />
           </div>
+          <input id="taskCategory" list="catList" placeholder="Category (optional, e.g. work / personal / errands)" style="width:100%; margin-top:8px" />
+          <datalist id="catList"></datalist>
           <div class="row" style="margin-top:8px; gap:8px; align-items:center">
             <span class="muted" style="font-size:.82rem">Repeat</span>
             <div class="daychips" id="taskRepeat">
@@ -112,7 +115,12 @@
           </div>
           <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
         </div>
+        <div id="taskFilter" class="row" style="gap:6px; margin-top:8px"></div>
         <div id="taskList" style="margin-top:10px"></div>
+        <div id="somedaySection" class="hidden" style="margin-top:12px">
+          <button class="collapse-btn" id="somedayToggle"><span id="somedayChevron">▸</span> 💤 Someday (<span id="somedayCount">0</span>)</button>
+          <div id="somedayList" class="hidden" style="margin-top:6px"></div>
+        </div>
         <button class="primary full" id="planBtn" style="margin-top:12px">🗓 Plan my day</button>
       </div>
     </section>
@@ -175,6 +183,18 @@
     </section>
 
     <div class="center muted hidden" id="loading"><span class="spinner"></span></div>
+  </div>
+
+  <!-- Focus timer (What should I do now?) -->
+  <div id="focusBar" class="focus-bar hidden">
+    <div class="focus-info">
+      <div id="focusTitle" class="focus-title"></div>
+      <div id="focusTime" class="focus-time"></div>
+    </div>
+    <div class="row" style="gap:6px; flex-wrap:nowrap">
+      <button class="ghost" id="focusDoneBtn">✓ Done</button>
+      <button class="ghost" id="focusStopBtn">✕</button>
+    </div>
   </div>
 
   <!-- Floating mic button (voice control) -->

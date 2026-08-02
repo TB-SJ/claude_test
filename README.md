@@ -404,6 +404,7 @@ command and it's parsed server-side (`src/services/voiceCommand.js`, using
 - **"When am I free tomorrow"** / **"show my free time this week"** → free-time view (gaps within work hours).
 - **"How's my day"** / **"brief me"** → the daily brief (see below).
 - **"How was my week"** / **"weekly review"** → the weekly look-back (see below).
+- **"What should I do now"** / **"what now"** → the focus suggestion (see below).
 
 Every write (add/remove/move/edit) shows a **confirmation card** first; the two
 **"show …"** queries are read-only and just display a result card. The endpoint is
@@ -439,6 +440,22 @@ Tap **📊** on the Today card (or say *"how was my week"*) for a look-back over
 last 7 days: meeting count + hours (with a trend vs the previous week), free/focus
 time, deep-work days protected, tasks completed vs. open (and overdue), and your
 current habit streaks. Read-only; endpoint `GET /review/:provider`.
+
+### "What should I do now?" + focus timer
+
+Tap **▶ Now** on the Tasks card (or say *"what now"*) and it looks at the free
+time from this moment until your next event and suggests the best-fitting pending
+task. Tap **Start focus** for a lightweight countdown timer; **✓ Done** marks the
+task complete. Endpoint: `GET /focus/:provider` (read-only).
+
+### Organizing tasks: categories, filter, and Someday
+
+- **Categories** — tag a task (work / personal / errands / anything). Tasks show a
+  category chip, and a filter row lets you view one category at a time.
+- **Overdue** — one-off tasks past their deadline float to the top in red.
+- **💤 Someday** — park a task in a "Someday/Later" bucket (a collapsible section);
+  it's hidden from Plan my day, the brief, and focus until you tap ☀️ to bring it
+  back. Great for keeping today's list to what actually matters.
 
 ### Time-blocking (opt-in)
 

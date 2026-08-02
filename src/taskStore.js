@@ -98,8 +98,15 @@ function isDueOn(task, dateKey) {
 
 /** True when a task should appear as actionable on `dateKey`. */
 function isPending(task, dateKey) {
+  if (task.deferred) return false; // parked in the "Someday/Later" bucket
   if (isRecurring(task)) return isDueOn(task, dateKey) && task.lastDone !== dateKey;
   return !task.done;
+}
+
+/** Normalizes a free-text category/tag (trimmed, capped), or null. */
+function normCategory(v) {
+  const s = String(v == null ? '' : v).trim().slice(0, 24);
+  return s || null;
 }
 
 /** The most recent recurrence day strictly before `dateKey`, or null. */
@@ -121,7 +128,7 @@ function list() {
   return currentAll();
 }
 
-function add({ title, estimatedMinutes, priority, deadline, repeat }) {
+function add({ title, estimatedMinutes, priority, deadline, repeat, category }) {
   const t = {
     id: crypto.randomUUID(),
     title: String(title || '').trim(),
@@ -129,6 +136,8 @@ function add({ title, estimatedMinutes, priority, deadline, repeat }) {
     priority: normPriority(priority),
     deadline: deadline || null, // YYYY-MM-DD or null
     repeat: normRepeat(repeat), // null (one-off) or [weekdays]
+    category: normCategory(category),
+    deferred: false, // "Someday/Later" bucket
     streak: 0,
     lastDone: null, // last completion date (recurring) — YYYY-MM-DD
     done: false, // one-off completion
@@ -152,6 +161,8 @@ function update(id, patch = {}) {
   if (patch.priority != null) clean.priority = normPriority(patch.priority);
   if (patch.deadline !== undefined) clean.deadline = patch.deadline || null;
   if (patch.repeat !== undefined) clean.repeat = normRepeat(patch.repeat);
+  if (patch.category !== undefined) clean.category = normCategory(patch.category);
+  if (patch.deferred != null) clean.deferred = Boolean(patch.deferred);
 
   if (patch.done != null) {
     const dateKey = patch.date || todayKeyUTC(); // client passes its local date

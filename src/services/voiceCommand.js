@@ -9,6 +9,7 @@ const { optimize } = require('./scheduleOptimizer');
 const { scheduleTasks } = require('./taskScheduler');
 const { composeBrief } = require('./brief');
 const { computeReview } = require('./reviewService');
+const { suggestNext } = require('./focusService');
 const { freeForDays, coveringWindow, weekdayKeys } = require('./freeTime');
 const { addMinutes, diffMinutes } = require('./calendarUtils');
 
@@ -173,6 +174,14 @@ function parseCommand(transcript, referenceDate = new Date()) {
   let md;
   if ((md = /\bmark\s+(.+?)\s+(?:as\s+)?(?:done|complete|completed|finished)\b/i.exec(text))) {
     return { type: 'edit_task', title: cleanPhrase(md[1]), done: true, transcript: text };
+  }
+
+  // Focus suggestion: "what should I do now", "what now", "focus".
+  if (/\bwhat (?:should i|to) do (?:now|next)\b/i.test(text)
+      || /\bwhat now\b/i.test(text)
+      || /\bwhat'?s next\b/i.test(text)
+      || /\bfocus (?:mode|time|now)\b/i.test(text)) {
+    return { type: 'whatnow', transcript: text };
   }
 
   // Weekly review: "how was my week", "weekly review".
@@ -457,6 +466,12 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     const events = await calendar.getEvents(provider, { start, end });
     const review = computeReview(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
     return { type: 'review', transcript, review };
+  }
+
+  if (parsed.type === 'whatnow') {
+    const events = await calendar.getEvents(provider, { range: 'day' });
+    const focus = suggestNext(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
+    return { type: 'whatnow', transcript, focus };
   }
 
   if (parsed.type === 'show_schedule' || parsed.type === 'show_free') {
