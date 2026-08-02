@@ -13,6 +13,7 @@
     "voice": "node src/voiceCli.js",
     "optimize": "node src/optimizeCli.js",
     "dashboard": "node src/dashboardCli.js",
+    "vapid": "node src/vapidCli.js",
     "test": "node --test"
   },
   "keywords": [
@@ -34,6 +35,7 @@
     "express": "^4.21.2",
     "googleapis": "^144.0.0",
     "node-record-lpcm16": "^1.0.1",
-    "openai": "^4.77.0"
+    "openai": "^4.77.0",
+    "web-push": "^3.6.7"
   }
 }

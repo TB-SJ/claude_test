@@ -1,0 +1,27 @@
+name: reminders
+
+# Pings the app's /cron/tick endpoint on a schedule so it can send the daily
+# brief and event reminders even while the free-tier host is asleep. Scheduled
+# workflows only run from the repository's DEFAULT branch, so this must be on
+# `main` (merge the feature branch) to fire. You can also run it by hand.
+#
+# Set two repository secrets (Settings → Secrets and variables → Actions):
+#   APP_URL      e.g. https://calendar-optimizer-68m3.onrender.com
+#   CRON_SECRET  the same value as the app's CRON_SECRET env var
+on:
+  schedule:
+    - cron: '*/15 * * * *' # every 15 minutes (UTC); GitHub may delay under load
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reminders
+        run: |
+          curl -fsS -X POST "${APP_URL%/}/cron/tick" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            --max-time 60
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

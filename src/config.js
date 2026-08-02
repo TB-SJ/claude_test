@@ -64,6 +64,18 @@ const config = {
     serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
   },
 
+  // Optional push notifications (daily brief + event reminders). VAPID keys
+  // enable Web Push; CRON_SECRET guards the /cron/tick endpoint an external
+  // scheduler calls. Times are local (the subscriber's tz offset is stored).
+  notify: {
+    vapidPublic: process.env.VAPID_PUBLIC_KEY || '',
+    vapidPrivate: process.env.VAPID_PRIVATE_KEY || '',
+    vapidSubject: process.env.VAPID_SUBJECT || 'mailto:calendar@example.com',
+    cronSecret: process.env.CRON_SECRET || '',
+    briefTime: process.env.BRIEF_TIME || '07:00', // local HH:MM for the morning brief
+    reminderLeadMinutes: parseInt(process.env.REMINDER_LEAD_MINUTES || '10', 10),
+  },
+
   // Microphone capture (node-record-lpcm16 shells out to sox/rec/arecord).
   audio: {
     sampleRate: parseInt(process.env.AUDIO_SAMPLE_RATE || '16000', 10),
@@ -103,6 +115,7 @@ const providerConfigured = {
   openai: () => Boolean(config.openai.apiKey),
   anthropic: () => Boolean(config.anthropic.apiKey),
   supabase: () => Boolean(config.supabase.url && config.supabase.serviceKey),
+  push: () => Boolean(config.notify.vapidPublic && config.notify.vapidPrivate),
 };
 
 module.exports = { config, validate, providerConfigured };

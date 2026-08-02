@@ -126,3 +126,48 @@ In **Google Cloud Console → APIs & Services → Credentials → your OAuth cli
 > **Free-tier note:** the service sleeps after ~15 min idle, so the first open
 > after a while takes ~30–60s to wake. Step 3 (the reminder cron) also keeps it
 > warm around notification times.
+
+---
+
+## Step 3 — Push notifications (daily brief + reminders)
+
+Two parts: the app sends Web Push; an external scheduler pings it every ~15 min.
+
+### 3a. Generate keys and set env vars
+
+Locally, run:
+
+```bash
+npm run vapid
+```
+
+It prints `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, a `VAPID_SUBJECT`, and a random
+`CRON_SECRET`. Add all of them as env vars **on Render** (and to your local `.env`
+if you want to test locally). Optionally set `BRIEF_TIME` (default `07:00`, your
+local time) and `REMINDER_LEAD_MINUTES` (default `10`). Redeploy.
+
+Verify: `GET /health` now shows `"push":true`.
+
+### 3b. Turn it on from your phone
+
+Open the app → tap **🔔 Reminders** in the Today card → allow notifications. You'll
+get a test push confirming it works. (Android Chrome supported; iOS needs the app
+added to the home screen first.)
+
+### 3c. Schedule the pings
+
+The app exposes `POST /cron/tick` (guarded by `CRON_SECRET`). Point any free
+scheduler at it every ~15 min. Two options:
+
+**Option A — GitHub Actions** (in-repo, `.github/workflows/reminders.yml`):
+scheduled workflows only run from the **default branch**, so merge to `main`
+first. Then add two repo secrets (Settings → Secrets and variables → Actions):
+`APP_URL` (your Render URL) and `CRON_SECRET` (same value as the env var).
+
+**Option B — cron-job.org** (works immediately, no merge needed): create a free
+job that POSTs to `https://<your-app>.onrender.com/cron/tick` every 15 minutes
+with a header `x-cron-secret: <your CRON_SECRET>`.
+
+> The scheduler ping doubles as a keep-warm, so the brief and reminders fire even
+> though the free tier sleeps. GitHub cron can run a few minutes late under load —
+> fine for a personal brief; cron-job.org is more punctual.

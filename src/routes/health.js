@@ -37,6 +37,8 @@ router.get('/', async (req, res) => {
     ai: { claude: providerConfigured.anthropic() },
     // Which persistence backend is active — handy to confirm after deploy.
     storage: providerConfigured.supabase() ? 'supabase' : 'file',
+    // Whether push notifications are configured (VAPID keys present).
+    push: providerConfigured.push(),
   });
 });
 

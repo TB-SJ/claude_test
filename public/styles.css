@@ -126,6 +126,8 @@ button.full { width: 100%; }
 .ai-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); margin-right: 10px; cursor: pointer; user-select: none; }
 .ai-toggle input { width: 16px; height: 16px; }
 
+button.ghost.active { color: var(--green); border-color: var(--green); }
+
 .brief-stat { padding: 5px 0; font-size: 0.95rem; }
 .brief-stat.warn { color: var(--amber); }
 

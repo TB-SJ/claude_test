@@ -10,6 +10,8 @@ const voiceRouter = require('./routes/voice');
 const scheduleRouter = require('./routes/schedule');
 const tasksRouter = require('./routes/tasks');
 const briefRouter = require('./routes/brief');
+const pushRouter = require('./routes/push');
+const cronRouter = require('./routes/cron');
 const tokenStore = require('./tokenStore');
 const taskStore = require('./taskStore');
 const webAuth = require('./webAuth');
@@ -77,6 +79,10 @@ app.use('/voice', webAuth.requireAuthApi, voiceRouter);
 app.use('/schedule', webAuth.requireAuthApi, scheduleRouter);
 app.use('/tasks', webAuth.requireAuthApi, tasksRouter);
 app.use('/brief', webAuth.requireAuthApi, briefRouter);
+app.use('/push', webAuth.requireAuthApi, pushRouter);
+// /cron is NOT behind the login gate — it's called by an external scheduler and
+// is secured by CRON_SECRET inside the route instead.
+app.use('/cron', cronRouter);
 
 // 404 + error handlers.
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

@@ -142,6 +142,7 @@ async function refreshConnection() {
       await loadEvents();
       await loadTasks();
       await loadBrief();
+      setupNotifications();
     } else {
       hide($('micBtn'));
       hide($('tasksCard'));
@@ -630,6 +631,86 @@ function renderBrief(b) {
     html += `<div class="brief-stat warn">⚠️ ${escapeHtml(r.title)} — ${escapeHtml(r.when)}</div>`;
   }
   $('briefBody').innerHTML = html;
+}
+
+// --- Push notifications (daily brief + reminders) --------------------------
+let notifyOn = false;
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+function setNotifyBtn(on) {
+  notifyOn = on;
+  const btn = $('notifyBtn');
+  btn.textContent = on ? '🔔 On' : '🔔 Reminders';
+  btn.classList.toggle('active', on);
+}
+
+async function setupNotifications() {
+  const btn = $('notifyBtn');
+  if (!pushSupported()) return; // stays hidden
+  let info;
+  try {
+    info = await api('/push/key');
+  } catch (_) {
+    return;
+  }
+  if (!info.enabled) return; // server has no VAPID keys — leave the button hidden
+  show(btn);
+  try {
+    await navigator.serviceWorker.register('/sw.js');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    setNotifyBtn(Boolean(sub));
+  } catch (_) {
+    setNotifyBtn(false);
+  }
+  btn.onclick = () => (notifyOn ? disableNotifications() : enableNotifications());
+}
+
+async function enableNotifications() {
+  try {
+    const info = await api('/push/key');
+    if (!info.enabled) return toast('Reminders aren’t configured on the server.', 'err');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return toast('Notifications permission was denied.', 'err');
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(info.publicKey),
+    });
+    await api('/push/subscribe', { method: 'POST', body: { subscription: sub, tzOffsetMinutes: TZ_OFFSET } });
+    setNotifyBtn(true);
+    await api('/push/test', { method: 'POST' }).catch(() => {});
+    toast('Reminders on — sent you a test notification ✓', 'ok');
+  } catch (err) {
+    toast(`Couldn’t enable reminders: ${err.message}`, 'err');
+  }
+}
+
+async function disableNotifications() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await api('/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }).catch(() => {});
+      await sub.unsubscribe();
+    }
+    setNotifyBtn(false);
+    toast('Reminders off', '');
+  } catch (err) {
+    toast(err.message, 'err');
+  }
 }
 
 // --- Tasks -----------------------------------------------------------------
