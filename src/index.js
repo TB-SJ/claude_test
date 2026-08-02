@@ -102,7 +102,14 @@ if (require.main === module) {
         console.log('[storage] Using Supabase for token + task persistence.');
       } catch (err) {
         console.error(`[storage] Supabase init failed: ${err.message}`);
-        process.exit(1);
+        if (/permission denied|42501/.test(err.message)) {
+          console.error('[storage] Fix: run the GRANT in docs/DEPLOY.md (Step 1b):');
+          console.error('         grant select, insert, update, delete on table public.app_state to service_role;');
+        }
+        // Exit non-zero without a hard process.exit() (which can trip a libuv
+        // assertion on Windows while the failed request's socket is closing).
+        process.exitCode = 1;
+        return;
       }
     } else {
       console.log('[storage] Using local files (data/) for persistence.');

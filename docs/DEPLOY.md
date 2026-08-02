@@ -45,6 +45,10 @@ create table if not exists app_state (
 -- The app connects with the service_role key and bypasses row-level security,
 -- but enabling RLS with no policies blocks the public anon key just in case.
 alter table app_state enable row level security;
+
+-- Newer projects don't always auto-grant table privileges to service_role.
+-- Without this you'll get: "permission denied for table app_state" (code 42501).
+grant select, insert, update, delete on table public.app_state to service_role;
 ```
 
 ### 1c. Grab your two values
