@@ -10,7 +10,7 @@ const { addMinutes, diffMinutes } = require('./calendarUtils');
 const OPTIMIZE_RE = /\b(optimi[sz]e|rearrange|tidy up|clean up)\b/i;
 const ACTIONS = [
   { type: 'remove', re: /\b(remove|delete|cancel|clear|drop|get rid of)\b/i },
-  { type: 'move', re: /\b(move|reschedule|resched|shift|push|bump)\b/i },
+  { type: 'move', re: /\b(move|reschedule|resched|shift|push|bump|change|update|reset)\b/i },
   { type: 'add', re: /\b(add|create|schedule|new|book|set up|put|make)\b/i },
 ];
 
@@ -120,11 +120,16 @@ function parseCommand(transcript, referenceDate = new Date()) {
 // Resolution against the live calendar (async)
 // ---------------------------------------------------------------------------
 
-/** Finds upcoming timed events whose title contains `hint` (next ~21 days). */
+/**
+ * Finds timed events whose title contains `hint`, searching from the start of
+ * *today* (so events earlier today are still matchable) through ~21 days out.
+ */
 async function findByTitle(provider, hint, referenceDate) {
   const q = String(hint || '').toLowerCase().trim();
   if (!q) return [];
-  const startISO = referenceDate.toISOString();
+  const startOfToday = new Date(referenceDate);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startISO = startOfToday.toISOString();
   const endISO = new Date(referenceDate.getTime() + 21 * 86400000).toISOString();
   const events = await calendar.getEvents(provider, { start: startISO, end: endISO });
   return events
@@ -185,12 +190,12 @@ async function buildCommand(provider, transcript, { referenceDate = new Date(), 
     if (parsed.when.dateSpecified) {
       start = parsed.when.start; // full date+time spoken
     } else {
-      // Time-only ("move to 4pm"): keep the event's existing date, new time.
-      const day = target.start.slice(0, 10);
-      const t = new Date(parsed.when.start);
-      const hh = String(t.getHours()).padStart(2, '0');
-      const mm = String(t.getMinutes()).padStart(2, '0');
-      start = new Date(`${day}T${hh}:${mm}:00${offsetSuffix(t)}`).toISOString();
+      // Time-only ("move to 4pm"): keep the event's own day, apply the new local
+      // time. Operating on the target's Date with setHours stays in local tz.
+      const spoken = new Date(parsed.when.start);
+      const d = new Date(target.start);
+      d.setHours(spoken.getHours(), spoken.getMinutes(), 0, 0);
+      start = d.toISOString();
     }
     // Preserve original duration unless an explicit end was spoken.
     const end = parsed.when.end
@@ -200,14 +205,6 @@ async function buildCommand(provider, transcript, { referenceDate = new Date(), 
   }
 
   return { type: 'unknown', transcript };
-}
-
-/** Local timezone offset suffix (e.g. "-05:00") for a Date, for ISO building. */
-function offsetSuffix(d) {
-  const off = -d.getTimezoneOffset();
-  const sign = off >= 0 ? '+' : '-';
-  const abs = Math.abs(off);
-  return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
 }
 
 module.exports = { parseCommand, buildCommand, findByTitle };

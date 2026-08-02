@@ -53,6 +53,11 @@ test('move with a full date sets dateSpecified=true', () => {
   assert.equal(r.when.dateSpecified, true);
 });
 
+test('"change" and "update" are treated as move', () => {
+  assert.equal(parseCommand('change my standup to 4pm', REF).type, 'move');
+  assert.equal(parseCommand('update design review to 3pm', REF).type, 'move');
+});
+
 test('unrecognized input is unknown', () => {
   assert.equal(parseCommand('what is the weather', REF).type, 'unknown');
 });
