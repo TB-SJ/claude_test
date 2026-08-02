@@ -5,8 +5,39 @@ const { localParts, fromLocal, earliestSlot } = require('./scheduleOptimizer');
 
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 
-/** Orders tasks: highest priority first, then soonest deadline, then longest. */
-function taskOrder(a, b) {
+/** Whole days from `todayKey` (YYYY-MM-DD) until a deadline (negative = past). */
+function daysUntil(deadline, todayKey) {
+  if (!deadline) return Infinity;
+  return Math.round((Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86400000);
+}
+
+/** Classifies how pressing a task's deadline is, relative to today. */
+function taskUrgency(task, todayKey) {
+  const d = daysUntil(task.deadline, todayKey);
+  return {
+    daysLeft: d,
+    overdue: d < 0,
+    dueToday: d === 0,
+    dueTomorrow: d === 1,
+    dueSoon: d <= 2, // today, tomorrow, or overdue
+  };
+}
+
+/**
+ * Orders tasks so imminent deadlines are never buried behind priority. Tasks due
+ * within 2 days (or overdue) come first — soonest deadline wins; then by priority
+ * for everything else; then soonest deadline; then longest.
+ */
+function taskOrder(a, b, todayKey) {
+  // Deadline-urgent tasks jump the queue, ordered by how soon they're due.
+  const ua = todayKey ? taskUrgency(a, todayKey).dueSoon : false;
+  const ub = todayKey ? taskUrgency(b, todayKey).dueSoon : false;
+  if (ua !== ub) return ua ? -1 : 1;
+  if (ua && ub) {
+    const da = daysUntil(a.deadline, todayKey);
+    const db = daysUntil(b.deadline, todayKey);
+    if (da !== db) return da - db;
+  }
   const pr = (PRIORITY_RANK[a.priority] ?? 1) - (PRIORITY_RANK[b.priority] ?? 1);
   if (pr !== 0) return pr;
   const ad = a.deadline || '9999-12-31';
@@ -44,7 +75,7 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     busy.push([Math.max(s.minute, 0), e.dayKey === dayKey ? e.minute : workEnd]);
   }
 
-  const pending = tasks.filter((t) => !t.done).slice().sort(taskOrder);
+  const pending = tasks.filter((t) => !t.done).slice().sort((a, b) => taskOrder(a, b, dayKey));
   const slots = [];
   const unscheduled = [];
   const placed = busy.slice();
@@ -53,7 +84,9 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     const dur = t.estimatedMinutes || 30;
     const slot = earliestSlot(workStart, dur, placed, workEnd, rules.bufferMinutes);
     if (slot == null) {
-      unscheduled.push(t);
+      // Couldn't fit today — flag it as at-risk if its deadline is pressing.
+      const urg = taskUrgency(t, dayKey);
+      unscheduled.push({ ...t, atRisk: urg.dueSoon });
       continue;
     }
     slots.push({
@@ -69,4 +102,4 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
   return { dayKey, slots, unscheduled, events };
 }
 
-module.exports = { scheduleTasks, taskOrder };
+module.exports = { scheduleTasks, taskOrder, taskUrgency };

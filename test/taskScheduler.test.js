@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { scheduleTasks } = require('../src/services/taskScheduler');
+const { scheduleTasks, taskOrder, taskUrgency } = require('../src/services/taskScheduler');
 const { parseCommand } = require('../src/services/voiceCommand');
 
 const ev = (id, t, s, e) => ({ id, provider: 'google', title: t, start: `2026-08-03T${s}:00Z`, end: `2026-08-03T${e}:00Z`, status: 'confirmed' });
@@ -51,4 +51,27 @@ test('voice: add-task phrasings', () => {
 test('voice: plan-tasks phrasings', () => {
   assert.equal(parseCommand('plan my day', REF).type, 'plan_tasks');
   assert.equal(parseCommand('schedule my tasks', REF).type, 'plan_tasks');
+});
+
+test('voice: brief phrasings', () => {
+  assert.equal(parseCommand("how's my day", REF).type, 'brief');
+  assert.equal(parseCommand('brief me', REF).type, 'brief');
+  assert.equal(parseCommand('what does my day look like', REF).type, 'brief');
+});
+
+test('deadline-aware order: an imminent deadline beats higher priority', () => {
+  const today = '2026-08-03';
+  const dueToday = { id: 'a', title: 'Low but due today', priority: 'low', deadline: '2026-08-03', estimatedMinutes: 30 };
+  const highNoDeadline = { id: 'b', title: 'High no deadline', priority: 'high', deadline: null, estimatedMinutes: 30 };
+  assert.ok(taskOrder(dueToday, highNoDeadline, today) < 0, 'due-today task sorts first');
+  // Without a reference day, it falls back to priority-first (high wins).
+  assert.ok(taskOrder(dueToday, highNoDeadline) > 0);
+});
+
+test('taskUrgency classifies overdue / today / tomorrow', () => {
+  const today = '2026-08-03';
+  assert.equal(taskUrgency({ deadline: '2026-08-01' }, today).overdue, true);
+  assert.equal(taskUrgency({ deadline: '2026-08-03' }, today).dueToday, true);
+  assert.equal(taskUrgency({ deadline: '2026-08-04' }, today).dueTomorrow, true);
+  assert.equal(taskUrgency({ deadline: null }, today).dueSoon, false);
 });

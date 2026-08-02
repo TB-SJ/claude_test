@@ -7,6 +7,7 @@ const claudeIntent = require('./claudeIntent');
 const logger = require('../logger');
 const { optimize } = require('./scheduleOptimizer');
 const { scheduleTasks } = require('./taskScheduler');
+const { composeBrief } = require('./brief');
 const { freeForDays, coveringWindow, weekdayKeys } = require('./freeTime');
 const { addMinutes, diffMinutes } = require('./calendarUtils');
 
@@ -171,6 +172,14 @@ function parseCommand(transcript, referenceDate = new Date()) {
   let md;
   if ((md = /\bmark\s+(.+?)\s+(?:as\s+)?(?:done|complete|completed|finished)\b/i.exec(text))) {
     return { type: 'edit_task', title: cleanPhrase(md[1]), done: true, transcript: text };
+  }
+
+  // Daily brief: "how's my day", "brief me", "what does my day look like".
+  if (/\bbrief\b/i.test(text)
+      || /\bhow'?s?\s+(?:is\s+)?my\s+day\b/i.test(text)
+      || /\bmy\s+day\s+(?:look|going)/i.test(text)
+      || /\bsum(?:mari[sz]e|mary\s+of)\s+my\s+day\b/i.test(text)) {
+    return { type: 'brief', transcript: text };
   }
 
   // Read-only queries. Free-time first (more specific than "show").
@@ -426,6 +435,12 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     if (parsed.done != null) patch.done = parsed.done;
     if (Object.keys(patch).length === 0) return { type: 'edit_task', error: 'need_change', title: parsed.title, transcript };
     return { type: 'edit_task', transcript, task, patch };
+  }
+
+  if (parsed.type === 'brief') {
+    const events = await calendar.getEvents(provider, { range: 'day' });
+    const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
+    return { type: 'brief', transcript, brief };
   }
 
   if (parsed.type === 'show_schedule' || parsed.type === 'show_free') {

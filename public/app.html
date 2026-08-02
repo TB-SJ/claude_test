@@ -24,6 +24,17 @@
       <div id="connectButtons"></div>
     </section>
 
+    <!-- Daily brief (how's my day) -->
+    <section class="card hidden" id="briefCard">
+      <div class="row">
+        <button class="collapse-btn" id="briefCollapse" aria-label="Collapse brief">▾</button>
+        <h2 style="margin:0" id="briefTitle">🌅 Today</h2>
+        <span class="spacer"></span>
+        <button class="ghost" id="briefRefresh" title="Refresh">↻</button>
+      </div>
+      <div class="card-body" id="briefBody"></div>
+    </section>
+
     <!-- Connected: today -->
     <section class="card hidden" id="todayCard">
       <div class="row">
@@ -98,6 +109,7 @@
       </div>
       <p class="muted" style="margin:6px 0">Tasks (📋) fit around today's events — a suggestion, not saved to your calendar.</p>
       <div id="planBody" style="margin-top:6px"></div>
+      <button class="primary full hidden" id="commitPlanBtn" style="margin-top:12px">＋ Add these blocks to my calendar</button>
     </section>
 
     <!-- Read-only query result (show schedule / show free time) -->

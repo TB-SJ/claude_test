@@ -56,4 +56,42 @@ router.post('/plan/:provider', async (req, res) => {
   }
 });
 
+/**
+ * POST /tasks/commit/:provider  { slots: [{ title, start, end, taskId? }] }
+ * Time-blocking: writes accepted task slots onto the calendar as events (titled
+ * with a 📋 prefix so they're distinct). Explicit, opt-in — tasks otherwise stay
+ * app-only. Committed tasks are marked done so they don't get re-planned.
+ */
+router.post('/commit/:provider', async (req, res) => {
+  try {
+    calendar.assertProvider(req.params.provider);
+    const { slots } = req.body || {};
+    if (!Array.isArray(slots) || slots.length === 0) {
+      throw validationError('`slots` must be a non-empty array of { title, start, end }.');
+    }
+    const results = [];
+    for (const s of slots) {
+      if (!s || !s.title || !s.start || !s.end) {
+        throw validationError('Each slot needs `title`, `start`, and `end`.');
+      }
+      try {
+        const event = await calendar.createEvent(req.params.provider, {
+          title: `📋 ${s.title}`,
+          start: s.start,
+          end: s.end,
+          description: 'Time block for a task (created by Calendar Optimizer).',
+        });
+        if (s.taskId) taskStore.update(s.taskId, { done: true });
+        results.push({ taskId: s.taskId || null, ok: true, event });
+      } catch (err) {
+        results.push({ taskId: s.taskId || null, ok: false, error: err.message, code: err.code });
+      }
+    }
+    const created = results.filter((r) => r.ok).length;
+    res.json({ created, failed: results.length - created, results });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 module.exports = router;

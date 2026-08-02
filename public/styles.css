@@ -121,9 +121,13 @@ button.full { width: 100%; }
 .pill.ok { color: var(--green); border-color: var(--green); }
 
 .reason { color: var(--muted); font-size: 0.82rem; margin: 2px 0 0 108px; }
+.reason.warn { color: var(--amber); }
 
 .ai-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); margin-right: 10px; cursor: pointer; user-select: none; }
 .ai-toggle input { width: 16px; height: 16px; }
+
+.brief-stat { padding: 5px 0; font-size: 0.95rem; }
+.brief-stat.warn { color: var(--amber); }
 
 .collapse-btn {
   background: none; border: none; color: var(--muted);

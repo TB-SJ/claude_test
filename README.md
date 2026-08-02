@@ -402,6 +402,7 @@ command and it's parsed server-side (`src/services/voiceCommand.js`, using
 - **"Mark budget review as done"** / **"change budget to high priority"** → edits a task.
 - **"Show me my schedule for Friday"** / **"what do I have this week"** → read-only agenda view.
 - **"When am I free tomorrow"** / **"show my free time this week"** → free-time view (gaps within work hours).
+- **"How's my day"** / **"brief me"** → the daily brief (see below).
 
 Every write (add/remove/move/edit) shows a **confirmation card** first; the two
 **"show …"** queries are read-only and just display a result card. The endpoint is
@@ -412,6 +413,24 @@ writes — the client confirms, then calls the normal calendar/task routes.
 opens the same inline form prefilled, so you can edit by typing too — events save
 via `PATCH /calendar/:provider/events/:id` (title, time, duration, notes), tasks
 via `PATCH /tasks/:id`.
+
+### Daily brief
+
+A **🌅 Today** card at the top summarizes your day at a glance: meeting count and
+booked time, free/focus time remaining, whether the deep-work block is protected,
+your next event, your top task, and any **at-risk deadlines** (overdue / due today
+/ due tomorrow, shown in amber). It loads automatically and you can ask for it by
+voice ("how's my day"). Endpoint: `GET /brief/:provider?tzOffsetMinutes=&date=` —
+read-only. Tasks are ordered **deadline-aware**: anything due within two days (or
+overdue) jumps ahead of priority, so pressing deadlines never get buried.
+
+### Time-blocking (opt-in)
+
+**"Plan my day"** suggests when to do your flexible tasks around real events. If
+the plan looks good, tap **"＋ Add these blocks to my calendar"** to commit those
+task slots as real events (titled with a 📋 prefix). Committed tasks are marked
+done so they aren't re-planned. This is the only path that writes tasks to the
+calendar — otherwise tasks stay app-only. Endpoint: `POST /tasks/commit/:provider`.
 
 #### Smarter understanding with Claude (optional)
 

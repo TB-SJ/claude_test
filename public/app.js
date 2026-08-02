@@ -138,11 +138,14 @@ async function refreshConnection() {
       show($('todayCard'));
       show($('tasksCard'));
       show($('micBtn')); // voice control available once connected
+      show($('briefCard'));
       await loadEvents();
       await loadTasks();
+      await loadBrief();
     } else {
       hide($('micBtn'));
       hide($('tasksCard'));
+      hide($('briefCard'));
       // Offer a connect button for each configured-but-unconnected provider.
       const configured = PROVIDER_ORDER.filter((p) => provs[p] && provs[p].reason !== 'not_configured');
       const list = configured.length ? configured : PROVIDER_ORDER;
@@ -482,6 +485,14 @@ function dispatchVoice(result, transcript) {
     renderTaskPlan(result.plan);
     return;
   }
+  if (result.type === 'brief') {
+    renderBrief(result.brief);
+    const card = $('briefCard');
+    card.classList.remove('collapsed'); // make sure it's visible
+    show(card);
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   if (result.type === 'show_schedule') {
     renderQuerySchedule(result, transcript);
     return;
@@ -583,6 +594,42 @@ async function confirmVoice() {
   } finally {
     setLoading(false);
   }
+}
+
+// --- Daily brief -----------------------------------------------------------
+async function loadBrief() {
+  try {
+    const now = new Date();
+    const anchor = `${dateInputValue(now)}T12:00:00Z`;
+    const brief = await api(`/brief/${activeProvider}?tzOffsetMinutes=${TZ_OFFSET}&date=${encodeURIComponent(anchor)}`);
+    renderBrief(brief);
+  } catch (_) {
+    $('briefBody').innerHTML = '<p class="muted">Couldn\'t load your brief.</p>';
+  }
+}
+
+function renderBrief(b) {
+  $('briefTitle').textContent = `🌅 Today · ${dayLabelFromKey(b.dayKey)}`;
+  const rows = [];
+  rows.push(
+    b.meetingCount
+      ? `🗓 ${b.meetingCount} meeting${b.meetingCount === 1 ? '' : 's'} · ${fmtDur(b.meetingMinutes)} booked`
+      : '🗓 No meetings today'
+  );
+  const dw = b.deepWorkClear === true ? ' · deep-work protected ✓'
+    : b.deepWorkClear === false ? ' · deep-work has a meeting ⚠️' : '';
+  rows.push(`🎯 ${fmtDur(b.freeMinutes)} free${dw}`);
+  if (b.nextEvent) rows.push(`⏭ Next: ${escapeHtml(b.nextEvent.title)} at ${fmtTime(b.nextEvent.start)}`);
+  if (b.topTask) {
+    rows.push(`✅ Top task: ${escapeHtml(b.topTask.title)} (${fmtDur(b.topTask.estimatedMinutes || 30)}${b.topTask.priority === 'high' ? ', High' : ''})`);
+  } else if (b.pendingTaskCount === 0) {
+    rows.push('✅ No open tasks');
+  }
+  let html = rows.map((r) => `<div class="brief-stat">${r}</div>`).join('');
+  for (const r of b.atRisk || []) {
+    html += `<div class="brief-stat warn">⚠️ ${escapeHtml(r.title)} — ${escapeHtml(r.when)}</div>`;
+  }
+  $('briefBody').innerHTML = html;
 }
 
 // --- Tasks -----------------------------------------------------------------
@@ -702,8 +749,11 @@ async function planTasks() {
   }
 }
 
+let lastPlanSlots = []; // task slots from the most recent plan, for time-blocking
+
 // Merged timeline of today's events + suggested task slots (tasks marked 📋).
 function renderTaskPlan(plan) {
+  lastPlanSlots = (plan.slots || []).map((s) => ({ taskId: s.taskId, title: s.title, start: s.start, end: s.end }));
   const items = [];
   for (const e of plan.events || []) if (e.start.includes('T')) items.push({ kind: 'event', title: e.title, start: e.start, end: e.end });
   for (const s of plan.slots || []) items.push({ kind: 'task', title: s.title, start: s.start, end: s.end });
@@ -720,14 +770,34 @@ function renderTaskPlan(plan) {
   if (plan.unscheduled && plan.unscheduled.length) {
     html += '<h3 class="muted" style="margin:12px 0 4px">Couldn’t fit today</h3>';
     html += plan.unscheduled
-      .map((t) => `<div class="reason" style="margin-left:0">• ${escapeHtml(t.title)} (${t.estimatedMinutes} min)</div>`)
+      .map((t) => `<div class="reason ${t.atRisk ? 'warn' : ''}" style="margin-left:0">• ${t.atRisk ? '⚠️ ' : ''}${escapeHtml(t.title)} (${t.estimatedMinutes} min${t.deadline ? `, due ${t.deadline}` : ''})</div>`)
       .join('');
   }
   $('planBody').innerHTML = html;
+  $('commitPlanBtn').classList.toggle('hidden', lastPlanSlots.length === 0);
   hide($('voiceCard'));
   hide($('proposalCard'));
   show($('taskPlanCard'));
   $('taskPlanCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Time-blocking: write the suggested task slots onto the calendar (opt-in).
+async function commitPlan() {
+  if (!lastPlanSlots.length) return;
+  setLoading(true);
+  try {
+    const res = await api(`/tasks/commit/${activeProvider}`, { method: 'POST', body: { slots: lastPlanSlots } });
+    toast(`Added ${res.created} block${res.created === 1 ? '' : 's'} to your calendar ✓`, res.failed ? 'err' : 'ok');
+    hide($('taskPlanCard'));
+    lastPlanSlots = [];
+    await loadEvents();
+    await loadTasks();
+    await loadBrief();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
 }
 
 // --- Wire up ---------------------------------------------------------------
@@ -775,7 +845,10 @@ function init() {
   $('taskAddBtn').addEventListener('click', addTaskFromForm);
   $('planBtn').addEventListener('click', planTasks);
   $('planCloseBtn').addEventListener('click', () => hide($('taskPlanCard')));
+  $('commitPlanBtn').addEventListener('click', commitPlan);
   $('queryCloseBtn').addEventListener('click', () => hide($('queryCard')));
+  $('briefRefresh').addEventListener('click', loadBrief);
+  setupCollapse('briefCard', 'briefCollapse', 'collapse.brief');
   setupCollapse('todayCard', 'todayCollapse', 'collapse.schedule');
   setupCollapse('tasksCard', 'tasksCollapse', 'collapse.tasks');
   $('micBtn').addEventListener('click', startVoice);
