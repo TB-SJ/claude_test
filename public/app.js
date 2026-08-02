@@ -31,13 +31,45 @@ function setLoading(on) {
   else hide($('loading'));
 }
 
-// --- Theme (default / One Piece pirate) ------------------------------------
-function applyTheme(themed) {
-  document.body.classList.toggle('theme-onepiece', themed);
-  $('brandIcon').textContent = themed ? '👒' : '🗓';
-  $('brandName').textContent = themed ? 'Grand Line Planner' : 'Calendar Optimizer';
-  $('themeBtn').textContent = themed ? '🗓' : '👒';
-  $('themeBtn').title = themed ? 'Switch to the default theme' : 'Switch to the pirate theme';
+// --- Themes (default / One Piece / Akatsuki) -------------------------------
+// Each theme can use your own art: drop public/theme/<id>/bg.jpg (background)
+// and/or public/theme/<id>/logo.png (header logo). Missing files fall back to
+// the built-in CSS look and the emoji icon.
+const THEME_ORDER = ['default', 'onepiece', 'akatsuki'];
+const THEMES = {
+  default: { cls: null, icon: '🗓', name: 'Calendar Optimizer', label: 'Default' },
+  onepiece: { cls: 'theme-onepiece', icon: '👒', name: 'Grand Line Planner', label: 'Grand Line' },
+  akatsuki: { cls: 'theme-akatsuki', icon: '☁️', name: 'Akatsuki Planner', label: 'Akatsuki' },
+};
+
+function applyTheme(id) {
+  const meta = THEMES[id] || THEMES.default;
+  document.body.classList.remove('theme-onepiece', 'theme-akatsuki');
+  if (meta.cls) document.body.classList.add(meta.cls);
+  $('brandName').textContent = meta.name;
+  $('brandIcon').textContent = meta.icon;
+  $('themeBtn').textContent = meta.icon;
+  $('themeBtn').title = `Theme: ${meta.label} — tap to change`;
+
+  // Try a custom logo; show it only if it actually loads, else keep the emoji.
+  const logo = $('brandLogo');
+  if (meta.cls) {
+    logo.onload = () => { show(logo); hide($('brandIcon')); };
+    logo.onerror = () => { hide(logo); show($('brandIcon')); };
+    logo.src = `/theme/${id}/logo.png`;
+  } else {
+    hide(logo);
+    logo.removeAttribute('src');
+    show($('brandIcon'));
+  }
+}
+
+function cycleTheme() {
+  const current = localStorage.getItem('appTheme') || 'default';
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
+  applyTheme(next);
+  localStorage.setItem('appTheme', next);
+  toast(`Theme: ${THEMES[next].label}`, '');
 }
 
 // --- Time formatting (browser is already in the user's timezone) -----------
@@ -947,12 +979,8 @@ function init() {
     pendingVoice = null;
     hide($('voiceCard'));
   });
-  applyTheme(localStorage.getItem('appTheme') === 'onepiece');
-  $('themeBtn').addEventListener('click', () => {
-    const themed = !document.body.classList.contains('theme-onepiece');
-    applyTheme(themed);
-    localStorage.setItem('appTheme', themed ? 'onepiece' : 'default');
-  });
+  applyTheme(localStorage.getItem('appTheme') || 'default');
+  $('themeBtn').addEventListener('click', cycleTheme);
   $('logoutBtn').addEventListener('click', async () => {
     await api('/logout', { method: 'POST' }).catch(() => {});
     window.location.href = '/login';

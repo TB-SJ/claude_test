@@ -18,3 +18,9 @@ npm-debug.log*
 
 # Local app data (tasks, tokens)
 /data/
+
+# Custom theme art (user-supplied; may be copyrighted) — not committed
+public/theme/**/*.jpg
+public/theme/**/*.jpeg
+public/theme/**/*.png
+public/theme/**/*.webp

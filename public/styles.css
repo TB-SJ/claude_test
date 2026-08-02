@@ -262,11 +262,19 @@ body.theme-onepiece {
   --danger: #a83232;
   --border: #c8a86a;      /* aged gold */
   --radius: 12px;
+  /* Optional custom art: drop a file at public/theme/onepiece/bg.jpg and it
+     shows here; if absent, the URL layer is empty and the gradients show. The
+     first layer dims the image so header text stays readable. */
   background:
+    linear-gradient(rgba(8,30,44,0.45), rgba(8,30,44,0.55)),
+    url('/theme/onepiece/bg.jpg') center/cover no-repeat,
     radial-gradient(1200px 500px at 50% -120px, #1d5b7a 0%, rgba(29,91,122,0) 60%),
     linear-gradient(180deg, #0f3348 0%, #123a52 40%, #0c2b3d 100%);
   background-attachment: fixed;
 }
+
+/* User-supplied header logo (shown in place of the emoji icon when it loads). */
+.brand-logo { height: 26px; width: auto; max-width: 160px; vertical-align: middle; margin-right: 8px; border-radius: 4px; }
 
 /* Header reads on the dark ocean, not on parchment. */
 body.theme-onepiece header h1 {
@@ -328,3 +336,73 @@ body.theme-onepiece .mic-status {
 
 /* Toasts as little log entries. */
 body.theme-onepiece .toast { background: var(--card); color: var(--text); border: 1.5px solid var(--border); }
+
+/* ==========================================================================
+   Akatsuki-inspired theme (toggle via body.theme-akatsuki). Original styling —
+   near-black with crimson "red cloud" glow and crimson accents. No copyrighted
+   emblem/art; drop your own at public/theme/akatsuki/bg.jpg + logo.png.
+   ========================================================================== */
+body.theme-akatsuki {
+  --bg: #0b0b0d;
+  --card: #17151a;
+  --card-2: #201c22;
+  --text: #ece7e2;
+  --muted: #9a8f8f;
+  --accent: #b3121f;       /* Akatsuki crimson */
+  --accent-press: #870d17;
+  --green: #4caf7d;
+  --amber: #d9a441;
+  --danger: #e5484d;
+  --border: #3a2a2e;
+  --radius: 12px;
+  background:
+    linear-gradient(rgba(6,6,8,0.35), rgba(6,6,8,0.55)),
+    url('/theme/akatsuki/bg.jpg') center/cover no-repeat,
+    radial-gradient(240px 130px at 18% 22%, rgba(179,18,31,0.20), rgba(179,18,31,0) 70%),
+    radial-gradient(280px 150px at 82% 68%, rgba(179,18,31,0.16), rgba(179,18,31,0) 70%),
+    radial-gradient(190px 110px at 62% 12%, rgba(179,18,31,0.13), rgba(179,18,31,0) 70%),
+    linear-gradient(180deg, #0b0b0d 0%, #0f0d10 55%, #08080a 100%);
+  background-attachment: fixed;
+}
+
+body.theme-akatsuki header h1 {
+  color: #f2ece6;
+  letter-spacing: 0.03em;
+  text-shadow: 0 0 14px rgba(179, 18, 31, 0.55);
+}
+body.theme-akatsuki header .sub { color: #b79b9b; }
+
+body.theme-akatsuki .card {
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(179, 18, 31, 0.10);
+}
+body.theme-akatsuki .card h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #e7d9d9;
+}
+
+body.theme-akatsuki button.primary,
+body.theme-akatsuki .btn.primary {
+  background: linear-gradient(180deg, #cf1b28 0%, var(--accent) 100%);
+  border: 1px solid #6e0b13;
+  color: #fdecec;
+  box-shadow: 0 0 14px rgba(179, 18, 31, 0.45);
+  font-weight: 700;
+}
+body.theme-akatsuki button.ghost {
+  border: 1px solid var(--border);
+  color: #d8cccc;
+  background: rgba(255, 255, 255, 0.03);
+}
+body.theme-akatsuki .toggle button.active { background: var(--accent); color: #fdecec; }
+body.theme-akatsuki .pill { border-color: var(--border); color: #c9b3b3; }
+body.theme-akatsuki .fab {
+  background: radial-gradient(circle at 35% 30%, #e0313c 0%, #b3121f 55%, #7c0c15 100%);
+  border: 2px solid #4a0910;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(179, 18, 31, 0.5);
+}
+body.theme-akatsuki .mic-status,
+body.theme-akatsuki .toast { background: var(--card); color: var(--text); border: 1px solid var(--border); }
