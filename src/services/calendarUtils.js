@@ -31,12 +31,16 @@ function dayRange(dateInput) {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-/** Monday 00:00 through the following Monday 00:00 (UTC) containing the date. */
+/**
+ * A rolling 7-day window: the anchor day 00:00 through +7 days (UTC). Anchoring
+ * on "today" (rather than the calendar Monday) means "week" always shows the
+ * week ahead — otherwise, late in a Mon–Sun week (e.g. on a Sunday) almost the
+ * whole window is in the past and only today's events show.
+ */
 function weekRange(dateInput) {
   const d = dateInput ? new Date(dateInput) : new Date();
   if (Number.isNaN(d.getTime())) throw validationError(`Invalid date: ${JSON.stringify(dateInput)}`);
-  const daysSinceMonday = (d.getUTCDay() + 6) % 7; // Sun=0 -> 6, Mon=1 -> 0
-  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - daysSinceMonday));
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 7);
   return { start: start.toISOString(), end: end.toISOString() };

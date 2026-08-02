@@ -13,16 +13,15 @@ function localDayKey(instant, offsetMin) {
   return new Date(new Date(instant).getTime() + offsetMin * 60000).toISOString().slice(0, 10);
 }
 
-/** Monday-based list of the 5 weekday keys in the week containing `dayKey`. */
+/** Weekday (Mon–Fri) keys within the rolling 7-day window starting at `dayKey`. */
 function weekdayKeys(dayKey) {
   const base = new Date(`${dayKey}T00:00:00Z`);
-  const monday = new Date(base);
-  monday.setUTCDate(base.getUTCDate() - ((base.getUTCDay() + 6) % 7));
   const keys = [];
-  for (let i = 0; i < 5; i += 1) {
-    const d = new Date(monday);
-    d.setUTCDate(monday.getUTCDate() + i);
-    keys.push(d.toISOString().slice(0, 10));
+  for (let i = 0; i < 7; i += 1) {
+    const d = new Date(base);
+    d.setUTCDate(base.getUTCDate() + i);
+    const dow = d.getUTCDay();
+    if (dow >= 1 && dow <= 5) keys.push(d.toISOString().slice(0, 10)); // skip Sat/Sun
   }
   return keys;
 }

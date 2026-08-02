@@ -37,8 +37,13 @@ test('a fully open day is one 8-hour slot; overlapping events merge', () => {
   assert.deepEqual(day.slots.map((s) => s.minutes), [60, 240]);
 });
 
-test('weekdayKeys returns Mon–Fri of the containing week', () => {
+test('weekdayKeys returns the upcoming weekdays in the rolling 7-day window', () => {
+  // From Wed Aug 5: Wed–Fri this week, then Mon–Tue next (Sat/Sun skipped).
   assert.deepEqual(weekdayKeys('2026-08-05'), [
+    '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-10', '2026-08-11',
+  ]);
+  // From Sun Aug 2 (the reported case): the next working week, not the past one.
+  assert.deepEqual(weekdayKeys('2026-08-02'), [
     '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07',
   ]);
 });

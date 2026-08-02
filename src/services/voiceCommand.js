@@ -261,13 +261,14 @@ function localTodayKey(referenceDate, offsetMin) {
   return new Date(referenceDate.getTime() + offsetMin * 60000).toISOString().slice(0, 10);
 }
 
-/** Friendly label for a queried day/week. */
+/** Friendly label for a queried day/week (week = rolling 7-day span). */
 function rangeLabel(scope, dateKey, todayKey) {
   const d = new Date(`${dateKey}T12:00:00Z`);
+  const fmt = (x) => x.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   if (scope === 'week') {
-    const monday = new Date(d);
-    monday.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-    return `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`;
+    const end = new Date(d);
+    end.setUTCDate(d.getUTCDate() + 6);
+    return `${fmt(d)} – ${fmt(end)}`;
   }
   if (dateKey === todayKey) return 'Today';
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });

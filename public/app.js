@@ -163,7 +163,11 @@ let currentEvents = []; // last-loaded events, for the inline edit form
 async function loadEvents() {
   setLoading(true);
   try {
-    const data = await api(`/calendar/${activeProvider}/events?range=${scope}`);
+    // Anchor the range on the browser's LOCAL date (noon UTC of it), so "day"
+    // and the rolling "week" match the user's calendar day regardless of tz.
+    const now = new Date();
+    const localAnchor = `${dateInputValue(now)}T12:00:00Z`;
+    const data = await api(`/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}`);
     currentEvents = data.events || [];
     renderSchedule($('eventList'), currentEvents, null, { editable: true });
   } catch (err) {
