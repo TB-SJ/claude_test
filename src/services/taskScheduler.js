@@ -61,9 +61,15 @@ function isTimed(ev) {
 function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date } = {}) {
   const rules = resolveRules(ruleOverrides);
   const off = rules.tzOffsetMinutes;
-  const dayKey = date || localParts(referenceDate.toISOString(), off).dayKey;
+  const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
+  const dayKey = date || todayKey;
   const workStart = parseHM(rules.workday.start);
   const workEnd = parseHM(rules.workday.end);
+
+  // Current-time awareness: when planning today, don't suggest slots in the past.
+  // Round "now" up to the next 5 minutes for tidy start times.
+  const nowMin = Math.ceil(localParts(referenceDate.toISOString(), off).minute / 5) * 5;
+  const earliest = dayKey === todayKey ? Math.max(workStart, nowMin) : workStart;
 
   // Busy = real events on that local day (clamped to the work window).
   const busy = [];
@@ -82,7 +88,7 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
 
   for (const t of pending) {
     const dur = t.estimatedMinutes || 30;
-    const slot = earliestSlot(workStart, dur, placed, workEnd, rules.bufferMinutes);
+    const slot = earliestSlot(earliest, dur, placed, workEnd, rules.bufferMinutes);
     if (slot == null) {
       // Couldn't fit today — flag it as at-risk if its deadline is pressing.
       const urg = taskUrgency(t, dayKey);

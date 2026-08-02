@@ -53,6 +53,20 @@ test('voice: plan-tasks phrasings', () => {
   assert.equal(parseCommand('schedule my tasks', REF).type, 'plan_tasks');
 });
 
+test('plan skips past time when planning today', () => {
+  const ref = new Date('2026-08-03T13:00:00Z'); // 13:00 local (tz 0)
+  const tasks = [{ id: 't1', title: 'A', estimatedMinutes: 60, priority: 'high', deadline: null, done: false }];
+  const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03', referenceDate: ref });
+  assert.equal(plan.slots[0].start, '2026-08-03T13:00:00.000Z'); // not 09:00
+});
+
+test('plan for a future day ignores the current time (starts at work open)', () => {
+  const ref = new Date('2026-08-03T13:00:00Z');
+  const tasks = [{ id: 't1', title: 'A', estimatedMinutes: 60, priority: 'high', deadline: null, done: false }];
+  const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-05', referenceDate: ref });
+  assert.equal(plan.slots[0].start, '2026-08-05T09:00:00.000Z');
+});
+
 test('voice: brief phrasings', () => {
   assert.equal(parseCommand("how's my day", REF).type, 'brief');
   assert.equal(parseCommand('brief me', REF).type, 'brief');

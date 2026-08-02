@@ -89,8 +89,11 @@ function buildSystemPrompt(rules) {
 /** Calls Claude for a proposal. Throws on any API/parse error. */
 async function propose(events, rules, { referenceDate = new Date() } = {}) {
   const off = rules.tzOffsetMinutes;
+  const now = referenceDate.getTime();
   const timed = events
-    .filter((e) => isTimed(e) && !isCancelled(e))
+    // Exclude events that have already started — they're immovable, and past
+    // slots shouldn't be offered to Claude as options.
+    .filter((e) => isTimed(e) && !isCancelled(e) && new Date(e.start).getTime() > now)
     .sort((a, b) => new Date(a.start) - new Date(b.start));
   const payload = timed.map((e) => describeEvent(e, off, rules));
 
@@ -123,8 +126,11 @@ function applyMoves(events, moves) {
  * caller can fall back to the rules engine). The LLM never bypasses the rules —
  * it only suggests; this function is the gate.
  */
-function buildValidatedResult(events, proposedMoves, rules) {
+function buildValidatedResult(events, proposedMoves, rules, { referenceDate = new Date() } = {}) {
   const off = rules.tzOffsetMinutes;
+  const now = referenceDate.getTime();
+  const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
+  const nowMin = localParts(referenceDate.toISOString(), off).minute;
   const workStart = parseHM(rules.workday.start);
   const workEnd = parseHM(rules.workday.end);
   const timed = events.filter((e) => isTimed(e) && !isCancelled(e));
@@ -136,6 +142,7 @@ function buildValidatedResult(events, proposedMoves, rules) {
     const ev = byId.get(pm.id);
     if (!ev) return null; // hallucinated id → reject whole proposal
     if (isPinned(ev, rules)) return null; // tried to move a pinned event
+    if (new Date(ev.start).getTime() <= now) return null; // tried to move an already-started event
 
     let startMin;
     try {
@@ -148,6 +155,7 @@ function buildValidatedResult(events, proposedMoves, rules) {
     if (startMin < workStart || endMin > workEnd) return null; // outside work hours
 
     const dayKey = localParts(ev.start, off).dayKey;
+    if (dayKey === todayKey && startMin < nowMin) return null; // placed in the past
     const newStart = fromLocal(dayKey, startMin, off);
     const newEnd = fromLocal(dayKey, endMin, off);
     if (new Date(newStart).getTime() === new Date(ev.start).getTime()) continue; // no-op
@@ -197,7 +205,7 @@ function buildValidatedResult(events, proposedMoves, rules) {
 async function optimizeWithClaude(events, ruleOverrides = {}, opts = {}) {
   const rules = resolveRules(ruleOverrides);
   const proposed = await propose(events, rules, opts);
-  const result = buildValidatedResult(events, proposed, rules);
+  const result = buildValidatedResult(events, proposed, rules, opts);
   if (!result) {
     logger.warn('Claude optimize proposal failed validation; falling back to rules');
     throw new Error('Claude proposal failed validation.');

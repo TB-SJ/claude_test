@@ -341,7 +341,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
 
   if (parsed.type === 'optimize') {
     const events = await calendar.getEvents(provider, { range: parsed.scope });
-    const opt = optimize(events, { tzOffsetMinutes });
+    const opt = optimize(events, { tzOffsetMinutes }, { referenceDate });
     return {
       type: 'optimize',
       scope: parsed.scope,

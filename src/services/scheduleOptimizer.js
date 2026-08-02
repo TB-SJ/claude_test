@@ -177,10 +177,14 @@ function earliestSlot(from, duration, busy, bound, buffer) {
   return c + duration <= bound ? c : null;
 }
 
-/** Places one day's movable events around fixed blocks per the rules. */
-function planDay(dayKey, movable, fixed, rules) {
+/**
+ * Places one day's movable events around fixed blocks per the rules.
+ * `floorMin` is the earliest local minute a movable event may start (used to
+ * keep today's placements at or after the current time); -Infinity = no floor.
+ */
+function planDay(dayKey, movable, fixed, rules, floorMin = -Infinity) {
   const off = rules.tzOffsetMinutes;
-  const workStart = parseHM(rules.workday.start);
+  const workStart = Math.max(parseHM(rules.workday.start), floorMin);
   const workEnd = parseHM(rules.workday.end);
   const weekday = weekdayOf(dayKey);
 
@@ -193,12 +197,15 @@ function planDay(dayKey, movable, fixed, rules) {
     busy.push([localParts(f.start, off).minute, localParts(f.end, off).minute]);
   }
 
-  const windowStart = rules.meetingWindow.enabled ? parseHM(rules.meetingWindow.start) : workStart;
+  const meetingWinStart = rules.meetingWindow.enabled ? parseHM(rules.meetingWindow.start) : parseHM(rules.workday.start);
+  const windowStart = Math.max(meetingWinStart, floorMin);
   // Earliest a movable meeting may start after the morning deep-work block.
-  const afterDeep =
+  const afterDeep = Math.max(
     rules.deepWork.enabled && rules.deepWork.days.includes(weekday)
       ? parseHM(rules.deepWork.end)
-      : workStart;
+      : parseHM(rules.workday.start),
+    floorMin
+  );
 
   const ordered = movable.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
   const placements = new Map();
@@ -247,14 +254,22 @@ function reasonsFor(tags, newStartMin, windowStart, movedEarlierThanWindow) {
  *
  * @returns {object} { rules, moves, unplaceable, unchanged, summary }
  */
-function optimize(events, ruleOverrides = {}) {
+function optimize(events, ruleOverrides = {}, { referenceDate = new Date() } = {}) {
   const rules = resolveRules(ruleOverrides);
   const off = rules.tzOffsetMinutes;
   const analysis = analyze(events, ruleOverrides);
 
+  // Current-time awareness: never reschedule an event that has already started,
+  // and don't place anything earlier than "now" on today's schedule.
+  const now = referenceDate.getTime();
+  const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
+  const nowMin = localParts(referenceDate.toISOString(), off).minute;
+  const hasStarted = (e) => new Date(e.start).getTime() <= now;
+
   const timed = events.filter((e) => isTimed(e) && !isCancelled(e));
-  const movable = timed.filter((e) => !isPinned(e, rules));
-  const fixed = timed.filter((e) => isPinned(e, rules));
+  // Started (or in-progress) events are immovable — treat them like pinned.
+  const movable = timed.filter((e) => !isPinned(e, rules) && !hasStarted(e));
+  const fixed = timed.filter((e) => isPinned(e, rules) || hasStarted(e));
 
   const movableByDay = groupByDay(movable, off);
   const fixedByDay = groupByDay(fixed, off);
@@ -265,11 +280,13 @@ function optimize(events, ruleOverrides = {}) {
 
   for (const [dayKey, dayMovable] of movableByDay) {
     const dayFixed = fixedByDay.get(dayKey) || [];
+    const floorMin = dayKey === todayKey ? nowMin : -Infinity;
     const { placements, unplaceable: dayUnplaceable, windowStart } = planDay(
       dayKey,
       dayMovable,
       dayFixed,
-      rules
+      rules,
+      floorMin
     );
     unplaceable.push(...dayUnplaceable);
 
