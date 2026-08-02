@@ -245,6 +245,27 @@ Movable events are re-placed **within their original day**, around fixed blocks
 and the deep-work window, packed into the meeting window with buffers —
 **durations are always preserved**.
 
+### Smarter rearrangement with Claude (optional)
+
+If `ANTHROPIC_API_KEY` is set, the dashboard shows a **🧠 Claude** toggle next to
+the Optimize button. When on, the week is sent to **Claude Sonnet 5**
+(`src/services/claudeOptimizer.js`), which proposes a rearrangement that can be
+more context-aware than the greedy rules engine (keeping lunch near midday,
+clustering related meetings, leaving larger free blocks).
+
+Crucially, **Claude only suggests — it never bypasses the rules.** Every proposal
+is fed back through the deterministic `analyze()` gate and is **discarded unless
+it has zero conflicts, zero buffer violations, and zero deep-work intrusions**,
+stays within work hours, keeps each event on its day, and preserves durations. If
+the proposal fails validation, the API errors, or no key is set, it **falls back
+to the free rules optimizer** automatically. Nothing is ever written to your
+calendar without the same Before/After confirmation.
+
+- **Cost:** one bounded API call per Optimize tap (~$0.02), only when the toggle
+  is on — draws from the same `ANTHROPIC_API_KEY` as the voice layer. Toggle off
+  for the free rules engine. Response reports which engine ran (`claude`,
+  `rules`, or `rules-fallback`).
+
 > **Timezone:** rule times are local wall-clock. Since events are stored in UTC,
 > pass `--tz-offset` (minutes; local = UTC + offset, e.g. `-420` for US Pacific
 > DST). Default `0` treats UTC as local.
@@ -304,6 +325,11 @@ npm start                      # open http://localhost:3000
 APP_PASSWORD='choose-one' npm start
 ```
 
+- **Quick-add (typed, free).** Both the schedule and Tasks cards have a **＋ Add**
+  button that opens structured fields — event: title, date, start time, duration;
+  task: title, minutes, priority, deadline. These POST **straight to the calendar
+  and task routes with no parsing**, so they cost **zero** API credits (no Claude,
+  no rules parser). Use them instead of voice when you want to save on cost.
 - **Single-user login gate.** If `APP_PASSWORD` is set, the app requires it and
   keeps a signed session cookie; if unset, the gate is disabled (fine for
   localhost, and the server warns you at startup). **Always set it before hosting.**

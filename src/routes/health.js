@@ -33,6 +33,8 @@ router.get('/', async (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     providers,
+    // Optional AI features the client can surface (e.g. the Claude optimizer toggle).
+    ai: { claude: providerConfigured.anthropic() },
   });
 });
 

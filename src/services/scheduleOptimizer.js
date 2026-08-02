@@ -340,7 +340,10 @@ function groupByDay(events, offsetMin) {
 module.exports = {
   analyze,
   optimize,
-  // exported for tests:
+  // classification + local-time helpers (also used by the Claude optimizer):
+  isTimed,
+  isCancelled,
+  isPinned,
   localParts,
   fromLocal,
   earliestSlot,

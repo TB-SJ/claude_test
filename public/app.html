@@ -29,15 +29,32 @@
       <div class="row">
         <h2 style="margin:0">Your schedule</h2>
         <span class="spacer"></span>
+        <button class="ghost" id="addEventToggle">＋ Add</button>
         <div class="toggle" id="scopeToggle">
           <button data-scope="day" class="active">Day</button>
           <button data-scope="week">Week</button>
         </div>
       </div>
+
+      <!-- Quick-add event: typed fields → saved directly (no AI, no cost) -->
+      <div id="eventForm" class="hidden" style="margin-top:10px">
+        <input id="evTitle" placeholder="Event title" style="width:100%" />
+        <div class="row" style="margin-top:8px">
+          <input id="evDate" type="date" style="flex:1" title="date" />
+          <input id="evTime" type="time" style="flex:1" title="start time" />
+          <input id="evMins" type="number" min="5" step="5" value="60" style="width:84px" title="minutes" />
+        </div>
+        <input id="evDesc" placeholder="Notes (optional)" style="width:100%; margin-top:8px" />
+        <button class="primary full" id="evAddBtn" style="margin-top:8px">Add event</button>
+      </div>
+
       <div id="eventList" style="margin-top:10px"></div>
       <div class="row" style="margin-top:14px">
         <button class="ghost" id="refreshBtn">↻ Refresh</button>
         <span class="spacer"></span>
+        <label class="ai-toggle hidden" id="claudeToggleWrap" title="Let Claude propose the rearrangement (small API cost). Off = free rules engine.">
+          <input type="checkbox" id="claudeToggle" /> 🧠 Claude
+        </label>
         <button class="primary" id="optimizeBtn">✨ Optimize my <span id="optScope">day</span></button>
       </div>
     </section>

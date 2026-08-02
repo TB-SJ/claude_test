@@ -111,6 +111,9 @@ button.full { width: 100%; }
 
 .reason { color: var(--muted); font-size: 0.82rem; margin: 2px 0 0 108px; }
 
+.ai-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); margin-right: 10px; cursor: pointer; user-select: none; }
+.ai-toggle input { width: 16px; height: 16px; }
+
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .hidden { display: none !important; }

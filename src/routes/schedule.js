@@ -3,13 +3,15 @@
 const express = require('express');
 const calendar = require('../services/calendar');
 const { optimize } = require('../services/scheduleOptimizer');
+const claudeOptimizer = require('../services/claudeOptimizer');
+const logger = require('../logger');
 const { sendError } = require('../httpError');
 const { validationError } = require('../errors');
 
 const router = express.Router();
 
 /** Serializes the optimize() result for JSON (drops the internal Map). */
-function serialize(result, events) {
+function serialize(result, events, engine) {
   return {
     rules: result.rules,
     analysis: {
@@ -22,6 +24,8 @@ function serialize(result, events) {
     moves: result.moves,
     unplaceable: result.unplaceable,
     summary: result.summary,
+    // Which engine produced the proposal: 'claude', 'rules', or 'rules-fallback'.
+    engine,
     // The exact events analyzed, so a client can render Before/After without
     // a second fetch (and against the same snapshot).
     events,
@@ -34,10 +38,28 @@ function serialize(result, events) {
  */
 router.post('/:provider/analyze', async (req, res) => {
   try {
-    const { date, range, rules } = req.body || {};
+    const { date, range, rules, engine } = req.body || {};
     const scope = range === 'day' ? 'day' : 'week';
     const events = await calendar.getEvents(req.params.provider, { range: scope, date });
-    res.json(serialize(optimize(events, rules || {}), events));
+
+    // Claude proposes; the deterministic engine validates. Any failure (not
+    // configured, API error, or a proposal that breaks the rules) falls back to
+    // the free rules optimizer — the calendar is never mutated here regardless.
+    if (engine === 'claude' && claudeOptimizer.isEnabled()) {
+      try {
+        const result = await claudeOptimizer.optimizeWithClaude(events, rules || {}, {
+          referenceDate: new Date(),
+        });
+        res.json(serialize(result, events, 'claude'));
+        return;
+      } catch (err) {
+        logger.warn('Claude optimize failed; using rules engine', { message: err.message });
+        res.json(serialize(optimize(events, rules || {}), events, 'rules-fallback'));
+        return;
+      }
+    }
+
+    res.json(serialize(optimize(events, rules || {}), events, 'rules'));
   } catch (err) {
     sendError(res, err);
   }

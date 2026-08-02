@@ -11,6 +11,7 @@ let activeProvider = null;
 let scope = 'day';
 let proposal = null; // last analyze() result
 let tzBase = '';
+let claudeAvailable = false; // server has ANTHROPIC_API_KEY set
 
 // --- DOM helpers -----------------------------------------------------------
 const $ = (id) => document.getElementById(id);
@@ -118,6 +119,8 @@ async function refreshConnection() {
   try {
     const health = await api('/health');
     const provs = health.providers || {};
+    claudeAvailable = Boolean(health.ai && health.ai.claude);
+    setupClaudeToggle();
     // Use the first connected provider (Outlook preferred, then Google).
     activeProvider = PROVIDER_ORDER.find((p) => provs[p] && provs[p].connected) || null;
 
@@ -159,6 +162,61 @@ async function loadEvents() {
   }
 }
 
+// --- Quick-add event (typed fields → saved directly; no AI, no cost) --------
+async function addEventFromForm() {
+  const title = $('evTitle').value.trim();
+  const date = $('evDate').value; // YYYY-MM-DD (local)
+  const time = $('evTime').value; // HH:MM (local)
+  if (!title) return toast('Enter an event title', 'err');
+  if (!date || !time) return toast('Pick a date and start time', 'err');
+  // Build a local Date from the picker values, then send as a UTC ISO instant.
+  const start = new Date(`${date}T${time}`);
+  if (Number.isNaN(start.getTime())) return toast('Invalid date/time', 'err');
+  const body = {
+    title,
+    start: start.toISOString(),
+    duration: parseInt($('evMins').value, 10) || 60,
+    description: $('evDesc').value.trim() || undefined,
+  };
+  setLoading(true);
+  try {
+    await api(`/calendar/${activeProvider}/events`, { method: 'POST', body });
+    $('evTitle').value = '';
+    $('evDesc').value = '';
+    hide($('eventForm'));
+    toast('Event added ✓', 'ok');
+    await loadEvents();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Defaults the quick-add date/time to now (next quarter-hour) when opened empty.
+function primeEventForm() {
+  if (!$('evDate').value) {
+    const now = new Date();
+    now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
+    const pad = (n) => String(n).padStart(2, '0');
+    $('evDate').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    $('evTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+}
+
+// --- Claude optimizer toggle (shown only when the server has a key) ----------
+function setupClaudeToggle() {
+  const wrap = $('claudeToggleWrap');
+  if (!claudeAvailable) {
+    hide(wrap);
+    return;
+  }
+  show(wrap);
+  // Default ON when available; remember the user's choice.
+  const saved = localStorage.getItem('useClaudeOptimizer');
+  $('claudeToggle').checked = saved === null ? true : saved === '1';
+}
+
 // Renders the current global `proposal` into the proposal card. Shared by the
 // Optimize button and the voice "optimize" command. `note` is an optional
 // header line (e.g. the transcript that triggered it).
@@ -166,7 +224,9 @@ function renderProposalCard(note) {
   hide($('voiceCard'));
   const c = proposal.analysis.counts;
   const issues = c.conflicts + c.bufferIssues + c.fragmentedGaps + c.deepWorkViolations;
-  const noteHtml = note ? `<p class="muted" style="margin:0 0 8px">${escapeHtml(note)}</p>` : '';
+  const byClaude = proposal.engine === 'claude';
+  const noteHtml = (note ? `<p class="muted" style="margin:0 0 8px">${escapeHtml(note)}</p>` : '') +
+    (byClaude ? '<p class="muted" style="margin:0 0 8px; font-size:.82rem">Proposed by Claude · validated against your rules 🧠</p>' : '');
 
   if (!proposal.moves.length) {
     $('analysisPill').textContent = 'All clear';
@@ -199,11 +259,15 @@ function renderProposalCard(note) {
 async function runOptimize() {
   setLoading(true);
   hide($('proposalCard'));
+  const useClaude = claudeAvailable && $('claudeToggle').checked;
   try {
     proposal = await api(`/schedule/${activeProvider}/analyze`, {
       method: 'POST',
-      body: { range: scope, rules: { tzOffsetMinutes: TZ_OFFSET } },
+      body: { range: scope, rules: { tzOffsetMinutes: TZ_OFFSET }, engine: useClaude ? 'claude' : 'rules' },
     });
+    if (useClaude && proposal.engine === 'rules-fallback') {
+      toast('Claude was unavailable — used the free rules engine.', '');
+    }
     renderProposalCard();
   } catch (err) {
     toast(err.message, 'err');
@@ -507,6 +571,15 @@ function init() {
 
   for (const b of $('scopeToggle').children) b.addEventListener('click', () => setScope(b.dataset.scope));
   $('refreshBtn').addEventListener('click', loadEvents);
+  $('addEventToggle').addEventListener('click', () => {
+    const form = $('eventForm');
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) primeEventForm();
+  });
+  $('evAddBtn').addEventListener('click', addEventFromForm);
+  $('claudeToggle').addEventListener('change', () => {
+    localStorage.setItem('useClaudeOptimizer', $('claudeToggle').checked ? '1' : '0');
+  });
   $('optimizeBtn').addEventListener('click', runOptimize);
   $('applyBtn').addEventListener('click', applyProposal);
   $('cancelBtn').addEventListener('click', () => hide($('proposalCard')));
