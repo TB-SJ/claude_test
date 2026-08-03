@@ -98,11 +98,12 @@ button.full { width: 100%; }
   border-top: 1px solid var(--border);
   align-items: center;
 }
-.event .ev-edit {
+.event .ev-edit, .event .ev-del {
   background: none; border: none; color: var(--muted); font-size: 1rem;
-  min-height: auto; padding: 4px 8px; cursor: pointer; flex: 0 0 auto;
+  min-height: auto; padding: 4px 6px; cursor: pointer; flex: 0 0 auto;
 }
 .event .ev-edit:hover { color: var(--accent); }
+.event .ev-del:hover { color: var(--danger); }
 .task .t-edit {
   background: none; border: none; color: var(--muted); font-size: 1rem;
   min-height: auto; padding: 4px 6px; cursor: pointer;

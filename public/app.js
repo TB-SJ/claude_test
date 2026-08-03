@@ -48,6 +48,7 @@ const ICONS = {
   sliders: '<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h13M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18.5" cy="18" r="2"/>',
   download: '<path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 20h16"/>',
   lotus: '<path d="M12 20c-4.2 0-7.5-2.3-7.5-2.3C4.5 14.5 8 12.8 12 12.8s7.5 1.7 7.5 4.9c0 0-3.3 2.3-7.5 2.3z"/><path d="M12 13.2c-1.7-2.3-1.7-5.6 0-8.9 1.7 3.3 1.7 6.6 0 8.9z"/><path d="M12 13.2C9.3 12.1 7.6 9.3 7.2 6.1c2.9.8 4.6 3.6 4.8 7.1z"/><path d="M12 13.2c2.7-1.1 4.4-3.9 4.8-7.1-2.9.8-4.6 3.6-4.8 7.1z"/>',
+  trash: '<path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M10 11v6M14 11v6"/>',
   sparkle: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
 };
 
@@ -270,14 +271,17 @@ function applyMoves(events, moves) {
 // adds a ✎ button that opens the inline edit form.
 function eventRow(ev, wasRange, editable) {
   const changed = Boolean(wasRange);
-  const edit = editable ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">${svgIcon('edit', 18)}</button>` : '';
+  const controls = editable
+    ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">${svgIcon('edit', 18)}</button>`
+      + `<button class="ev-del" data-id="${escapeHtml(ev.id)}" aria-label="delete">${svgIcon('trash', 18)}</button>`
+    : '';
   return `<div class="event ${changed ? 'changed' : ''}">
       <div class="time">${fmtRange(ev.start, ev.end)}</div>
       <div style="flex:1">
         <div class="title">${escapeHtml(ev.title || '(untitled)')}</div>
         ${changed ? `<div class="muted" style="font-size:.82rem">was <span class="old">${wasRange}</span></div>` : ''}
       </div>
-      ${edit}
+      ${controls}
     </div>`;
 }
 
@@ -297,6 +301,9 @@ function renderSchedule(container, events, changedMap, opts = {}) {
   if (opts.editable) {
     for (const b of container.querySelectorAll('.ev-edit')) {
       b.addEventListener('click', () => startEditEvent(b.dataset.id));
+    }
+    for (const b of container.querySelectorAll('.ev-del')) {
+      b.addEventListener('click', () => deleteEventById(b.dataset.id));
     }
   }
 }
@@ -553,6 +560,7 @@ function resetEventForm() {
   $('evEnds').value = 'never';
   show($('evRepeatRow')); // repeat is available when adding
   onRepeatChange(); // hides the Ends row for a non-repeating event
+  hide($('evDeleteBtn')); // no event to delete when adding
   $('evAddBtn').textContent = 'Add event';
 }
 
@@ -569,9 +577,29 @@ function startEditEvent(id) {
   $('evDesc').value = ev.description || '';
   hide($('evRepeatRow')); // recurrence is set at creation, not per-instance edit
   hide($('evEndsRow'));
+  show($('evDeleteBtn')); // can delete the event being edited
   $('evAddBtn').textContent = 'Save changes';
   show($('eventForm'));
   $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Deletes a calendar event after confirmation (it's removed from the real
+// calendar). For a recurring series this removes the tapped occurrence.
+async function deleteEventById(id) {
+  const ev = currentEvents.find((e) => e.id === id);
+  const name = ev && ev.title ? `“${ev.title}”` : 'this event';
+  if (!window.confirm(`Delete ${name} from your calendar?`)) return;
+  setLoading(true);
+  try {
+    await api(`/calendar/${activeProvider}/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (editingEventId === id) { resetEventForm(); hide($('eventForm')); }
+    toast('Event deleted', 'ok');
+    await loadEvents();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
 }
 
 // Defaults the quick-add date/time to now (next quarter-hour) when opened empty.
@@ -1510,6 +1538,9 @@ async function deferTask(id, deferred) {
 }
 
 async function deleteTask(id) {
+  const t = (lastTasks || []).find((x) => x.id === id);
+  const name = t && t.title ? `“${t.title}”` : 'this task';
+  if (!window.confirm(`Delete ${name}?`)) return;
   await api(`/tasks/${id}`, { method: 'DELETE' }).catch(() => {});
   loadTasks();
 }
@@ -1674,6 +1705,7 @@ function init() {
     form.classList.toggle('hidden');
   });
   $('evAddBtn').addEventListener('click', addEventFromForm);
+  $('evDeleteBtn').addEventListener('click', () => { if (editingEventId) deleteEventById(editingEventId); });
   $('evRepeat').addEventListener('change', onRepeatChange);
   $('evEnds').addEventListener('change', onEndsChange);
   // Meditation card

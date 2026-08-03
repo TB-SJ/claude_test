@@ -65,6 +65,8 @@ class Dashboard {
     this.provider = deps.provider || 'google';
     this.ruleOverrides = deps.ruleOverrides || {};
     this.date = deps.date;
+    // Optional fixed "now" for the current-time-aware optimizer (tests inject it).
+    this.referenceDate = deps.referenceDate;
     this.renderOpts = { color: Boolean(deps.color) };
     this.quit = false;
   }
@@ -125,7 +127,7 @@ class Dashboard {
       return;
     }
 
-    const result = optimize(events, this.ruleOverrides);
+    const result = optimize(events, this.ruleOverrides, this.referenceDate ? { referenceDate: this.referenceDate } : {});
     this.io.print('');
     this.io.print(renderAnalysis(result.analysis, this.renderOpts));
 

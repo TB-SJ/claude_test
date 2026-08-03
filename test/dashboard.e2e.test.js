@@ -116,6 +116,9 @@ test('full loop: hotkey -> "Optimize my day" -> Before/After -> confirm -> save'
     voice: makeFakeVoice([{ transcript: 'Optimize my day', intent: null }]),
     calendar: cal,
     provider: 'google',
+    // Pin "now" before the fixture's events so the current-time-aware optimizer
+    // is deterministic (otherwise already-past events aren't movable).
+    referenceDate: new Date('2026-08-03T06:00:00Z'),
   });
 
   await dash.run();
@@ -147,6 +150,9 @@ test('abort at confirmation leaves the calendar untouched', async () => {
     voice: makeFakeVoice([{ transcript: 'Optimize my day', intent: null }]),
     calendar: cal,
     provider: 'google',
+    // Pin "now" before the fixture's events so the current-time-aware optimizer
+    // is deterministic (otherwise already-past events aren't movable).
+    referenceDate: new Date('2026-08-03T06:00:00Z'),
   });
 
   await dash.run();
@@ -173,6 +179,9 @@ test('already-optimized schedule proposes no changes', async () => {
     voice: makeFakeVoice([{ transcript: 'optimize my day', intent: null }]),
     calendar: cal,
     provider: 'google',
+    // Pin "now" before the fixture's events so the current-time-aware optimizer
+    // is deterministic (otherwise already-past events aren't movable).
+    referenceDate: new Date('2026-08-03T06:00:00Z'),
   });
 
   await dash.run();
@@ -191,6 +200,9 @@ test('voice "add" command creates an event after confirmation', async () => {
     voice: makeFakeVoice([{ transcript: 'add dentist tomorrow at 2pm', intent }]),
     calendar: cal,
     provider: 'google',
+    // Pin "now" before the fixture's events so the current-time-aware optimizer
+    // is deterministic (otherwise already-past events aren't movable).
+    referenceDate: new Date('2026-08-03T06:00:00Z'),
   });
 
   await dash.run();
