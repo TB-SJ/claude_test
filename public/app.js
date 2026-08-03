@@ -90,6 +90,54 @@ function toggleThemeMenu() {
   $('themeMenu').classList.toggle('hidden');
 }
 
+// --- Bottom tab navigation --------------------------------------------------
+const TAB_CARDS = { today: 'briefCard', schedule: 'todayCard', tasks: 'tasksCard' };
+let activeTab = 'today';
+
+function setTab(name) {
+  if (!TAB_CARDS[name]) name = 'today';
+  activeTab = name;
+  for (const [tab, id] of Object.entries(TAB_CARDS)) $(id).classList.toggle('hidden', tab !== name);
+  // Reset transient result cards when switching tabs.
+  for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard']) hide($(id));
+  for (const b of $('tabbar').querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === name);
+  localStorage.setItem('activeTab', name);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// --- Greeting hero + progress ring -----------------------------------------
+function timeGreeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+}
+
+function todayTaskProgress() {
+  const todayKey = localTodayKey();
+  const dow = new Date().getDay();
+  const rel = (lastTasks || []).filter((t) => !t.deferred && (isRecurring(t) ? t.repeat.includes(dow) : true));
+  if (!rel.length) return null;
+  const done = rel.filter((t) => (isRecurring(t) ? t.lastDone === todayKey : t.done)).length;
+  return { done, total: rel.length, pct: Math.round((done / rel.length) * 100) };
+}
+
+function setRing(pct) {
+  const C = 113.1; // 2πr, r=18
+  $('ringFg').style.strokeDashoffset = String(C * (1 - (pct || 0) / 100));
+  $('ringPct').textContent = pct == null ? '–' : `${pct}%`;
+}
+
+function updateHero(b) {
+  $('heroGreeting').textContent = timeGreeting();
+  const prog = todayTaskProgress();
+  if (prog) {
+    setRing(prog.pct);
+    $('heroSub').textContent = `${prog.done}/${prog.total} task${prog.total === 1 ? '' : 's'} done today`;
+  } else {
+    setRing(null);
+    $('heroSub').textContent = b && b.meetingCount ? `${b.meetingCount} meeting${b.meetingCount === 1 ? '' : 's'} today` : 'Nothing scheduled — enjoy it';
+  }
+}
+
 // --- Time formatting (browser is already in the user's timezone) -----------
 function fmtTime(iso) {
   if (!iso.includes('T')) return 'All day';
@@ -194,18 +242,18 @@ async function refreshConnection() {
     if (activeProvider) {
       $('tzLabel').textContent = `${tzBase} · ${PROVIDER_LABEL[activeProvider]}`;
       hide($('connectCard'));
-      show($('todayCard'));
-      show($('tasksCard'));
       show($('micBtn')); // voice control available once connected
-      show($('briefCard'));
+      show($('tabbar'));
       await loadEvents();
       await loadTasks();
       await loadBrief();
       setupNotifications();
+      setTab(localStorage.getItem('activeTab') || 'today');
     } else {
       hide($('micBtn'));
       hide($('tasksCard'));
       hide($('briefCard'));
+      hide($('tabbar'));
       // Offer a connect button for each configured-but-unconnected provider.
       const configured = PROVIDER_ORDER.filter((p) => provs[p] && provs[p].reason !== 'not_configured');
       const list = configured.length ? configured : PROVIDER_ORDER;
@@ -672,7 +720,7 @@ async function loadBrief() {
     const brief = await api(`/brief/${activeProvider}?tzOffsetMinutes=${TZ_OFFSET}&date=${encodeURIComponent(anchor)}`);
     renderBrief(brief);
   } catch (_) {
-    $('briefBody').innerHTML = '<p class="muted">Couldn\'t load your brief.</p>';
+    $('briefStats').innerHTML = '<p class="muted">Couldn\'t load your brief.</p>';
   }
 }
 
@@ -697,7 +745,8 @@ function renderBrief(b) {
   for (const r of b.atRisk || []) {
     html += `<div class="brief-stat warn">⚠️ ${escapeHtml(r.title)} — ${escapeHtml(r.when)}</div>`;
   }
-  $('briefBody').innerHTML = html;
+  $('briefStats').innerHTML = html;
+  updateHero(b);
 }
 
 // --- Weekly review ---------------------------------------------------------
@@ -1223,6 +1272,9 @@ function init() {
   });
   $('focusDoneBtn').addEventListener('click', focusDone);
   $('focusStopBtn').addEventListener('click', stopFocus);
+  for (const b of $('tabbar').querySelectorAll('.tab')) {
+    b.addEventListener('click', () => setTab(b.dataset.tab));
+  }
   $('planBtn').addEventListener('click', planTasks);
   $('planCloseBtn').addEventListener('click', () => hide($('taskPlanCard')));
   $('commitPlanBtn').addEventListener('click', commitPlan);

@@ -38,7 +38,22 @@
         <button class="ghost hidden" id="notifyBtn" title="Enable reminders">🔔 Reminders</button>
         <button class="ghost" id="briefRefresh" title="Refresh">↻</button>
       </div>
-      <div class="card-body" id="briefBody"></div>
+      <div class="card-body" id="briefBody">
+        <div class="hero">
+          <div class="hero-greet">
+            <div id="heroGreeting" class="hero-title">Hello</div>
+            <div id="heroSub" class="muted"></div>
+          </div>
+          <div class="ring" id="heroRing">
+            <svg viewBox="0 0 44 44" width="56" height="56">
+              <circle class="ring-bg" cx="22" cy="22" r="18" />
+              <circle class="ring-fg" id="ringFg" cx="22" cy="22" r="18" />
+            </svg>
+            <div class="ring-pct" id="ringPct">0%</div>
+          </div>
+        </div>
+        <div id="briefStats"></div>
+      </div>
     </section>
 
     <!-- Connected: today -->
@@ -201,6 +216,13 @@
   <!-- Floating mic button (voice control) -->
   <button id="micBtn" class="fab hidden" title="Speak a command" aria-label="Speak a command">🎤</button>
   <div id="micStatus" class="mic-status hidden">Listening… speak now</div>
+
+  <!-- Bottom tab bar -->
+  <nav id="tabbar" class="tabbar hidden">
+    <button class="tab" data-tab="today"><span class="tab-ico">🏠</span><span>Today</span></button>
+    <button class="tab" data-tab="schedule"><span class="tab-ico">🗓</span><span>Schedule</span></button>
+    <button class="tab" data-tab="tasks"><span class="tab-ico">✅</span><span>Tasks</span></button>
+  </nav>
 
   <script src="/app.js"></script>
 </body>

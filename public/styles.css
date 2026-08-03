@@ -52,9 +52,10 @@ header .sub { color: var(--muted); font-size: 0.8rem; }
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 14px;
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 30px rgba(16, 24, 40, 0.06);
 }
 .card h2 { margin: 0 0 10px; font-size: 0.95rem; letter-spacing: 0.02em; }
 
@@ -493,3 +494,51 @@ body.theme-forest .card { box-shadow: 0 8px 22px rgba(47,158,111,0.09); }
 }
 .theme-menu button:hover { background: var(--card-2); }
 .theme-menu button.on { background: var(--card-2); color: var(--accent); }
+
+/* ==========================================================================
+   Modern layout: hero, progress ring, floating cards, and a bottom tab bar.
+   ========================================================================== */
+.app { padding-bottom: 92px; } /* clear the fixed tab bar */
+
+/* Greeting hero (top of the Today card) */
+.hero { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.hero-greet { flex: 1; min-width: 0; }
+.hero-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
+.hero .muted { font-size: 0.85rem; margin-top: 2px; }
+
+/* Progress ring */
+.ring { position: relative; width: 56px; height: 56px; flex: 0 0 auto; }
+.ring svg { transform: rotate(-90deg); }
+.ring .ring-bg { fill: none; stroke: var(--border); stroke-width: 4; }
+.ring .ring-fg {
+  fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round;
+  stroke-dasharray: 113.1; stroke-dashoffset: 113.1; transition: stroke-dashoffset 0.5s ease;
+}
+.ring .ring-pct {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 0.78rem; font-weight: 800; color: var(--text);
+}
+
+/* Bottom tab bar */
+.tabbar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 0;
+  width: 100%; max-width: 560px; z-index: 55;
+  display: flex; justify-content: space-around; align-items: stretch;
+  background: var(--card); border-top: 1px solid var(--border);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -6px 24px rgba(16, 24, 40, 0.08);
+}
+.tabbar .tab {
+  flex: 1; background: none; border: none; min-height: 52px; border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: var(--muted); font-size: 0.7rem; font-weight: 600; padding: 4px;
+}
+.tabbar .tab .tab-ico { font-size: 1.2rem; line-height: 1; filter: grayscale(0.4); opacity: 0.7; }
+.tabbar .tab.on { color: var(--accent); }
+.tabbar .tab.on .tab-ico { filter: none; opacity: 1; }
+
+/* Lift floating elements above the tab bar */
+.fab { bottom: 88px !important; }
+.focus-bar { bottom: 84px; }
+.mic-status { bottom: 158px; }
+.toast { bottom: 96px; }
