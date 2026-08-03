@@ -21,29 +21,49 @@ function diffMinutes(startIso, endIso) {
   return Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000);
 }
 
-/** [00:00, next 00:00) UTC window for the given date (defaults to today). */
-function dayRange(dateInput) {
-  const d = dateInput ? new Date(dateInput) : new Date();
-  if (Number.isNaN(d.getTime())) throw validationError(`Invalid date: ${JSON.stringify(dateInput)}`);
-  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { start: start.toISOString(), end: end.toISOString() };
+/**
+ * The current local date as a noon-UTC anchor (YYYY-MM-DDT12:00:00Z) for a
+ * given tz offset. Noon keeps the calendar date stable across offsets, so it's
+ * a safe anchor for dayRange/weekRange when the caller has no client-sent date.
+ */
+function localNoonAnchor(tzOffsetMinutes = 0, nowMs = Date.now()) {
+  const off = Number(tzOffsetMinutes) || 0;
+  const localDate = new Date(nowMs + off * 60000).toISOString().slice(0, 10);
+  return `${localDate}T12:00:00Z`;
 }
 
 /**
- * A rolling 7-day window: the anchor day 00:00 through +7 days (UTC). Anchoring
- * on "today" (rather than the calendar Monday) means "week" always shows the
- * week ahead — otherwise, late in a Mon–Sun week (e.g. on a Sunday) almost the
- * whole window is in the past and only today's events show.
+ * A window of `days` local days starting at the anchor date's local midnight.
+ * `tzOffsetMinutes` (local = UTC + offset) shifts the UTC boundaries so the
+ * window covers the user's calendar day — otherwise, off-UTC users lose their
+ * evening events (which fall into the next UTC day) and pick up yesterday's.
+ * The anchor `date` should be sent as local-noon (YYYY-MM-DDT12:00:00Z) so the
+ * calendar date reads the same regardless of offset.
  */
-function weekRange(dateInput) {
+function localWindow(dateInput, days, tzOffsetMinutes = 0) {
   const d = dateInput ? new Date(dateInput) : new Date();
   if (Number.isNaN(d.getTime())) throw validationError(`Invalid date: ${JSON.stringify(dateInput)}`);
-  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 7);
+  const off = Number(tzOffsetMinutes) || 0;
+  // Local midnight of the anchor date, expressed in UTC.
+  const startMs = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - off * 60000;
+  const start = new Date(startMs);
+  const end = new Date(startMs + days * 86400000);
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+/** [local 00:00, next local 00:00) window for the given date (defaults to today). */
+function dayRange(dateInput, tzOffsetMinutes = 0) {
+  return localWindow(dateInput, 1, tzOffsetMinutes);
+}
+
+/**
+ * A rolling 7-day window: the anchor day's local 00:00 through +7 days.
+ * Anchoring on "today" (rather than the calendar Monday) means "week" always
+ * shows the week ahead — otherwise, late in a Mon–Sun week (e.g. on a Sunday)
+ * almost the whole window is in the past and only today's events show.
+ */
+function weekRange(dateInput, tzOffsetMinutes = 0) {
+  return localWindow(dateInput, 7, tzOffsetMinutes);
 }
 
 /**
@@ -52,14 +72,14 @@ function weekRange(dateInput) {
  *   2. `range: 'week'` (optionally anchored by `date`)
  *   3. `range: 'day'` / default (optionally anchored by `date`)
  */
-function resolveRange({ range, date, start, end } = {}) {
+function resolveRange({ range, date, start, end, tzOffsetMinutes = 0 } = {}) {
   if (start || end) {
     if (!start || !end) throw validationError('Both `start` and `end` are required when either is provided.');
     return { start: toISO(start, 'start'), end: toISO(end, 'end') };
   }
-  if (range === 'week') return weekRange(date);
+  if (range === 'week') return weekRange(date, tzOffsetMinutes);
   if (range && range !== 'day') throw validationError(`Unknown range: ${JSON.stringify(range)} (use "day" or "week").`);
-  return dayRange(date);
+  return dayRange(date, tzOffsetMinutes);
 }
 
 /**
@@ -101,4 +121,4 @@ function resolveEventTimes({ start, end, duration } = {}, existing = null) {
   return { start: s, end: e };
 }
 
-module.exports = { toISO, addMinutes, diffMinutes, dayRange, weekRange, resolveRange, resolveEventTimes };
+module.exports = { toISO, addMinutes, diffMinutes, localNoonAnchor, dayRange, weekRange, resolveRange, resolveEventTimes };

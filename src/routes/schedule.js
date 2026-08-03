@@ -4,6 +4,7 @@ const express = require('express');
 const calendar = require('../services/calendar');
 const { optimize } = require('../services/scheduleOptimizer');
 const claudeOptimizer = require('../services/claudeOptimizer');
+const calendarUtils = require('../services/calendarUtils');
 const settingsStore = require('../settingsStore');
 const logger = require('../logger');
 const { sendError } = require('../httpError');
@@ -41,13 +42,14 @@ router.post('/:provider/analyze', async (req, res) => {
   try {
     const { date, range, rules, engine } = req.body || {};
     const scope = range === 'day' ? 'day' : 'week';
-    const events = await calendar.getEvents(req.params.provider, { range: scope, date });
     const referenceDate = new Date();
 
     // Merge the client's request (which carries tzOffsetMinutes) onto the user's
     // saved scheduling rules, so work hours / deep-work / buffer are honored.
     const tz = Number((rules && rules.tzOffsetMinutes) || 0);
     const ruleOverrides = { ...settingsStore.rules(tz), ...(rules || {}) };
+    const anchor = date || calendarUtils.localNoonAnchor(tz);
+    const events = await calendar.getEvents(req.params.provider, { range: scope, date: anchor, tzOffsetMinutes: tz });
 
     // Claude proposes; the deterministic engine validates. Any failure (not
     // configured, API error, or a proposal that breaks the rules) falls back to

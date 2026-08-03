@@ -12,7 +12,7 @@ const { composeBrief } = require('./brief');
 const { computeReview } = require('./reviewService');
 const { suggestNext } = require('./focusService');
 const { freeForDays, coveringWindow, weekdayKeys } = require('./freeTime');
-const { addMinutes, diffMinutes } = require('./calendarUtils');
+const { addMinutes, diffMinutes, localNoonAnchor } = require('./calendarUtils');
 
 // Action keyword detection. "optimize" is checked first (most specific);
 // otherwise the earliest-matching action keyword in the sentence wins.
@@ -339,6 +339,8 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
   // The user's saved scheduling rules (work hours, deep-work, buffer), carrying
   // the client's tz offset. Passed to every schedule-aware branch below.
   const ruleOverrides = settingsStore.rules(tzOffsetMinutes);
+  // Local "today" anchor so day/week windows match the user's calendar day.
+  const dayAnchor = localNoonAnchor(tzOffsetMinutes, referenceDate.getTime());
   if (parsed.type === 'add_task') {
     if (!parsed.title) return { type: 'add_task', error: 'need_title', transcript };
     return {
@@ -355,13 +357,13 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
 
   if (parsed.type === 'plan_tasks') {
     const tasks = taskStore.list();
-    const events = await calendar.getEvents(provider, { range: 'day' });
+    const events = await calendar.getEvents(provider, { range: 'day', date: dayAnchor, tzOffsetMinutes });
     const plan = scheduleTasks(tasks, events, ruleOverrides, { referenceDate });
     return { type: 'plan_tasks', transcript, plan };
   }
 
   if (parsed.type === 'optimize') {
-    const events = await calendar.getEvents(provider, { range: parsed.scope });
+    const events = await calendar.getEvents(provider, { range: parsed.scope, date: dayAnchor, tzOffsetMinutes });
     const opt = optimize(events, ruleOverrides, { referenceDate });
     return {
       type: 'optimize',
@@ -459,7 +461,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
   }
 
   if (parsed.type === 'brief') {
-    const events = await calendar.getEvents(provider, { range: 'day' });
+    const events = await calendar.getEvents(provider, { range: 'day', date: dayAnchor, tzOffsetMinutes });
     const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes, referenceDate, ruleOverrides });
     return { type: 'brief', transcript, brief };
   }
@@ -473,7 +475,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
   }
 
   if (parsed.type === 'whatnow') {
-    const events = await calendar.getEvents(provider, { range: 'day' });
+    const events = await calendar.getEvents(provider, { range: 'day', date: dayAnchor, tzOffsetMinutes });
     const focus = suggestNext(events, taskStore.list(), { tzOffsetMinutes, referenceDate, ruleOverrides });
     return { type: 'whatnow', transcript, focus };
   }
@@ -485,7 +487,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     const label = rangeLabel(scope, dateKey, todayKey);
 
     if (parsed.type === 'show_schedule') {
-      const events = await calendar.getEvents(provider, { range: scope, date: `${dateKey}T12:00:00Z` });
+      const events = await calendar.getEvents(provider, { range: scope, date: `${dateKey}T12:00:00Z`, tzOffsetMinutes });
       return { type: 'show_schedule', transcript, scope, date: dateKey, label, events };
     }
     const dayKeys = scope === 'week' ? weekdayKeys(dateKey) : [dateKey];

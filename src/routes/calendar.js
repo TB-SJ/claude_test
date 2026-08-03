@@ -10,7 +10,8 @@ const router = express.Router();
 router.get('/:provider/events', async (req, res) => {
   try {
     const { range, date, start, end } = req.query;
-    const events = await calendar.getEvents(req.params.provider, { range, date, start, end });
+    const tzOffsetMinutes = Number(req.query.tzOffsetMinutes) || 0;
+    const events = await calendar.getEvents(req.params.provider, { range, date, start, end, tzOffsetMinutes });
     res.json({ provider: req.params.provider, count: events.length, events });
   } catch (err) {
     sendError(res, err);

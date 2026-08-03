@@ -3,6 +3,7 @@
 const express = require('express');
 const { config, providerConfigured } = require('../config');
 const calendar = require('../services/calendar');
+const calendarUtils = require('../services/calendarUtils');
 const tokenStore = require('../tokenStore');
 const push = require('../services/push');
 const pushStore = require('../pushStore');
@@ -43,7 +44,8 @@ async function tick(req, res) {
     if (!provider) return res.json({ ok: true, sent: 0, note: 'no calendar connected' });
 
     const tz = doc.tzOffsetMinutes || 0;
-    const events = await calendar.getEvents(provider, { range: 'day' });
+    const anchor = calendarUtils.localNoonAnchor(tz);
+    const events = await calendar.getEvents(provider, { range: 'day', date: anchor, tzOffsetMinutes: tz });
     const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes: tz, ruleOverrides: settingsStore.rules(tz) });
 
     // User-saved notification timing overrides the env defaults.

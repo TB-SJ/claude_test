@@ -18,7 +18,7 @@ router.get('/:provider', async (req, res) => {
   try {
     const tzOffsetMinutes = Number(req.query.tzOffsetMinutes) || 0;
     const { date } = req.query;
-    const events = await calendar.getEvents(req.params.provider, { range: 'day', date });
+    const events = await calendar.getEvents(req.params.provider, { range: 'day', date, tzOffsetMinutes });
     const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes, ruleOverrides: settingsStore.rules(tzOffsetMinutes) });
     res.json(brief);
   } catch (err) {

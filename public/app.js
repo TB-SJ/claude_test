@@ -458,7 +458,7 @@ async function loadEvents() {
     // and the rolling "week" match the user's calendar day regardless of tz.
     const now = new Date();
     const localAnchor = `${dateInputValue(now)}T12:00:00Z`;
-    const data = await api(`/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}`);
+    const data = await api(`/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}&tzOffsetMinutes=${TZ_OFFSET}`);
     currentEvents = data.events || [];
     if (scope === 'week') renderWeekGrid($('eventList'), currentEvents);
     else renderSchedule($('eventList'), currentEvents, null, { editable: true });
