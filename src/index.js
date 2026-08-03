@@ -12,10 +12,12 @@ const tasksRouter = require('./routes/tasks');
 const briefRouter = require('./routes/brief');
 const reviewRouter = require('./routes/review');
 const focusRouter = require('./routes/focus');
+const settingsRouter = require('./routes/settings');
 const pushRouter = require('./routes/push');
 const cronRouter = require('./routes/cron');
 const tokenStore = require('./tokenStore');
 const taskStore = require('./taskStore');
+const settingsStore = require('./settingsStore');
 const webAuth = require('./webAuth');
 
 const app = express();
@@ -83,6 +85,7 @@ app.use('/tasks', webAuth.requireAuthApi, tasksRouter);
 app.use('/brief', webAuth.requireAuthApi, briefRouter);
 app.use('/review', webAuth.requireAuthApi, reviewRouter);
 app.use('/focus', webAuth.requireAuthApi, focusRouter);
+app.use('/settings', webAuth.requireAuthApi, settingsRouter);
 app.use('/push', webAuth.requireAuthApi, pushRouter);
 // /cron is NOT behind the login gate — it's called by an external scheduler and
 // is secured by CRON_SECRET inside the route instead.
@@ -104,7 +107,7 @@ async function initStorageWithRetry() {
   const delaysMs = [3000, 5000, 8000, 12000]; // ~28s total across 5 attempts
   for (let attempt = 0; ; attempt += 1) {
     try {
-      await Promise.all([tokenStore.init(), taskStore.init()]);
+      await Promise.all([tokenStore.init(), taskStore.init(), settingsStore.init()]);
       return;
     } catch (err) {
       const transient = /PGRST303|issued at future|not yet valid|fetch failed|network|ECONN|ETIMEDOUT|timeout|50\d\b/i.test(err.message);
@@ -147,6 +150,7 @@ if (require.main === module) {
         return;
       }
     } else {
+      await settingsStore.init();
       console.log('[storage] Using local files (data/) for persistence.');
       // On a host with an ephemeral disk, file storage is wiped on every
       // deploy/restart — so warn loudly if we're clearly deployed without it.

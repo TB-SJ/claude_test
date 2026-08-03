@@ -3,6 +3,7 @@
 const chrono = require('chrono-node');
 const calendar = require('./calendar');
 const taskStore = require('../taskStore');
+const settingsStore = require('../settingsStore');
 const claudeIntent = require('./claudeIntent');
 const logger = require('../logger');
 const { optimize } = require('./scheduleOptimizer');
@@ -335,6 +336,9 @@ async function buildCommand(provider, transcript, { referenceDate = new Date(), 
  * calendar as needed. Shared by both the Claude and rules paths.
  */
 async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzOffsetMinutes = 0, transcript } = {}) {
+  // The user's saved scheduling rules (work hours, deep-work, buffer), carrying
+  // the client's tz offset. Passed to every schedule-aware branch below.
+  const ruleOverrides = settingsStore.rules(tzOffsetMinutes);
   if (parsed.type === 'add_task') {
     if (!parsed.title) return { type: 'add_task', error: 'need_title', transcript };
     return {
@@ -352,13 +356,13 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
   if (parsed.type === 'plan_tasks') {
     const tasks = taskStore.list();
     const events = await calendar.getEvents(provider, { range: 'day' });
-    const plan = scheduleTasks(tasks, events, { tzOffsetMinutes }, { referenceDate });
+    const plan = scheduleTasks(tasks, events, ruleOverrides, { referenceDate });
     return { type: 'plan_tasks', transcript, plan };
   }
 
   if (parsed.type === 'optimize') {
     const events = await calendar.getEvents(provider, { range: parsed.scope });
-    const opt = optimize(events, { tzOffsetMinutes }, { referenceDate });
+    const opt = optimize(events, ruleOverrides, { referenceDate });
     return {
       type: 'optimize',
       scope: parsed.scope,
@@ -456,7 +460,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
 
   if (parsed.type === 'brief') {
     const events = await calendar.getEvents(provider, { range: 'day' });
-    const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
+    const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes, referenceDate, ruleOverrides });
     return { type: 'brief', transcript, brief };
   }
 
@@ -464,13 +468,13 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     const start = new Date(referenceDate.getTime() - 15 * 86400000).toISOString();
     const end = new Date(referenceDate.getTime() + 86400000).toISOString();
     const events = await calendar.getEvents(provider, { start, end });
-    const review = computeReview(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
+    const review = computeReview(events, taskStore.list(), { tzOffsetMinutes, referenceDate, ruleOverrides });
     return { type: 'review', transcript, review };
   }
 
   if (parsed.type === 'whatnow') {
     const events = await calendar.getEvents(provider, { range: 'day' });
-    const focus = suggestNext(events, taskStore.list(), { tzOffsetMinutes, referenceDate });
+    const focus = suggestNext(events, taskStore.list(), { tzOffsetMinutes, referenceDate, ruleOverrides });
     return { type: 'whatnow', transcript, focus };
   }
 
@@ -485,9 +489,9 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
       return { type: 'show_schedule', transcript, scope, date: dateKey, label, events };
     }
     const dayKeys = scope === 'week' ? weekdayKeys(dateKey) : [dateKey];
-    const win = coveringWindow(dayKeys, { tzOffsetMinutes });
+    const win = coveringWindow(dayKeys, ruleOverrides);
     const events = await calendar.getEvents(provider, { start: win.start, end: win.end });
-    const days = freeForDays(events, dayKeys, { tzOffsetMinutes }, { referenceDate });
+    const days = freeForDays(events, dayKeys, ruleOverrides, { referenceDate });
     return { type: 'show_free', transcript, scope, date: dateKey, label, days };
   }
 

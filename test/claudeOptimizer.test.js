@@ -136,3 +136,27 @@ test('optimizeWithClaude throws when the API errors (caller falls back)', async 
     /boom/
   );
 });
+
+test('buildSystemPrompt includes the user preferences when provided', () => {
+  const rules = resolveRules(RULES);
+  const prompt = claudeOptimizer.buildSystemPrompt(rules, 'No meetings before 10am\nKeep Fridays light');
+  assert.match(prompt, /personal preferences/i);
+  assert.match(prompt, /No meetings before 10am/);
+  assert.match(prompt, /Keep Fridays light/);
+});
+
+test('buildSystemPrompt omits the preferences section when empty', () => {
+  const rules = resolveRules(RULES);
+  const prompt = claudeOptimizer.buildSystemPrompt(rules, '');
+  assert.doesNotMatch(prompt, /personal preferences/i);
+});
+
+test('propose forwards preferences into the system prompt', async () => {
+  shouldThrow = false;
+  fakeMoves = { moves: [] };
+  await claudeOptimizer.propose(events(), resolveRules(RULES), {
+    referenceDate: new Date('2026-08-05T08:00:00Z'),
+    preferences: 'Protect my mornings',
+  });
+  assert.match(lastArgs.system, /Protect my mornings/);
+});

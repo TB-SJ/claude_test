@@ -4,6 +4,7 @@ const express = require('express');
 const calendar = require('../services/calendar');
 const { optimize } = require('../services/scheduleOptimizer');
 const claudeOptimizer = require('../services/claudeOptimizer');
+const settingsStore = require('../settingsStore');
 const logger = require('../logger');
 const { sendError } = require('../httpError');
 const { validationError } = require('../errors');
@@ -43,22 +44,30 @@ router.post('/:provider/analyze', async (req, res) => {
     const events = await calendar.getEvents(req.params.provider, { range: scope, date });
     const referenceDate = new Date();
 
+    // Merge the client's request (which carries tzOffsetMinutes) onto the user's
+    // saved scheduling rules, so work hours / deep-work / buffer are honored.
+    const tz = Number((rules && rules.tzOffsetMinutes) || 0);
+    const ruleOverrides = { ...settingsStore.rules(tz), ...(rules || {}) };
+
     // Claude proposes; the deterministic engine validates. Any failure (not
     // configured, API error, or a proposal that breaks the rules) falls back to
     // the free rules optimizer — the calendar is never mutated here regardless.
     if (engine === 'claude' && claudeOptimizer.isEnabled()) {
       try {
-        const result = await claudeOptimizer.optimizeWithClaude(events, rules || {}, { referenceDate });
+        const result = await claudeOptimizer.optimizeWithClaude(events, ruleOverrides, {
+          referenceDate,
+          preferences: settingsStore.optimizePrefs(),
+        });
         res.json(serialize(result, events, 'claude'));
         return;
       } catch (err) {
         logger.warn('Claude optimize failed; using rules engine', { message: err.message });
-        res.json(serialize(optimize(events, rules || {}, { referenceDate }), events, 'rules-fallback'));
+        res.json(serialize(optimize(events, ruleOverrides, { referenceDate }), events, 'rules-fallback'));
         return;
       }
     }
 
-    res.json(serialize(optimize(events, rules || {}, { referenceDate }), events, 'rules'));
+    res.json(serialize(optimize(events, ruleOverrides, { referenceDate }), events, 'rules'));
   } catch (err) {
     sendError(res, err);
   }

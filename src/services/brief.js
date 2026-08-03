@@ -27,8 +27,8 @@ function fmtDur(mins) {
  * reads nothing, writes nothing. Returns structured data plus human-readable
  * `lines` (used by the voice reply and a simple render).
  */
-function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new Date() } = {}) {
-  const rules = resolveRules({ tzOffsetMinutes });
+function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new Date(), ruleOverrides = null } = {}) {
+  const rules = resolveRules(ruleOverrides || { tzOffsetMinutes });
   const off = rules.tzOffsetMinutes;
   const nowMs = referenceDate.getTime();
   const todayKey = localParts(referenceDate.toISOString(), off).dayKey;

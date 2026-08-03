@@ -3,6 +3,7 @@
 const express = require('express');
 const calendar = require('../services/calendar');
 const taskStore = require('../taskStore');
+const settingsStore = require('../settingsStore');
 const { computeReview } = require('../services/reviewService');
 const { sendError } = require('../httpError');
 
@@ -21,7 +22,7 @@ router.get('/:provider', async (req, res) => {
     const start = new Date(now.getTime() - 15 * 86400000).toISOString();
     const end = new Date(now.getTime() + 86400000).toISOString();
     const events = await calendar.getEvents(req.params.provider, { start, end });
-    res.json(computeReview(events, taskStore.list(), { tzOffsetMinutes }));
+    res.json(computeReview(events, taskStore.list(), { tzOffsetMinutes, ruleOverrides: settingsStore.rules(tzOffsetMinutes) }));
   } catch (err) {
     sendError(res, err);
   }

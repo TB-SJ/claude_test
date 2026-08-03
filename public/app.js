@@ -43,6 +43,8 @@ const ICONS = {
   flame: '<path d="M12 3s5 3.7 5 9a5 5 0 0 1-10 0c0-1.8.8-3.2 1.8-4.2C8.8 9.6 10 10.6 11 10.6 11 7.7 12 5.6 12 3z"/>',
   shield: '<path d="M12 3l7 3v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h13M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18.5" cy="18" r="2"/>',
+  download: '<path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 20h16"/>',
 };
 
 function svgIcon(name, size = 20) {
@@ -148,7 +150,7 @@ function setTab(name) {
   for (const id of ALL_TAB_CARDS) hide($(id));
   for (const id of TAB_CARDS[name]) show($(id));
   // Reset transient result cards when switching tabs.
-  for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard']) hide($(id));
+  for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard', 'settingsCard']) hide($(id));
   for (const b of $('tabbar').querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === name);
   renderSetup(); // may re-hide the setup card if complete/dismissed
   localStorage.setItem('activeTab', name);
@@ -852,6 +854,74 @@ function renderReview(r) {
   showQueryCard();
 }
 
+// --- Settings ---------------------------------------------------------------
+function fillSettings(s) {
+  $('setWorkStart').value = s.workday.start;
+  $('setWorkEnd').value = s.workday.end;
+  $('setDeepEnabled').checked = !!s.deepWork.enabled;
+  $('setDeepStart').value = s.deepWork.start;
+  $('setDeepEnd').value = s.deepWork.end;
+  $('setMeetEnabled').checked = !!s.meetingWindow.enabled;
+  $('setMeetStart').value = s.meetingWindow.start;
+  $('setMeetEnd').value = s.meetingWindow.end;
+  $('setBuffer').value = s.bufferMinutes;
+  $('setBriefTime').value = s.briefTime;
+  $('setLead').value = s.reminderLeadMinutes;
+  $('setPrefs').value = s.optimizePrefs || '';
+}
+
+function readSettingsForm() {
+  return {
+    workday: { start: $('setWorkStart').value, end: $('setWorkEnd').value },
+    deepWork: { enabled: $('setDeepEnabled').checked, start: $('setDeepStart').value, end: $('setDeepEnd').value },
+    meetingWindow: { enabled: $('setMeetEnabled').checked, start: $('setMeetStart').value, end: $('setMeetEnd').value },
+    bufferMinutes: Number($('setBuffer').value),
+    briefTime: $('setBriefTime').value,
+    reminderLeadMinutes: Number($('setLead').value),
+    optimizePrefs: $('setPrefs').value,
+  };
+}
+
+async function openSettings() {
+  setLoading(true);
+  try {
+    const { settings } = await api('/settings');
+    fillSettings(settings);
+    for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard']) hide($(id));
+    show($('settingsCard'));
+    $('settingsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function saveSettings() {
+  setLoading(true);
+  try {
+    const { settings } = await api('/settings', { method: 'PUT', body: readSettingsForm() });
+    fillSettings(settings);
+    toast('Settings saved', 'ok');
+    hide($('settingsCard'));
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Download a JSON backup of tasks + settings (opens the authed export endpoint).
+function exportData() {
+  const a = document.createElement('a');
+  a.href = '/settings/export';
+  a.download = 'calendar-optimizer-backup.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('Backup downloaded', 'ok');
+}
+
 // --- "What should I do now?" + focus timer ---------------------------------
 async function loadFocus() {
   setLoading(true);
@@ -1354,6 +1424,10 @@ function init() {
   $('queryCloseBtn').addEventListener('click', () => hide($('queryCard')));
   $('briefRefresh').addEventListener('click', loadBrief);
   $('reviewBtn').addEventListener('click', loadReview);
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('settingsCloseBtn').addEventListener('click', () => hide($('settingsCard')));
+  $('settingsSaveBtn').addEventListener('click', saveSettings);
+  $('exportBtn').addEventListener('click', exportData);
   setupCollapse('briefCard', 'briefCollapse', 'collapse.brief');
   setupCollapse('todayCard', 'todayCollapse', 'collapse.schedule');
   setupCollapse('tasksCard', 'tasksCollapse', 'collapse.tasks');

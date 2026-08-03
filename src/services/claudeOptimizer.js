@@ -59,9 +59,16 @@ function describeEvent(ev, off, rules) {
   };
 }
 
-function buildSystemPrompt(rules) {
+function buildSystemPrompt(rules, preferences = '') {
   const dw = rules.deepWork;
   const mw = rules.meetingWindow;
+  // The user's own free-text preferences, if any. These are soft preferences —
+  // the hard constraints above (and the deterministic validator) still win.
+  const userPrefLines = String(preferences || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => `- ${l}`);
   return [
     'You rearrange a weekly calendar into a cleaner schedule. You will get a JSON',
     'list of events (local wall-clock times) and must return the moves that improve it.',
@@ -80,6 +87,9 @@ function buildSystemPrompt(rules) {
     '- Keep naturally time-bound events near their usual time (e.g. lunch around midday).',
     '- Prefer fewer, larger free blocks over many small fragmented gaps.',
     '- Do not move an event that is already in a good spot — only return moves that help.',
+    ...(userPrefLines.length
+      ? ['', 'The user also asked you to follow these personal preferences:', ...userPrefLines]
+      : []),
     '',
     'For each event you move, return its id, the new local start as "HH:MM"',
     '(24-hour), and a short reason. Return an empty list if nothing should move.',
@@ -87,7 +97,7 @@ function buildSystemPrompt(rules) {
 }
 
 /** Calls Claude for a proposal. Throws on any API/parse error. */
-async function propose(events, rules, { referenceDate = new Date() } = {}) {
+async function propose(events, rules, { referenceDate = new Date(), preferences = '' } = {}) {
   const off = rules.tzOffsetMinutes;
   const now = referenceDate.getTime();
   const timed = events
@@ -102,7 +112,7 @@ async function propose(events, rules, { referenceDate = new Date() } = {}) {
     model: config.anthropic.model,
     max_tokens: 1024,
     thinking: { type: 'disabled' },
-    system: buildSystemPrompt(rules),
+    system: buildSystemPrompt(rules, preferences),
     output_config: { format: { type: 'json_schema', schema: PROPOSAL_SCHEMA } },
     messages: [{ role: 'user', content: `Today is ${referenceDate.toISOString().slice(0, 10)}.\nEvents:\n${JSON.stringify(payload, null, 2)}` }],
   });

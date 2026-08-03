@@ -3,6 +3,7 @@
 const express = require('express');
 const calendar = require('../services/calendar');
 const taskStore = require('../taskStore');
+const settingsStore = require('../settingsStore');
 const { suggestNext } = require('../services/focusService');
 const { sendError } = require('../httpError');
 
@@ -17,7 +18,7 @@ router.get('/:provider', async (req, res) => {
   try {
     const tzOffsetMinutes = Number(req.query.tzOffsetMinutes) || 0;
     const events = await calendar.getEvents(req.params.provider, { range: 'day' });
-    res.json(suggestNext(events, taskStore.list(), { tzOffsetMinutes }));
+    res.json(suggestNext(events, taskStore.list(), { tzOffsetMinutes, ruleOverrides: settingsStore.rules(tzOffsetMinutes) }));
   } catch (err) {
     sendError(res, err);
   }

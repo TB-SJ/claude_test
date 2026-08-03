@@ -2,6 +2,7 @@
 
 const express = require('express');
 const taskStore = require('../taskStore');
+const settingsStore = require('../settingsStore');
 const calendar = require('../services/calendar');
 const { scheduleTasks } = require('../services/taskScheduler');
 const { sendError } = require('../httpError');
@@ -53,7 +54,7 @@ router.post('/plan/:provider', async (req, res) => {
     calendar.assertProvider(req.params.provider);
     const { tzOffsetMinutes, date } = req.body || {};
     const events = await calendar.getEvents(req.params.provider, { range: 'day', date });
-    const plan = scheduleTasks(taskStore.list(), events, { tzOffsetMinutes: Number(tzOffsetMinutes) || 0 }, { date });
+    const plan = scheduleTasks(taskStore.list(), events, settingsStore.rules(Number(tzOffsetMinutes) || 0), { date });
     res.json(plan);
   } catch (err) {
     sendError(res, err);

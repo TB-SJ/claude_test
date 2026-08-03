@@ -14,8 +14,8 @@ function isTimed(ev) {
  * next event (or end of the day) and picks the best-fitting pending task.
  * Pure. Returns a small status object the client renders.
  */
-function suggestNext(events, tasks, { tzOffsetMinutes = 0, referenceDate = new Date() } = {}) {
-  const rules = resolveRules({ tzOffsetMinutes });
+function suggestNext(events, tasks, { tzOffsetMinutes = 0, referenceDate = new Date(), ruleOverrides = null } = {}) {
+  const rules = resolveRules(ruleOverrides || { tzOffsetMinutes });
   const off = rules.tzOffsetMinutes;
   const now = referenceDate.getTime();
   const todayKey = localParts(referenceDate.toISOString(), off).dayKey;

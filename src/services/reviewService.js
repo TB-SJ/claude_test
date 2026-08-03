@@ -38,8 +38,8 @@ function meetingMinutes(timed, off, dayKeySet) {
  * Computes a look-back review over the last 7 local days (with a trend vs the
  * prior 7). Pure — takes events covering ~14 days and the current tasks.
  */
-function computeReview(events, tasks, { tzOffsetMinutes = 0, referenceDate = new Date() } = {}) {
-  const rules = resolveRules({ tzOffsetMinutes });
+function computeReview(events, tasks, { tzOffsetMinutes = 0, referenceDate = new Date(), ruleOverrides = null } = {}) {
+  const rules = resolveRules(ruleOverrides || { tzOffsetMinutes });
   const off = rules.tzOffsetMinutes;
   const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
 

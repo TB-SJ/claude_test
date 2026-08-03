@@ -171,9 +171,19 @@
           <span class="more-label"><b>Reminders</b><span class="muted" id="notifyStatus">Off</span></span>
           <span class="chev">›</span>
         </button>
+        <button class="more-row" id="settingsBtn">
+          <span class="icon-tile" data-icon="sliders"></span>
+          <span class="more-label"><b>Settings</b><span class="muted">Work hours, focus, reminders</span></span>
+          <span class="chev">›</span>
+        </button>
         <button class="more-row" id="themeMoreBtn">
           <span class="icon-tile" data-icon="palette"></span>
           <span class="more-label"><b>Theme</b><span class="muted" id="themeStatus">Classic</span></span>
+          <span class="chev">›</span>
+        </button>
+        <button class="more-row" id="exportBtn">
+          <span class="icon-tile" data-icon="download"></span>
+          <span class="more-label"><b>Back up my data</b><span class="muted">Download tasks + settings (JSON)</span></span>
           <span class="chev">›</span>
         </button>
         <button class="more-row" id="logoutBtn">
@@ -181,6 +191,56 @@
           <span class="more-label"><b>Sign out</b></span>
           <span class="chev">›</span>
         </button>
+      </div>
+    </section>
+
+    <!-- Settings (scheduling rules, reminders, optimizer preferences) -->
+    <section class="card hidden" id="settingsCard">
+      <div class="row">
+        <span class="icon-tile" data-icon="sliders"></span>
+        <h2 style="margin:0">Settings</h2>
+        <span class="spacer"></span>
+        <button class="ghost" id="settingsCloseBtn">Close</button>
+      </div>
+
+      <div class="settings-body" style="margin-top:12px">
+        <h3 class="set-group">Awake / work hours</h3>
+        <p class="muted set-hint">Plan my day and free-time only schedule inside this window.</p>
+        <div class="row">
+          <label class="set-field"><span>Start</span><input id="setWorkStart" type="time" /></label>
+          <label class="set-field"><span>End</span><input id="setWorkEnd" type="time" /></label>
+        </div>
+
+        <h3 class="set-group">Deep-work block</h3>
+        <p class="muted set-hint">A protected focus window — Optimize keeps meetings out of it.</p>
+        <label class="set-toggle"><input id="setDeepEnabled" type="checkbox" /> <span>Protect a deep-work block</span></label>
+        <div class="row">
+          <label class="set-field"><span>Start</span><input id="setDeepStart" type="time" /></label>
+          <label class="set-field"><span>End</span><input id="setDeepEnd" type="time" /></label>
+        </div>
+
+        <h3 class="set-group">Meeting window</h3>
+        <p class="muted set-hint">Optimize tries to group meetings into this window.</p>
+        <label class="set-toggle"><input id="setMeetEnabled" type="checkbox" /> <span>Group meetings into a window</span></label>
+        <div class="row">
+          <label class="set-field"><span>Start</span><input id="setMeetStart" type="time" /></label>
+          <label class="set-field"><span>End</span><input id="setMeetEnd" type="time" /></label>
+        </div>
+
+        <h3 class="set-group">Spacing</h3>
+        <label class="set-field full"><span>Buffer between events (minutes)</span><input id="setBuffer" type="number" min="0" max="120" step="5" /></label>
+
+        <h3 class="set-group">Reminders</h3>
+        <div class="row">
+          <label class="set-field"><span>Daily brief time</span><input id="setBriefTime" type="time" /></label>
+          <label class="set-field"><span>Event lead (min)</span><input id="setLead" type="number" min="0" max="120" step="5" /></label>
+        </div>
+
+        <h3 class="set-group">Optimizer preferences <span class="pill">🧠 Claude</span></h3>
+        <p class="muted set-hint">Plain-English preferences the AI optimizer will try to honor (one per line). Hard rules above always win.</p>
+        <textarea id="setPrefs" rows="4" placeholder="e.g.&#10;No meetings before 10am&#10;Keep Fridays light&#10;Batch errands in the afternoon"></textarea>
+
+        <button class="primary full" id="settingsSaveBtn" style="margin-top:14px">Save settings</button>
       </div>
     </section>
 

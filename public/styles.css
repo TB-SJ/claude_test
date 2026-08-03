@@ -203,7 +203,7 @@ button.ghost.active { color: var(--green); border-color: var(--green); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Form inputs */
-input:not([type="checkbox"]), select {
+input:not([type="checkbox"]), select, textarea {
   background: var(--card-2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -211,6 +211,18 @@ input:not([type="checkbox"]), select {
   padding: 11px;
   font-size: 1rem;
 }
+textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4; }
+
+/* Settings form */
+.settings-body .row { gap: 10px; margin-top: 6px; }
+.set-group { font-size: 0.95rem; margin: 18px 0 2px; display: flex; align-items: center; gap: 8px; }
+.set-group:first-child { margin-top: 0; }
+.set-hint { font-size: 0.8rem; margin: 0 0 8px; }
+.set-field { display: flex; flex-direction: column; gap: 4px; flex: 1; font-size: 0.8rem; color: var(--muted); }
+.set-field.full { width: 100%; }
+.set-field input { width: 100%; }
+.set-toggle { display: flex; align-items: center; gap: 9px; margin: 4px 0 8px; font-size: 0.9rem; cursor: pointer; }
+.set-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 /* Task list */
 .task { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }

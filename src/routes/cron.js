@@ -10,6 +10,7 @@ const { composeBrief } = require('../services/brief');
 const { planNotifications } = require('../services/reminderEngine');
 const logger = require('../logger');
 const taskStore = require('../taskStore');
+const settingsStore = require('../settingsStore');
 
 const router = express.Router();
 
@@ -43,13 +44,15 @@ async function tick(req, res) {
 
     const tz = doc.tzOffsetMinutes || 0;
     const events = await calendar.getEvents(provider, { range: 'day' });
-    const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes: tz });
+    const brief = composeBrief(events, taskStore.list(), { tzOffsetMinutes: tz, ruleOverrides: settingsStore.rules(tz) });
 
+    // User-saved notification timing overrides the env defaults.
+    const notif = settingsStore.notify();
     const { notifications, state } = planNotifications({
       now: new Date(),
       tzOffsetMinutes: tz,
-      briefTime: config.notify.briefTime,
-      leadMinutes: config.notify.reminderLeadMinutes,
+      briefTime: notif.briefTime || config.notify.briefTime,
+      leadMinutes: notif.reminderLeadMinutes != null ? notif.reminderLeadMinutes : config.notify.reminderLeadMinutes,
       brief,
       appUrl: `${config.baseUrl}/`,
       state: doc.state,
