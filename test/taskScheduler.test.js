@@ -99,3 +99,27 @@ test('taskUrgency classifies overdue / today / tomorrow', () => {
   assert.equal(taskUrgency({ deadline: '2026-08-04' }, today).dueTomorrow, true);
   assert.equal(taskUrgency({ deadline: null }, today).dueSoon, false);
 });
+
+test('priorityTag floats the tagged tasks to the front of the plan', () => {
+  const tasks = [
+    { id: 'p1', title: 'Personal errand', estimatedMinutes: 60, priority: 'high', deadline: null, done: false, tag: 'personal' },
+    { id: 'w1', title: 'Work report', estimatedMinutes: 60, priority: 'low', deadline: null, done: false, tag: 'work' },
+  ];
+  // Without a tag preference, high-priority personal task schedules first.
+  const base = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03' });
+  assert.equal(base.slots[0].taskId, 'p1');
+  // With priorityTag 'work', the work task jumps ahead despite lower priority.
+  const work = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03', priorityTag: 'work' });
+  assert.equal(work.slots[0].taskId, 'w1');
+  assert.equal(work.slots[1].taskId, 'p1');
+});
+
+test('explicit order overrides the default task ordering', () => {
+  const tasks = [
+    { id: 'a', title: 'A', estimatedMinutes: 30, priority: 'high', deadline: null, done: false },
+    { id: 'b', title: 'B', estimatedMinutes: 30, priority: 'low', deadline: null, done: false },
+    { id: 'c', title: 'C', estimatedMinutes: 30, priority: 'med', deadline: null, done: false },
+  ];
+  const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03', order: ['c', 'b', 'a'] });
+  assert.deepEqual(plan.slots.map((s) => s.taskId), ['c', 'b', 'a']);
+});

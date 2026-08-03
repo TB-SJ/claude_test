@@ -59,7 +59,7 @@ function isTimed(ev) {
  *
  * @returns {{ dayKey, slots:[{taskId,title,start,end,priority}], unscheduled:[task], events }}
  */
-function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date } = {}) {
+function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date, priorityTag = null, order = null } = {}) {
   const rules = resolveRules(ruleOverrides);
   const off = rules.tzOffsetMinutes;
   const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
@@ -82,7 +82,27 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     busy.push([Math.max(s.minute, 0), e.dayKey === dayKey ? e.minute : workEnd]);
   }
 
-  const pending = tasks.filter((t) => isPending(t, dayKey)).slice().sort((a, b) => taskOrder(a, b, dayKey));
+  // Ordering: an explicit manual `order` (list of task ids) wins outright; else
+  // an optional `priorityTag` floats that tag to the front; else deadline/priority.
+  const pending = tasks.filter((t) => isPending(t, dayKey)).slice();
+  if (Array.isArray(order) && order.length) {
+    const idx = new Map(order.map((id, i) => [id, i]));
+    pending.sort((a, b) => {
+      const ai = idx.has(a.id) ? idx.get(a.id) : Infinity;
+      const bi = idx.has(b.id) ? idx.get(b.id) : Infinity;
+      if (ai !== bi) return ai - bi;
+      return taskOrder(a, b, dayKey); // stable fallback for any not listed
+    });
+  } else {
+    pending.sort((a, b) => {
+      if (priorityTag) {
+        const at = a.tag === priorityTag ? 0 : 1;
+        const bt = b.tag === priorityTag ? 0 : 1;
+        if (at !== bt) return at - bt;
+      }
+      return taskOrder(a, b, dayKey);
+    });
+  }
   const slots = [];
   const unscheduled = [];
   const placed = busy.slice();

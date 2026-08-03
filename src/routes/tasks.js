@@ -53,11 +53,15 @@ router.delete('/:id', async (req, res) => {
 router.post('/plan/:provider', async (req, res) => {
   try {
     calendar.assertProvider(req.params.provider);
-    const { tzOffsetMinutes, date } = req.body || {};
+    const { tzOffsetMinutes, date, priorityTag, order } = req.body || {};
     const tz = Number(tzOffsetMinutes) || 0;
     const anchor = date || calendarUtils.localNoonAnchor(tz);
     const events = await calendar.getEvents(req.params.provider, { range: 'day', date: anchor, tzOffsetMinutes: tz });
-    const plan = scheduleTasks(taskStore.list(), events, settingsStore.rules(tz), { date });
+    const plan = scheduleTasks(taskStore.list(), events, settingsStore.rules(tz), {
+      date,
+      priorityTag: calendarUtils.normTag(priorityTag),
+      order: Array.isArray(order) ? order : null,
+    });
     res.json(plan);
   } catch (err) {
     sendError(res, err);

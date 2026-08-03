@@ -289,6 +289,13 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .wg-ev.tag-work { background: #3b82f6; }
 .wg-ev.tag-personal { background: #14b8a6; }
 
+/* Plan my day — manual reorder controls */
+.plan-move { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; margin-left: 6px; }
+.plan-move .mv { background: var(--card-2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; min-height: 0; padding: 1px 8px; font-size: 0.7rem; line-height: 1.2; cursor: pointer; }
+.plan-move .mv:hover { color: var(--accent); border-color: var(--accent); }
+.event.unfit { opacity: 0.75; }
+.event.unfit .title { flex: 1; }
+
 /* Task list */
 .task { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
 .task:first-child { border-top: none; }

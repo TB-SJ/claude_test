@@ -1666,10 +1666,13 @@ function startEditTask(id) {
   $('taskForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-async function planTasks() {
+async function planTasks(order) {
   setLoading(true);
   try {
-    const plan = await api(`/tasks/plan/${activeProvider}`, { method: 'POST', body: { tzOffsetMinutes: TZ_OFFSET } });
+    const body = { tzOffsetMinutes: TZ_OFFSET };
+    if (tagFilter !== 'all') body.priorityTag = tagFilter; // work/personal-first
+    if (order) body.order = order;
+    const plan = await api(`/tasks/plan/${activeProvider}`, { method: 'POST', body });
     renderTaskPlan(plan);
   } catch (err) {
     toast(err.message, 'err');
@@ -1679,35 +1682,59 @@ async function planTasks() {
 }
 
 let lastPlanSlots = []; // task slots from the most recent plan, for time-blocking
+let planTaskOrder = []; // task ids in the current plan order (for manual rearrange)
 
 // Merged timeline of today's events + suggested task slots (tasks marked 📋).
+// Task rows carry ↑/↓ controls to re-prioritize; re-planning re-slots them.
 function renderTaskPlan(plan) {
   lastPlanSlots = (plan.slots || []).map((s) => ({ taskId: s.taskId, title: s.title, start: s.start, end: s.end }));
+  // Canonical task order: scheduled (in placement order) then unscheduled.
+  planTaskOrder = [...(plan.slots || []).map((s) => s.taskId), ...(plan.unscheduled || []).map((t) => t.id)];
+  const reorderable = planTaskOrder.length > 1;
+
   const items = [];
   for (const e of plan.events || []) if (e.start.includes('T')) items.push({ kind: 'event', title: e.title, start: e.start, end: e.end });
-  for (const s of plan.slots || []) items.push({ kind: 'task', title: s.title, start: s.start, end: s.end });
+  for (const s of plan.slots || []) items.push({ kind: 'task', title: s.title, start: s.start, end: s.end, taskId: s.taskId });
   items.sort((a, b) => new Date(a.start) - new Date(b.start));
+
+  const moveBtns = (id) => reorderable
+    ? `<div class="plan-move"><button class="mv" data-dir="-1" data-id="${escapeHtml(id)}" aria-label="earlier">▲</button><button class="mv" data-dir="1" data-id="${escapeHtml(id)}" aria-label="later">▼</button></div>`
+    : '';
 
   let html = '<div class="daygroup">';
   if (!items.length) html += '<p class="muted center">Nothing to plan — no events or tasks.</p>';
   for (const it of items) {
     const cls = it.kind === 'task' ? 'event task-slot' : 'event';
     const badge = it.kind === 'task' ? '📋 ' : '';
-    html += `<div class="${cls}"><div class="time">${fmtRange(it.start, it.end)}</div><div class="title">${badge}${escapeHtml(it.title)}</div></div>`;
+    html += `<div class="${cls}"><div class="time">${fmtRange(it.start, it.end)}</div><div class="title">${badge}${escapeHtml(it.title)}</div>${it.kind === 'task' ? moveBtns(it.taskId) : ''}</div>`;
   }
   html += '</div>';
   if (plan.unscheduled && plan.unscheduled.length) {
     html += '<h3 class="muted" style="margin:12px 0 4px">Couldn’t fit today</h3>';
     html += plan.unscheduled
-      .map((t) => `<div class="reason ${t.atRisk ? 'warn' : ''}" style="margin-left:0">• ${t.atRisk ? '⚠️ ' : ''}${escapeHtml(t.title)} (${t.estimatedMinutes} min${t.deadline ? `, due ${t.deadline}` : ''})</div>`)
+      .map((t) => `<div class="event unfit"><div class="title">${t.atRisk ? '⚠️ ' : ''}${escapeHtml(t.title)} <span class="muted">(${t.estimatedMinutes} min${t.deadline ? `, due ${t.deadline}` : ''})</span></div>${moveBtns(t.id)}</div>`)
       .join('');
   }
   $('planBody').innerHTML = html;
+  for (const b of $('planBody').querySelectorAll('.mv')) {
+    b.addEventListener('click', () => moveTaskInPlan(b.dataset.id, parseInt(b.dataset.dir, 10)));
+  }
   $('commitPlanBtn').classList.toggle('hidden', lastPlanSlots.length === 0);
   hide($('voiceCard'));
   hide($('proposalCard'));
   show($('taskPlanCard'));
   $('taskPlanCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Move a task earlier/later in the plan queue, then re-plan with the new order
+// so it re-slots around the fixed events.
+function moveTaskInPlan(id, dir) {
+  const i = planTaskOrder.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= planTaskOrder.length) return;
+  const arr = planTaskOrder.slice();
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  planTasks(arr);
 }
 
 // Time-blocking: write the suggested task slots onto the calendar (opt-in).
