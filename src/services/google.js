@@ -132,19 +132,21 @@ async function listEvents({ start, end }) {
   }
 }
 
-/** 2) Creates an event. Expects fully-resolved ISO `start`/`end`. */
-async function createEvent({ title, start, end, description, location, timeZone }) {
+/** 2) Creates an event. Expects fully-resolved ISO `start`/`end`. `recurrence`
+ * is an optional RRULE array; recurring events need a timeZone (so DST is
+ * handled), falling back to UTC when the client didn't send one. */
+async function createEvent({ title, start, end, description, location, timeZone, recurrence }) {
   try {
-    const res = await calendarApi().events.insert({
-      calendarId: CALENDAR_ID,
-      requestBody: {
-        summary: title,
-        description,
-        location,
-        start: { dateTime: start, timeZone },
-        end: { dateTime: end, timeZone },
-      },
-    });
+    const tz = recurrence && recurrence.length ? (timeZone || 'UTC') : timeZone;
+    const requestBody = {
+      summary: title,
+      description,
+      location,
+      start: { dateTime: start, timeZone: tz },
+      end: { dateTime: end, timeZone: tz },
+    };
+    if (recurrence && recurrence.length) requestBody.recurrence = recurrence;
+    const res = await calendarApi().events.insert({ calendarId: CALENDAR_ID, requestBody });
     return normalizeEvent(res.data);
   } catch (err) {
     throw apiError(PROVIDER, 'createEvent', err, { title, start, end });

@@ -95,6 +95,18 @@
             <input id="evTime" type="time" style="flex:1" title="start time" />
             <input id="evMins" type="number" min="5" step="5" value="60" style="width:84px" title="minutes" />
           </div>
+          <div class="row" id="evRepeatRow" style="margin-top:8px; gap:8px; align-items:center">
+            <span class="muted" style="font-size:.82rem">Repeat</span>
+            <select id="evRepeat" style="flex:1">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekdays">Every weekday (Mon–Fri)</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="every4weeks">Every 4 weeks</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
           <input id="evDesc" placeholder="Notes (optional)" style="width:100%; margin-top:8px" />
           <button class="primary full" id="evAddBtn" style="margin-top:8px">Add event</button>
         </div>

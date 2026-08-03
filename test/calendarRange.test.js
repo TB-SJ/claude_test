@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { weekRange, dayRange, localNoonAnchor } = require('../src/services/calendarUtils');
+const { weekRange, dayRange, localNoonAnchor, buildRecurrence, recurrenceFromInput } = require('../src/services/calendarUtils');
 
 test('weekRange is a rolling 7 days from the anchor (fixes Sunday-only week)', () => {
   // Aug 2 2026 is a Sunday — the reported case. The window must run forward a
@@ -43,4 +43,31 @@ test('localNoonAnchor returns the local date at noon UTC', () => {
   // 03:00Z Aug 3 is still Aug 2 in UTC-5 → anchor should be Aug 2 noon.
   const a = localNoonAnchor(-300, Date.parse('2026-08-03T03:00:00Z'));
   assert.equal(a, '2026-08-02T12:00:00Z');
+});
+
+test('recurrence presets build the expected RRULE', () => {
+  assert.deepEqual(recurrenceFromInput({ repeat: 'weekly' }), ['RRULE:FREQ=WEEKLY']);
+  assert.deepEqual(recurrenceFromInput({ repeat: 'biweekly' }), ['RRULE:FREQ=WEEKLY;INTERVAL=2']);
+  assert.deepEqual(recurrenceFromInput({ repeat: 'every4weeks' }), ['RRULE:FREQ=WEEKLY;INTERVAL=4']);
+  assert.deepEqual(recurrenceFromInput({ repeat: 'monthly' }), ['RRULE:FREQ=MONTHLY']);
+  assert.deepEqual(recurrenceFromInput({ repeat: 'weekdays' }), ['RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR']);
+});
+
+test('recurrence "none"/empty yields null (a normal one-off event)', () => {
+  assert.equal(recurrenceFromInput({ repeat: 'none' }), null);
+  assert.equal(recurrenceFromInput({}), null);
+});
+
+test('an optional repeatCount adds COUNT (capped)', () => {
+  assert.deepEqual(recurrenceFromInput({ repeat: 'weekly', repeatCount: 8 }), ['RRULE:FREQ=WEEKLY;COUNT=8']);
+  assert.deepEqual(recurrenceFromInput({ repeat: 'daily', repeatCount: 5000 }), ['RRULE:FREQ=DAILY;COUNT=730']);
+});
+
+test('a raw recurrence array passes through untouched', () => {
+  assert.deepEqual(recurrenceFromInput({ recurrence: ['RRULE:FREQ=YEARLY'] }), ['RRULE:FREQ=YEARLY']);
+});
+
+test('an unknown repeat preset or bad frequency throws', () => {
+  assert.throws(() => recurrenceFromInput({ repeat: 'hourly' }), /Unknown repeat/);
+  assert.throws(() => buildRecurrence({ freq: 'FORTNIGHTLY' }), /Invalid recurrence frequency/);
 });

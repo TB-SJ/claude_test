@@ -6,6 +6,8 @@ const PROVIDER_ORDER = ['outlook', 'google'];
 const PROVIDER_LABEL = { google: 'Google Calendar', outlook: 'Outlook Calendar' };
 // Minutes to add to UTC to get local time (matches the optimizer's convention).
 const TZ_OFFSET = -new Date().getTimezoneOffset();
+// IANA zone name (e.g. "America/New_York") — sent so recurring events handle DST.
+const TZ_NAME = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
 
 let activeProvider = null;
 let scope = 'day';
@@ -492,6 +494,15 @@ async function addEventFromForm() {
     duration: parseInt($('evMins').value, 10) || 60,
     description: editing ? $('evDesc').value.trim() : ($('evDesc').value.trim() || undefined),
   };
+  // Recurrence is set on creation only (editing a single instance's rule isn't
+  // supported). Send the IANA zone so the repeat handles DST correctly.
+  if (!editing) {
+    const repeat = $('evRepeat').value;
+    if (repeat && repeat !== 'none') {
+      body.repeat = repeat;
+      body.timeZone = TZ_NAME;
+    }
+  }
   setLoading(true);
   try {
     if (editing) {
@@ -516,6 +527,8 @@ function resetEventForm() {
   $('evDesc').value = '';
   $('evDate').value = '';
   $('evTime').value = '';
+  $('evRepeat').value = 'none';
+  show($('evRepeatRow')); // repeat is available when adding
   $('evAddBtn').textContent = 'Add event';
 }
 
@@ -530,6 +543,7 @@ function startEditEvent(id) {
   $('evTime').value = timeInputValue(start);
   $('evMins').value = Math.max(5, Math.round((new Date(ev.end) - start) / 60000)) || 60;
   $('evDesc').value = ev.description || '';
+  hide($('evRepeatRow')); // recurrence is set at creation, not per-instance edit
   $('evAddBtn').textContent = 'Save changes';
   show($('eventForm'));
   $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'center' });

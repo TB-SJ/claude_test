@@ -3,7 +3,7 @@
 const google = require('./google');
 const outlook = require('./outlook');
 const { validationError } = require('../errors');
-const { resolveRange, resolveEventTimes } = require('./calendarUtils');
+const { resolveRange, resolveEventTimes, recurrenceFromInput } = require('./calendarUtils');
 
 const PROVIDERS = { google, outlook };
 
@@ -31,8 +31,11 @@ async function getEvents(provider, opts = {}) {
  * 2) Add a new event with a title, time, and description.
  *
  * @param {string} provider
- * @param {object} input  { title, start, end?, duration?, description?, location?, timeZone? }
+ * @param {object} input  { title, start, end?, duration?, description?, location?, timeZone?,
+ *                          repeat?, repeatCount?, recurrence? }
  *                        Provide `end` or `duration` (minutes); defaults to 60 min.
+ *                        `repeat` is a preset key (e.g. 'weekly', 'biweekly') or a
+ *                        spec object; `recurrence` is a raw RRULE array.
  */
 async function createEvent(provider, input = {}) {
   if (!input.title || !String(input.title).trim()) {
@@ -43,6 +46,7 @@ async function createEvent(provider, input = {}) {
   }
   const duration = input.end == null && input.duration == null ? 60 : input.duration;
   const { start, end } = resolveEventTimes({ start: input.start, end: input.end, duration }, null);
+  const recurrence = recurrenceFromInput(input);
   return service(provider).createEvent({
     title: String(input.title).trim(),
     description: input.description,
@@ -50,6 +54,7 @@ async function createEvent(provider, input = {}) {
     timeZone: input.timeZone,
     start,
     end,
+    recurrence,
   });
 }
 

@@ -121,4 +121,68 @@ function resolveEventTimes({ start, end, duration } = {}, existing = null) {
   return { start: s, end: e };
 }
 
-module.exports = { toISO, addMinutes, diffMinutes, localNoonAnchor, dayRange, weekRange, resolveRange, resolveEventTimes };
+// --- Recurring events (RFC 5545 RRULE, as Google/Graph expect) --------------
+
+// Friendly preset keys → recurrence spec. FREQ=WEEKLY without BYDAY repeats on
+// the event's own start weekday, so most presets need no BYDAY.
+const RECURRENCE_PRESETS = {
+  daily: { freq: 'DAILY' },
+  weekly: { freq: 'WEEKLY' },
+  biweekly: { freq: 'WEEKLY', interval: 2 },
+  every3weeks: { freq: 'WEEKLY', interval: 3 },
+  every4weeks: { freq: 'WEEKLY', interval: 4 },
+  monthly: { freq: 'MONTHLY' },
+  yearly: { freq: 'YEARLY' },
+  weekdays: { freq: 'WEEKLY', byday: ['MO', 'TU', 'WE', 'TH', 'FR'] },
+};
+
+const VALID_FREQ = new Set(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']);
+const VALID_DAYS = new Set(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']);
+
+/**
+ * Builds a recurrence array (e.g. ["RRULE:FREQ=WEEKLY;INTERVAL=2"]) from a spec
+ * object `{ freq, interval?, byday?, count?, until? }`. Returns null for a
+ * falsy/`none` spec. Throws on an invalid frequency/day.
+ */
+function buildRecurrence(spec) {
+  if (!spec || spec === 'none') return null;
+  const freq = String(spec.freq || '').toUpperCase();
+  if (!VALID_FREQ.has(freq)) throw validationError(`Invalid recurrence frequency: ${JSON.stringify(spec.freq)}`);
+  const parts = [`FREQ=${freq}`];
+  const interval = Math.max(1, Math.min(52, parseInt(spec.interval, 10) || 1));
+  if (interval > 1) parts.push(`INTERVAL=${interval}`);
+  if (Array.isArray(spec.byday) && spec.byday.length) {
+    const days = spec.byday.map((d) => String(d).toUpperCase());
+    if (days.some((d) => !VALID_DAYS.has(d))) throw validationError('Invalid BYDAY in recurrence.');
+    parts.push(`BYDAY=${days.join(',')}`);
+  }
+  const count = parseInt(spec.count, 10);
+  if (count > 0) {
+    parts.push(`COUNT=${Math.min(count, 730)}`);
+  } else if (spec.until) {
+    const d = new Date(spec.until);
+    if (!Number.isNaN(d.getTime())) {
+      parts.push(`UNTIL=${d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`);
+    }
+  }
+  return [`RRULE:${parts.join(';')}`];
+}
+
+/**
+ * Resolves an event-create input's recurrence into an RRULE array (or null).
+ * Accepts a pass-through `recurrence` array, a preset key via `repeat`, or a
+ * spec object via `repeat`, plus an optional `repeatCount`.
+ */
+function recurrenceFromInput(input = {}) {
+  if (Array.isArray(input.recurrence)) return input.recurrence.length ? input.recurrence : null;
+  const repeat = input.repeat;
+  if (!repeat || repeat === 'none') return null;
+  const base = typeof repeat === 'string' ? RECURRENCE_PRESETS[repeat.toLowerCase()] : repeat;
+  if (!base) throw validationError(`Unknown repeat option: ${JSON.stringify(repeat)}`);
+  return buildRecurrence({ ...base, count: input.repeatCount });
+}
+
+module.exports = {
+  toISO, addMinutes, diffMinutes, localNoonAnchor, dayRange, weekRange, resolveRange, resolveEventTimes,
+  RECURRENCE_PRESETS, buildRecurrence, recurrenceFromInput,
+};
