@@ -75,16 +75,17 @@ async function deleteEvent(provider, eventId) {
  */
 async function updateEvent(provider, eventId, changes = {}) {
   if (!eventId) throw validationError('`eventId` is required.');
-  const { start, end, duration, title, description, tag } = changes;
-  if (start == null && end == null && duration == null && title == null && description == null && tag === undefined) {
-    throw validationError('Provide at least one of `start`, `end`, `duration`, `title`, `description`, or `tag` to update.');
+  const { start, end, duration, title, description, tag, done } = changes;
+  if (start == null && end == null && duration == null && title == null && description == null && tag === undefined && done === undefined) {
+    throw validationError('Provide at least one of `start`, `end`, `duration`, `title`, `description`, `tag`, or `done` to update.');
   }
   if (title != null && !String(title).trim()) {
     throw validationError('`title` cannot be empty.');
   }
   // Normalize the tag; empty string clears it.
   const normedTag = tag === undefined ? undefined : (tag === '' ? '' : normTag(tag));
-  return service(provider).updateEvent(eventId, { start, end, duration, title, description, tag: normedTag });
+  const normedDone = done === undefined ? undefined : Boolean(done);
+  return service(provider).updateEvent(eventId, { start, end, duration, title, description, tag: normedTag, done: normedDone });
 }
 
 /** Throws a 400-style error if `provider` is not a known calendar provider. */

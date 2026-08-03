@@ -102,8 +102,10 @@ function normalizeEvent(ev) {
     end: (ev.end && (ev.end.dateTime || ev.end.date)) || null,
     status: ev.status,
     htmlLink: ev.htmlLink,
-    // Our own work/personal tag, stored as a private extended property.
+    // Our own metadata, stored as private extended properties.
     tag: (ev.extendedProperties && ev.extendedProperties.private && ev.extendedProperties.private.tag) || null,
+    done: Boolean(ev.extendedProperties && ev.extendedProperties.private
+      && (ev.extendedProperties.private.done === 'true' || ev.extendedProperties.private.done === '1')),
   };
 }
 
@@ -167,7 +169,7 @@ async function deleteEvent(eventId) {
 }
 
 /** 4) Updates an existing event's time, duration, title, and/or description. */
-async function updateEvent(eventId, { start, end, duration, title, description, tag } = {}) {
+async function updateEvent(eventId, { start, end, duration, title, description, tag, done } = {}) {
   const existing = await getEventById(eventId);
   const requestBody = {};
   let times = null;
@@ -178,8 +180,11 @@ async function updateEvent(eventId, { start, end, duration, title, description, 
   }
   if (title != null) requestBody.summary = String(title).trim();
   if (description != null) requestBody.description = String(description);
-  // Set/clear our work/personal tag (empty string clears it).
-  if (tag !== undefined) requestBody.extendedProperties = { private: { tag: tag || null } };
+  // Our private metadata — patch merges individual keys; null clears one.
+  const priv = {};
+  if (tag !== undefined) priv.tag = tag || null;
+  if (done !== undefined) priv.done = done ? 'true' : null;
+  if (Object.keys(priv).length) requestBody.extendedProperties = { private: priv };
   try {
     const res = await calendarApi().events.patch({
       calendarId: CALENDAR_ID,

@@ -104,6 +104,12 @@ button.full { width: 100%; }
 }
 .event .ev-edit:hover { color: var(--accent); }
 .event .ev-del:hover { color: var(--danger); }
+.event .ev-check { width: 22px; height: 22px; accent-color: var(--green); flex: 0 0 auto; }
+.event.done .title { text-decoration: line-through; color: var(--muted); }
+.event.done .time { color: var(--muted); }
+.event.done { opacity: 0.72; }
+.wg-ev.done { opacity: 0.5; }
+.wg-ev.done .wg-n { text-decoration: line-through; }
 .task .t-edit {
   background: none; border: none; color: var(--muted); font-size: 1rem;
   min-height: auto; padding: 4px 6px; cursor: pointer;

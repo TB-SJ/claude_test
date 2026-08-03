@@ -271,11 +271,15 @@ function applyMoves(events, moves) {
 // adds a ✎ button that opens the inline edit form.
 function eventRow(ev, wasRange, editable) {
   const changed = Boolean(wasRange);
+  const check = editable && ev.start.includes('T')
+    ? `<input type="checkbox" class="ev-check" data-id="${escapeHtml(ev.id)}" ${ev.done ? 'checked' : ''} title="Mark done" />`
+    : '';
   const controls = editable
     ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">${svgIcon('edit', 18)}</button>`
       + `<button class="ev-del" data-id="${escapeHtml(ev.id)}" aria-label="delete">${svgIcon('trash', 18)}</button>`
     : '';
-  return `<div class="event ${changed ? 'changed' : ''} ${ev.tag ? `tag-${ev.tag}` : ''}">
+  return `<div class="event ${changed ? 'changed' : ''} ${ev.tag ? `tag-${ev.tag}` : ''} ${ev.done ? 'done' : ''}">
+      ${check}
       <div class="time">${fmtRange(ev.start, ev.end)}</div>
       <div style="flex:1">
         <div class="title">${escapeHtml(ev.title || '(untitled)')} ${tagPill(ev.tag)}</div>
@@ -304,6 +308,9 @@ function renderSchedule(container, events, changedMap, opts = {}) {
     }
     for (const b of container.querySelectorAll('.ev-del')) {
       b.addEventListener('click', () => deleteEventById(b.dataset.id));
+    }
+    for (const c of container.querySelectorAll('.ev-check')) {
+      c.addEventListener('change', () => toggleEventDone(c.dataset.id, c.checked));
     }
   }
 }
@@ -449,7 +456,8 @@ function renderWeekGrid(container, events) {
       const height = Math.min(100 - top, pct(winStart + durMin));
       const isTask = /^📋/.test(e.title || '');
       const tagCls = e.tag ? ` tag-${e.tag}` : '';
-      blocks += `<div class="wg-ev${isTask ? ' task' : ''}${tagCls}" data-id="${escapeHtml(e.id)}" style="top:${top}%;height:${height}%" title="${escapeHtml((e.title || '') + ' · ' + fmtRange(e.start, e.end))}">
+      const doneCls = e.done ? ' done' : '';
+      blocks += `<div class="wg-ev${isTask ? ' task' : ''}${tagCls}${doneCls}" data-id="${escapeHtml(e.id)}" style="top:${top}%;height:${height}%" title="${escapeHtml((e.title || '') + ' · ' + fmtRange(e.start, e.end))}">
         <span class="wg-t">${fmtTimeCompact(e.start)}</span><span class="wg-n">${escapeHtml(e.title || '(untitled)')}</span>
       </div>`;
     }
@@ -631,6 +639,21 @@ function startEditEvent(id) {
   $('evAddBtn').textContent = 'Save changes';
   show($('eventForm'));
   $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Marks an event done/undone (stored on the calendar event). Optimistic so the
+// checkbox feels instant; reverts if the server rejects it.
+async function toggleEventDone(id, done) {
+  const ev = currentEvents.find((e) => e.id === id);
+  if (ev) ev.done = done;
+  renderScheduleView();
+  try {
+    await api(`/calendar/${activeProvider}/events/${encodeURIComponent(id)}`, { method: 'PATCH', body: { done } });
+  } catch (err) {
+    if (ev) ev.done = !done;
+    renderScheduleView();
+    toast(err.message, 'err');
+  }
 }
 
 // Deletes a calendar event after confirmation (it's removed from the real
