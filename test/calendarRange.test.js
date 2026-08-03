@@ -81,3 +81,12 @@ test('count takes precedence over until when both are given', () => {
   const r = recurrenceFromInput({ repeat: 'weekly', repeatCount: 4, repeatUntil: '2026-12-31' });
   assert.deepEqual(r, ['RRULE:FREQ=WEEKLY;COUNT=4']);
 });
+
+test('normTag accepts only work/personal (case-insensitive), else null', () => {
+  const { normTag } = require('../src/services/calendarUtils');
+  assert.equal(normTag('Work'), 'work');
+  assert.equal(normTag('  PERSONAL '), 'personal');
+  assert.equal(normTag('urgent'), null);
+  assert.equal(normTag(''), null);
+  assert.equal(normTag(null), null);
+});

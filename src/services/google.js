@@ -102,6 +102,8 @@ function normalizeEvent(ev) {
     end: (ev.end && (ev.end.dateTime || ev.end.date)) || null,
     status: ev.status,
     htmlLink: ev.htmlLink,
+    // Our own work/personal tag, stored as a private extended property.
+    tag: (ev.extendedProperties && ev.extendedProperties.private && ev.extendedProperties.private.tag) || null,
   };
 }
 
@@ -135,7 +137,7 @@ async function listEvents({ start, end }) {
 /** 2) Creates an event. Expects fully-resolved ISO `start`/`end`. `recurrence`
  * is an optional RRULE array; recurring events need a timeZone (so DST is
  * handled), falling back to UTC when the client didn't send one. */
-async function createEvent({ title, start, end, description, location, timeZone, recurrence }) {
+async function createEvent({ title, start, end, description, location, timeZone, recurrence, tag }) {
   try {
     const tz = recurrence && recurrence.length ? (timeZone || 'UTC') : timeZone;
     const requestBody = {
@@ -146,6 +148,7 @@ async function createEvent({ title, start, end, description, location, timeZone,
       end: { dateTime: end, timeZone: tz },
     };
     if (recurrence && recurrence.length) requestBody.recurrence = recurrence;
+    if (tag) requestBody.extendedProperties = { private: { tag } };
     const res = await calendarApi().events.insert({ calendarId: CALENDAR_ID, requestBody });
     return normalizeEvent(res.data);
   } catch (err) {
@@ -164,7 +167,7 @@ async function deleteEvent(eventId) {
 }
 
 /** 4) Updates an existing event's time, duration, title, and/or description. */
-async function updateEvent(eventId, { start, end, duration, title, description } = {}) {
+async function updateEvent(eventId, { start, end, duration, title, description, tag } = {}) {
   const existing = await getEventById(eventId);
   const requestBody = {};
   let times = null;
@@ -175,6 +178,8 @@ async function updateEvent(eventId, { start, end, duration, title, description }
   }
   if (title != null) requestBody.summary = String(title).trim();
   if (description != null) requestBody.description = String(description);
+  // Set/clear our work/personal tag (empty string clears it).
+  if (tag !== undefined) requestBody.extendedProperties = { private: { tag: tag || null } };
   try {
     const res = await calendarApi().events.patch({
       calendarId: CALENDAR_ID,

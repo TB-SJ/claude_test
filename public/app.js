@@ -275,10 +275,10 @@ function eventRow(ev, wasRange, editable) {
     ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">${svgIcon('edit', 18)}</button>`
       + `<button class="ev-del" data-id="${escapeHtml(ev.id)}" aria-label="delete">${svgIcon('trash', 18)}</button>`
     : '';
-  return `<div class="event ${changed ? 'changed' : ''}">
+  return `<div class="event ${changed ? 'changed' : ''} ${ev.tag ? `tag-${ev.tag}` : ''}">
       <div class="time">${fmtRange(ev.start, ev.end)}</div>
       <div style="flex:1">
-        <div class="title">${escapeHtml(ev.title || '(untitled)')}</div>
+        <div class="title">${escapeHtml(ev.title || '(untitled)')} ${tagPill(ev.tag)}</div>
         ${changed ? `<div class="muted" style="font-size:.82rem">was <span class="old">${wasRange}</span></div>` : ''}
       </div>
       ${controls}
@@ -310,6 +310,51 @@ function renderSchedule(container, events, changedMap, opts = {}) {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// --- Work / personal tags ---------------------------------------------------
+// A small colored pill shown on tagged tasks/events.
+function tagPill(tag) {
+  if (tag !== 'work' && tag !== 'personal') return '';
+  return `<span class="tagpill ${tag}">${tag === 'work' ? 'Work' : 'Personal'}</span>`;
+}
+
+// Segmented control (None / Work / Personal) helpers, keyed by container id.
+function segValue(id) {
+  const b = $(id).querySelector('button.active');
+  return b ? (b.dataset.tag || '') : '';
+}
+function setSeg(id, val) {
+  for (const b of $(id).querySelectorAll('button')) {
+    b.classList.toggle('active', (b.dataset.tag || '') === (val || ''));
+  }
+}
+function wireSeg(id) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tag]');
+    if (!b) return;
+    for (const x of $(id).querySelectorAll('button')) x.classList.toggle('active', x === b);
+  });
+}
+
+// Global work/personal lens applied to both the schedule and the task list.
+let tagFilter = localStorage.getItem('tagFilter') || 'all';
+function passTag(item) {
+  return tagFilter === 'all' || (item && item.tag === tagFilter);
+}
+function setTagFilter(v) {
+  tagFilter = v;
+  localStorage.setItem('tagFilter', v);
+  for (const b of $('tagFilterBar').querySelectorAll('button')) b.classList.toggle('active', b.dataset.tag === v);
+  if (activeProvider) {
+    renderScheduleView();
+    if (lastTasks) renderTasks(lastTasks);
+  }
+}
+function renderScheduleView() {
+  const evs = (currentEvents || []).filter(passTag);
+  if (scope === 'week') renderWeekGrid($('eventList'), evs);
+  else renderSchedule($('eventList'), evs, null, { editable: true });
 }
 
 // --- Visual week grid (7 day columns with proportional event blocks) --------
@@ -403,7 +448,8 @@ function renderWeekGrid(container, events) {
       const top = Math.max(0, pct(s));
       const height = Math.min(100 - top, pct(winStart + durMin));
       const isTask = /^📋/.test(e.title || '');
-      blocks += `<div class="wg-ev${isTask ? ' task' : ''}" data-id="${escapeHtml(e.id)}" style="top:${top}%;height:${height}%" title="${escapeHtml((e.title || '') + ' · ' + fmtRange(e.start, e.end))}">
+      const tagCls = e.tag ? ` tag-${e.tag}` : '';
+      blocks += `<div class="wg-ev${isTask ? ' task' : ''}${tagCls}" data-id="${escapeHtml(e.id)}" style="top:${top}%;height:${height}%" title="${escapeHtml((e.title || '') + ' · ' + fmtRange(e.start, e.end))}">
         <span class="wg-t">${fmtTimeCompact(e.start)}</span><span class="wg-n">${escapeHtml(e.title || '(untitled)')}</span>
       </div>`;
     }
@@ -436,6 +482,7 @@ async function refreshConnection() {
       hide($('connectCard'));
       show($('micBtn')); // voice control available once connected
       show($('tabbar'));
+      show($('tagFilterBar'));
       await loadEvents();
       await loadTasks();
       await loadBrief();
@@ -446,6 +493,7 @@ async function refreshConnection() {
       hide($('tasksCard'));
       hide($('briefCard'));
       hide($('tabbar'));
+      hide($('tagFilterBar'));
       // Offer a connect button for each configured-but-unconnected provider.
       const configured = PROVIDER_ORDER.filter((p) => provs[p] && provs[p].reason !== 'not_configured');
       const list = configured.length ? configured : PROVIDER_ORDER;
@@ -472,8 +520,7 @@ async function loadEvents() {
     const localAnchor = `${dateInputValue(now)}T12:00:00Z`;
     const data = await api(`/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}&tzOffsetMinutes=${TZ_OFFSET}`);
     currentEvents = data.events || [];
-    if (scope === 'week') renderWeekGrid($('eventList'), currentEvents);
-    else renderSchedule($('eventList'), currentEvents, null, { editable: true });
+    renderScheduleView();
   } catch (err) {
     $('eventList').innerHTML = `<p class="muted">Couldn't load events: ${escapeHtml(err.message)}</p>`;
   } finally {
@@ -503,6 +550,7 @@ async function addEventFromForm() {
     start: start.toISOString(),
     duration: parseInt($('evMins').value, 10) || 60,
     description: editing ? $('evDesc').value.trim() : ($('evDesc').value.trim() || undefined),
+    tag: segValue('evTag'), // '' clears the tag on edit; ignored on create when empty
   };
   // Recurrence is set on creation only (editing a single instance's rule isn't
   // supported). Send the IANA zone so the repeat handles DST correctly.
@@ -558,6 +606,7 @@ function resetEventForm() {
   $('evTime').value = '';
   $('evRepeat').value = 'none';
   $('evEnds').value = 'never';
+  setSeg('evTag', '');
   show($('evRepeatRow')); // repeat is available when adding
   onRepeatChange(); // hides the Ends row for a non-repeating event
   hide($('evDeleteBtn')); // no event to delete when adding
@@ -575,6 +624,7 @@ function startEditEvent(id) {
   $('evTime').value = timeInputValue(start);
   $('evMins').value = Math.max(5, Math.round((new Date(ev.end) - start) / 60000)) || 60;
   $('evDesc').value = ev.description || '';
+  setSeg('evTag', ev.tag || '');
   hide($('evRepeatRow')); // recurrence is set at creation, not per-instance edit
   hide($('evEndsRow'));
   show($('evDeleteBtn')); // can delete the event being edited
@@ -1445,7 +1495,8 @@ function renderTasks(tasks) {
       const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
       return { t, recurring, checked };
     })
-    .filter(({ t, recurring, checked }) => !recurring || t.repeat.includes(todayDow) || checked);
+    .filter(({ t, recurring, checked }) => !recurring || t.repeat.includes(todayDow) || checked)
+    .filter(({ t }) => passTag(t)); // work/personal lens
 
   renderTaskFilter([...new Set(active.map(({ t }) => t.category).filter(Boolean))].sort());
   const shown = taskFilterCat ? active.filter(({ t }) => t.category === taskFilterCat) : active;
@@ -1465,9 +1516,9 @@ function renderTasks(tasks) {
         if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
         const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
         const cat = t.category ? `<span class="cat-chip">${escapeHtml(t.category)}</span>` : '';
-        return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''}">
+        return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
             <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
-            <div class="t-title">${escapeHtml(t.title)} ${streak}${cat}<div class="t-meta">${escapeHtml(bits.join(' · '))}</div></div>
+            <div class="t-title">${escapeHtml(t.title)} ${tagPill(t.tag)}${streak}${cat}<div class="t-meta">${escapeHtml(bits.join(' · '))}</div></div>
             <button class="t-edit" data-id="${t.id}" aria-label="edit">${svgIcon('edit', 18)}</button>
             <button class="t-defer" data-id="${t.id}" title="Move to Someday">${svgIcon('moon', 18)}</button>
             <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
@@ -1502,16 +1553,17 @@ function renderTaskFilter(cats) {
   }
 }
 
-function renderSomeday(deferred) {
+function renderSomeday(deferredAll) {
   const section = $('somedaySection');
+  const deferred = deferredAll.filter(passTag); // respect the work/personal lens
   if (!deferred.length) { hide(section); return; }
   show(section);
   $('somedayCount').textContent = deferred.length;
   $('somedayList').innerHTML = deferred
     .map((t) => {
       const meta = [PRIO_LABEL[t.priority], t.category].filter(Boolean).join(' · ');
-      return `<div class="task">
-          <div class="t-title">${escapeHtml(t.title)}<div class="t-meta">${escapeHtml(meta)}</div></div>
+      return `<div class="task ${t.tag ? `tag-${t.tag}` : ''}">
+          <div class="t-title">${escapeHtml(t.title)} ${tagPill(t.tag)}<div class="t-meta">${escapeHtml(meta)}</div></div>
           <button class="t-wake" data-id="${t.id}" title="Move back to active">${svgIcon('sun', 18)}</button>
           <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
         </div>`;
@@ -1569,6 +1621,7 @@ async function addTaskFromForm() {
     deadline: $('taskDeadline').value || null,
     repeat: selectedRepeatDays(), // [] → one-off
     category: $('taskCategory').value.trim() || null,
+    tag: segValue('taskTag') || null,
   };
   try {
     if (editing) {
@@ -1592,6 +1645,7 @@ function resetTaskForm() {
   $('taskMins').value = '30';
   $('taskPriority').value = 'med';
   $('taskCategory').value = '';
+  setSeg('taskTag', '');
   setRepeatDays([]);
   $('taskAddBtn').textContent = 'Add task';
 }
@@ -1605,6 +1659,7 @@ function startEditTask(id) {
   $('taskPriority').value = t.priority || 'med';
   $('taskDeadline').value = t.deadline || '';
   $('taskCategory').value = t.category || '';
+  setSeg('taskTag', t.tag || '');
   setRepeatDays(t.repeat || []);
   $('taskAddBtn').textContent = 'Save changes';
   show($('taskForm'));
@@ -1708,6 +1763,12 @@ function init() {
   $('evDeleteBtn').addEventListener('click', () => { if (editingEventId) deleteEventById(editingEventId); });
   $('evRepeat').addEventListener('change', onRepeatChange);
   $('evEnds').addEventListener('change', onEndsChange);
+  wireSeg('evTag');
+  wireSeg('taskTag');
+  setTagFilter(tagFilter); // reflect the saved lens in the filter bar
+  for (const b of $('tagFilterBar').querySelectorAll('button')) {
+    b.addEventListener('click', () => setTagFilter(b.dataset.tag));
+  }
   // Meditation card
   for (const b of document.querySelectorAll('.med-dur')) {
     b.addEventListener('click', () => startMeditation(parseInt(b.dataset.min, 10) || 5));

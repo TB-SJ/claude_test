@@ -271,6 +271,24 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .med-cue { font-size: 0.95rem; color: var(--muted); margin-top: 2px; }
 .med-clock { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0 8px; }
 
+/* Work / personal tags */
+.tag-filter { display: flex; gap: 6px; margin: 0 0 12px; }
+.tag-filter button { flex: 1; background: var(--card); border: 1px solid var(--border); color: var(--muted); border-radius: 10px; padding: 9px 0; font-weight: 600; font-size: 0.85rem; }
+.tag-filter button.active[data-tag="all"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tag-filter button.active[data-tag="work"] { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+.tag-filter button.active[data-tag="personal"] { background: #14b8a6; border-color: #14b8a6; color: #fff; }
+.tag-seg button { min-height: 34px; padding: 6px 12px; font-size: 0.85rem; }
+.tag-seg button.active { background: var(--muted); }
+.tag-seg button.active[data-tag="work"] { background: #3b82f6; color: #fff; }
+.tag-seg button.active[data-tag="personal"] { background: #14b8a6; color: #fff; }
+.tagpill { display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 7px; border-radius: 999px; vertical-align: middle; }
+.tagpill.work { color: #2563eb; background: rgba(59, 130, 246, 0.16); }
+.tagpill.personal { color: #0d9488; background: rgba(20, 184, 166, 0.18); }
+.event.tag-work, .task.tag-work { box-shadow: inset 3px 0 0 #3b82f6; padding-left: 9px; }
+.event.tag-personal, .task.tag-personal { box-shadow: inset 3px 0 0 #14b8a6; padding-left: 9px; }
+.wg-ev.tag-work { background: #3b82f6; }
+.wg-ev.tag-personal { background: #14b8a6; }
+
 /* Task list */
 .task { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
 .task:first-child { border-top: none; }

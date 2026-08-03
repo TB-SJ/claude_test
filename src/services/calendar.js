@@ -3,7 +3,7 @@
 const google = require('./google');
 const outlook = require('./outlook');
 const { validationError } = require('../errors');
-const { resolveRange, resolveEventTimes, recurrenceFromInput } = require('./calendarUtils');
+const { resolveRange, resolveEventTimes, recurrenceFromInput, normTag } = require('./calendarUtils');
 
 const PROVIDERS = { google, outlook };
 
@@ -55,6 +55,7 @@ async function createEvent(provider, input = {}) {
     start,
     end,
     recurrence,
+    tag: normTag(input.tag),
   });
 }
 
@@ -74,14 +75,16 @@ async function deleteEvent(provider, eventId) {
  */
 async function updateEvent(provider, eventId, changes = {}) {
   if (!eventId) throw validationError('`eventId` is required.');
-  const { start, end, duration, title, description } = changes;
-  if (start == null && end == null && duration == null && title == null && description == null) {
-    throw validationError('Provide at least one of `start`, `end`, `duration`, `title`, or `description` to update.');
+  const { start, end, duration, title, description, tag } = changes;
+  if (start == null && end == null && duration == null && title == null && description == null && tag === undefined) {
+    throw validationError('Provide at least one of `start`, `end`, `duration`, `title`, `description`, or `tag` to update.');
   }
   if (title != null && !String(title).trim()) {
     throw validationError('`title` cannot be empty.');
   }
-  return service(provider).updateEvent(eventId, { start, end, duration, title, description });
+  // Normalize the tag; empty string clears it.
+  const normedTag = tag === undefined ? undefined : (tag === '' ? '' : normTag(tag));
+  return service(provider).updateEvent(eventId, { start, end, duration, title, description, tag: normedTag });
 }
 
 /** Throws a 400-style error if `provider` is not a known calendar provider. */

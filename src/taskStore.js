@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { providerConfigured } = require('./config');
+const { normTag } = require('./services/calendarUtils');
 const logger = require('./logger');
 const kv = require('./storage/supabaseKv');
 
@@ -128,7 +129,7 @@ function list() {
   return currentAll();
 }
 
-function add({ title, estimatedMinutes, priority, deadline, repeat, category }) {
+function add({ title, estimatedMinutes, priority, deadline, repeat, category, tag }) {
   const t = {
     id: crypto.randomUUID(),
     title: String(title || '').trim(),
@@ -137,6 +138,7 @@ function add({ title, estimatedMinutes, priority, deadline, repeat, category }) 
     deadline: deadline || null, // YYYY-MM-DD or null
     repeat: normRepeat(repeat), // null (one-off) or [weekdays]
     category: normCategory(category),
+    tag: normTag(tag), // 'work' | 'personal' | null
     deferred: false, // "Someday/Later" bucket
     streak: 0,
     lastDone: null, // last completion date (recurring) — YYYY-MM-DD
@@ -162,6 +164,7 @@ function update(id, patch = {}) {
   if (patch.deadline !== undefined) clean.deadline = patch.deadline || null;
   if (patch.repeat !== undefined) clean.repeat = normRepeat(patch.repeat);
   if (patch.category !== undefined) clean.category = normCategory(patch.category);
+  if (patch.tag !== undefined) clean.tag = normTag(patch.tag);
   if (patch.deferred != null) clean.deferred = Boolean(patch.deferred);
 
   if (patch.done != null) {

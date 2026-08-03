@@ -121,6 +121,12 @@ function resolveEventTimes({ start, end, duration } = {}, existing = null) {
   return { start: s, end: e };
 }
 
+/** Normalizes a work/personal tag to 'work' | 'personal' | null. */
+function normTag(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return s === 'work' || s === 'personal' ? s : null;
+}
+
 // --- Recurring events (RFC 5545 RRULE, as Google/Graph expect) --------------
 
 // Friendly preset keys → recurrence spec. FREQ=WEEKLY without BYDAY repeats on
@@ -187,5 +193,5 @@ function recurrenceFromInput(input = {}) {
 
 module.exports = {
   toISO, addMinutes, diffMinutes, localNoonAnchor, dayRange, weekRange, resolveRange, resolveEventTimes,
-  RECURRENCE_PRESETS, buildRecurrence, recurrenceFromInput,
+  RECURRENCE_PRESETS, buildRecurrence, recurrenceFromInput, normTag,
 };

@@ -25,6 +25,13 @@
       </div>
     </header>
 
+    <!-- Work / personal lens — filters the schedule and tasks together -->
+    <div id="tagFilterBar" class="tag-filter hidden">
+      <button data-tag="all" class="active">All</button>
+      <button data-tag="work">Work</button>
+      <button data-tag="personal">Personal</button>
+    </div>
+
     <!-- Not connected -->
     <section class="card hidden" id="connectCard">
       <h2>Connect your calendar</h2>
@@ -134,6 +141,14 @@
             <input id="evTime" type="time" style="flex:1" title="start time" />
             <input id="evMins" type="number" min="5" step="5" value="60" style="width:84px" title="minutes" />
           </div>
+          <div class="row" style="margin-top:8px; gap:8px; align-items:center">
+            <span class="muted" style="font-size:.82rem">Tag</span>
+            <div class="toggle tag-seg" id="evTag">
+              <button type="button" data-tag="" class="active">None</button>
+              <button type="button" data-tag="work">Work</button>
+              <button type="button" data-tag="personal">Personal</button>
+            </div>
+          </div>
           <div class="row" id="evRepeatRow" style="margin-top:8px; gap:8px; align-items:center">
             <span class="muted" style="font-size:.82rem">Repeat</span>
             <select id="evRepeat" style="flex:1">
@@ -195,7 +210,15 @@
             </select>
             <input id="taskDeadline" type="date" style="flex:1" title="deadline (optional)" />
           </div>
-          <input id="taskCategory" list="catList" placeholder="Category (optional, e.g. work / personal / errands)" style="width:100%; margin-top:8px" />
+          <div class="row" style="margin-top:8px; gap:8px; align-items:center">
+            <span class="muted" style="font-size:.82rem">Tag</span>
+            <div class="toggle tag-seg" id="taskTag">
+              <button type="button" data-tag="" class="active">None</button>
+              <button type="button" data-tag="work">Work</button>
+              <button type="button" data-tag="personal">Personal</button>
+            </div>
+          </div>
+          <input id="taskCategory" list="catList" placeholder="Category (optional, e.g. errands, home, health)" style="width:100%; margin-top:8px" />
           <datalist id="catList"></datalist>
           <div class="row" style="margin-top:8px; gap:8px; align-items:center">
             <span class="muted" style="font-size:.82rem">Repeat</span>
