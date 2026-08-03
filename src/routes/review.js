@@ -17,9 +17,9 @@ const router = express.Router();
 router.get('/:provider', async (req, res) => {
   try {
     const tzOffsetMinutes = Number(req.query.tzOffsetMinutes) || 0;
-    // Fetch ~15 days so we can compare this week to the previous week.
+    // Fetch ~6 weeks so we can compare weeks and draw the meeting-trend sparkline.
     const now = new Date();
-    const start = new Date(now.getTime() - 15 * 86400000).toISOString();
+    const start = new Date(now.getTime() - 45 * 86400000).toISOString();
     const end = new Date(now.getTime() + 86400000).toISOString();
     const events = await calendar.getEvents(req.params.provider, { start, end });
     res.json(computeReview(events, taskStore.list(), { tzOffsetMinutes, ruleOverrides: settingsStore.rules(tzOffsetMinutes) }));

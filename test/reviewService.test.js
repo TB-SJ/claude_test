@@ -33,4 +33,10 @@ test('computeReview summarizes meetings, trend, tasks, and habits', () => {
   assert.equal(r.tasks.completedThisWeek, 2); // one-off + the recurring completion
   assert.equal(r.habits[0].title, 'Gym');
   assert.equal(r.habits[0].streak, 4);
+
+  // Meeting-trend sparkline series: 6 rolling weeks ending this week.
+  assert.equal(r.meetingTrend.length, 6);
+  assert.equal(r.meetingTrend[5].to, '2026-08-07'); // last bucket ends today
+  assert.equal(r.meetingTrend[5].minutes, 90); // this week matches meetings.minutes
+  assert.equal(r.meetingTrend[4].minutes, 60); // prior week matches lastWeekMinutes
 });

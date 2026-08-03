@@ -101,6 +101,16 @@ function computeReview(events, tasks, { tzOffsetMinutes = 0, referenceDate = new
   const trendMin = thisMeetingMin - lastMeetingMin;
   const trend = trendMin === 0 ? 'flat' : trendMin > 0 ? 'up' : 'down';
 
+  // Weekly meeting-minutes for the last 6 rolling weeks (oldest → this week),
+  // for a sparkline. Needs ~6 weeks of events; the route fetches accordingly.
+  const WEEKS = 6;
+  const meetingTrend = [];
+  for (let w = WEEKS - 1; w >= 0; w -= 1) {
+    const endKey = keysEndingAt(todayKey, w * 7 + 1)[0];
+    const keys = keysEndingAt(endKey, 7);
+    meetingTrend.push({ from: keys[0], to: endKey, minutes: meetingMinutes(timed, off, new Set(keys)) });
+  }
+
   const lines = [];
   lines.push(`🗓 ${meetingCount} meeting${meetingCount === 1 ? '' : 's'} · ${fmtHours(thisMeetingMin)} (last week ${fmtHours(lastMeetingMin)}, ${trend === 'flat' ? 'no change' : `${trend} ${fmtHours(Math.abs(trendMin))}`})`);
   lines.push(`🎯 ${fmtHours(freeMin)} free/focus time in work hours`);
@@ -112,6 +122,7 @@ function computeReview(events, tasks, { tzOffsetMinutes = 0, referenceDate = new
   return {
     range: { from: thisWeek[0], to: todayKey },
     meetings: { count: meetingCount, minutes: thisMeetingMin, lastWeekMinutes: lastMeetingMin, trend, trendMinutes: trendMin },
+    meetingTrend,
     freeMinutes: freeMin,
     deepWork: { protected: dwProtected, days: dwDays },
     busiestDay: busiest.key,

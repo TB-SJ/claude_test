@@ -836,11 +836,36 @@ async function loadReview() {
   }
 }
 
+// Tiny inline SVG sparkline (filled area + line) for a small numeric series.
+function sparkline(values, { w = 220, h = 44, pad = 4 } = {}) {
+  const n = values.length;
+  if (n < 2) return '';
+  const max = Math.max(1, ...values);
+  const dx = (w - pad * 2) / (n - 1);
+  const y = (v) => h - pad - (v / max) * (h - pad * 2);
+  const pts = values.map((v, i) => [pad + i * dx, y(v)]);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[n - 1][0].toFixed(1)} ${h - pad} L${pad} ${h - pad} Z`;
+  const last = pts[n - 1];
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${area}" class="spark-fill"/>
+    <path d="${line}" class="spark-line" fill="none"/>
+    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3" class="spark-dot"/>
+  </svg>`;
+}
+
 function renderReview(r) {
   $('queryTitle').textContent = 'Weekly review';
   $('queryHeard').textContent = `${r.range.from} → ${r.range.to}`;
   const trendArrow = r.meetings.trend === 'up' ? '▲' : r.meetings.trend === 'down' ? '▼' : '—';
   let html = '';
+  if (r.meetingTrend && r.meetingTrend.length > 1) {
+    const vals = r.meetingTrend.map((wk) => Math.round(wk.minutes / 60 * 10) / 10);
+    html += `<div class="spark-card">
+      <div class="spark-head"><span class="muted">Meeting hours · last ${r.meetingTrend.length} weeks</span><b>${fmtDur(r.meetings.minutes)}</b></div>
+      ${sparkline(vals)}
+    </div>`;
+  }
   html += statRow('calendar', `${r.meetings.count} meetings · ${fmtDur(r.meetings.minutes)} <span class="muted">(${trendArrow} vs last week)</span>`, { color: 'accent' });
   html += statRow('target', `${fmtDur(r.freeMinutes)} free/focus time`, { color: 'green' });
   if (r.deepWork.days) html += statRow('shield', `Deep-work protected ${r.deepWork.protected}/${r.deepWork.days} days`, { color: 'green' });
