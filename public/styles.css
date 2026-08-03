@@ -508,8 +508,8 @@ body.theme-forest .card { box-shadow: 0 8px 22px rgba(47,158,111,0.09); }
 .hero .muted { font-size: 0.85rem; margin-top: 2px; }
 
 /* Progress ring */
-.ring { position: relative; width: 56px; height: 56px; flex: 0 0 auto; }
-.ring svg { transform: rotate(-90deg); }
+.ring { position: relative; width: 80px; height: 80px; flex: 0 0 auto; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring .ring-bg { fill: none; stroke: var(--border); stroke-width: 4; }
 .ring .ring-fg {
   fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round;
@@ -517,7 +517,7 @@ body.theme-forest .card { box-shadow: 0 8px 22px rgba(47,158,111,0.09); }
 }
 .ring .ring-pct {
   position: absolute; inset: 0; display: grid; place-items: center;
-  font-size: 0.78rem; font-weight: 800; color: var(--text);
+  font-size: 1rem; font-weight: 800; color: var(--text);
 }
 
 /* Bottom tab bar */
