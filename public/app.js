@@ -31,29 +31,32 @@ function setLoading(on) {
   else hide($('loading'));
 }
 
-// --- Themes (default / One Piece / Akatsuki) -------------------------------
-// Each theme can use your own art: drop public/theme/<id>/bg.jpg (background)
-// and/or public/theme/<id>/logo.png (header logo). Missing files fall back to
-// the built-in CSS look and the emoji icon.
-const THEME_ORDER = ['default', 'onepiece', 'akatsuki'];
+// --- Themes -----------------------------------------------------------------
+// Modern organizer skins + the two anime themes. The anime themes can use your
+// own art (public/theme/<id>/bg.jpg + logo.png); modern ones are pure CSS.
+const THEME_ORDER = ['default', 'minimal', 'midnight', 'sunset', 'forest', 'onepiece', 'akatsuki'];
 const THEMES = {
-  default: { cls: null, icon: '🗓', name: 'Calendar Optimizer', label: 'Default' },
-  onepiece: { cls: 'theme-onepiece', icon: '👒', name: 'Grand Line Planner', label: 'Grand Line' },
-  akatsuki: { cls: 'theme-akatsuki', icon: '☁️', name: 'Akatsuki Planner', label: 'Akatsuki' },
+  default: { cls: null, icon: '🗓', name: 'Calendar Optimizer', label: 'Classic' },
+  minimal: { cls: 'theme-minimal', icon: '◽', name: 'Calendar Optimizer', label: 'Minimal' },
+  midnight: { cls: 'theme-midnight', icon: '🌙', name: 'Calendar Optimizer', label: 'Midnight' },
+  sunset: { cls: 'theme-sunset', icon: '🌇', name: 'Calendar Optimizer', label: 'Sunset' },
+  forest: { cls: 'theme-forest', icon: '🌿', name: 'Calendar Optimizer', label: 'Forest' },
+  onepiece: { cls: 'theme-onepiece', icon: '👒', name: 'Grand Line Planner', label: 'Grand Line', art: true },
+  akatsuki: { cls: 'theme-akatsuki', icon: '☁️', name: 'Akatsuki Planner', label: 'Akatsuki', art: true },
 };
+const THEME_CLASSES = Object.values(THEMES).map((m) => m.cls).filter(Boolean);
 
 function applyTheme(id) {
   const meta = THEMES[id] || THEMES.default;
-  document.body.classList.remove('theme-onepiece', 'theme-akatsuki');
+  document.body.classList.remove(...THEME_CLASSES);
   if (meta.cls) document.body.classList.add(meta.cls);
   $('brandName').textContent = meta.name;
   $('brandIcon').textContent = meta.icon;
   $('themeBtn').textContent = meta.icon;
-  $('themeBtn').title = `Theme: ${meta.label} — tap to change`;
 
-  // Try a custom logo; show it only if it actually loads, else keep the emoji.
+  // Anime themes can use a custom logo; show it only if it loads, else emoji.
   const logo = $('brandLogo');
-  if (meta.cls) {
+  if (meta.art) {
     logo.onload = () => { show(logo); hide($('brandIcon')); };
     logo.onerror = () => { hide(logo); show($('brandIcon')); };
     logo.src = `/theme/${id}/logo.png`;
@@ -62,14 +65,29 @@ function applyTheme(id) {
     logo.removeAttribute('src');
     show($('brandIcon'));
   }
+  buildThemeMenu(id);
 }
 
-function cycleTheme() {
-  const current = localStorage.getItem('appTheme') || 'default';
-  const next = THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
-  applyTheme(next);
-  localStorage.setItem('appTheme', next);
-  toast(`Theme: ${THEMES[next].label}`, '');
+function buildThemeMenu(currentId) {
+  const menu = $('themeMenu');
+  menu.innerHTML = THEME_ORDER
+    .map((tid) => {
+      const m = THEMES[tid];
+      return `<button data-theme="${tid}" class="${tid === currentId ? 'on' : ''}"><span>${m.icon}</span> ${escapeHtml(m.label)}</button>`;
+    })
+    .join('');
+  for (const b of menu.querySelectorAll('button')) {
+    b.addEventListener('click', () => {
+      const tid = b.dataset.theme;
+      applyTheme(tid);
+      localStorage.setItem('appTheme', tid);
+      hide(menu);
+    });
+  }
+}
+
+function toggleThemeMenu() {
+  $('themeMenu').classList.toggle('hidden');
 }
 
 // --- Time formatting (browser is already in the user's timezone) -----------
@@ -1221,7 +1239,12 @@ function init() {
     hide($('voiceCard'));
   });
   applyTheme(localStorage.getItem('appTheme') || 'default');
-  $('themeBtn').addEventListener('click', cycleTheme);
+  $('themeBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleThemeMenu(); });
+  document.addEventListener('click', (e) => {
+    if (!$('themeMenu').classList.contains('hidden') && !e.target.closest('#themeMenu') && e.target !== $('themeBtn')) {
+      hide($('themeMenu'));
+    }
+  });
   $('logoutBtn').addEventListener('click', async () => {
     await api('/logout', { method: 'POST' }).catch(() => {});
     window.location.href = '/login';

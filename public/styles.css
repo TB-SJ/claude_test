@@ -434,3 +434,62 @@ body.theme-akatsuki .fab {
 }
 body.theme-akatsuki .mic-status,
 body.theme-akatsuki .toast { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+
+/* ==========================================================================
+   Modern organizer themes (clean, non-anime). Mostly CSS-variable swaps plus a
+   refined card treatment. Selected via the theme picker; persisted.
+   ========================================================================== */
+
+/* Minimal — airy light, calm indigo accent (Things / Sunsama vibe). */
+body.theme-minimal {
+  --bg: #f6f7f9; --card: #ffffff; --card-2: #f1f3f6; --text: #1b2330; --muted: #79839a;
+  --accent: #5457e6; --accent-press: #4144c9; --green: #16a34a; --amber: #d97706; --danger: #e5484d;
+  --border: #eaedf2; --radius: 16px;
+}
+body.theme-minimal .card { box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 10px 26px rgba(16,24,40,0.06); }
+body.theme-minimal .card h2 { letter-spacing: -0.01em; text-transform: none; }
+body.theme-minimal button.primary { box-shadow: 0 1px 2px rgba(84,87,230,0.35); }
+
+/* Midnight — modern SaaS dark, violet accent (Linear vibe). */
+body.theme-midnight {
+  --bg: #0d0e13; --card: #15171e; --card-2: #1c1f28; --text: #e7e9ef; --muted: #8b93a5;
+  --accent: #7c6cff; --accent-press: #6656e6; --green: #3fce8a; --amber: #e0a53a; --danger: #ff6169;
+  --border: #242833; --radius: 14px;
+  background: radial-gradient(900px 400px at 50% -160px, #1b1e2d 0%, rgba(27,30,45,0) 62%), #0d0e13;
+  background-attachment: fixed;
+}
+body.theme-midnight .card { box-shadow: 0 12px 34px rgba(0,0,0,0.42); }
+body.theme-midnight header h1 { color: #f0f1f6; }
+
+/* Sunset — warm neutrals, coral accent. */
+body.theme-sunset {
+  --bg: #fff6f1; --card: #ffffff; --card-2: #fdeee6; --text: #2c211a; --muted: #99826f;
+  --accent: #f2683c; --accent-press: #d9541f; --green: #2fa96b; --amber: #e0912a; --danger: #e5484d;
+  --border: #f4e4d8; --radius: 16px;
+  background: linear-gradient(180deg, #fff1e8 0%, #fff6f1 42%); background-attachment: fixed;
+}
+body.theme-sunset .card { box-shadow: 0 10px 26px rgba(242,104,60,0.09); }
+body.theme-sunset button.primary { background: linear-gradient(180deg, #ff7a4d, #f2683c); border-color: #e2560f; }
+
+/* Forest — calm sage/green, focus-friendly. */
+body.theme-forest {
+  --bg: #f1f5f0; --card: #ffffff; --card-2: #e9f0e8; --text: #1e2a22; --muted: #6e7d71;
+  --accent: #2f9e6f; --accent-press: #268059; --green: #2f9e6f; --amber: #c98a1e; --danger: #d9534f;
+  --border: #dde8dd; --radius: 14px;
+  background: linear-gradient(180deg, #eef4ed, #f1f5f0); background-attachment: fixed;
+}
+body.theme-forest .card { box-shadow: 0 8px 22px rgba(47,158,111,0.09); }
+
+/* Theme picker menu */
+.theme-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 70;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.28); padding: 6px; min-width: 190px;
+}
+.theme-menu button {
+  display: flex; width: 100%; justify-content: flex-start; align-items: center; gap: 10px;
+  background: transparent; border: none; min-height: 40px; border-radius: 8px; padding: 8px 10px;
+  font-weight: 600; color: var(--text);
+}
+.theme-menu button:hover { background: var(--card-2); }
+.theme-menu button.on { background: var(--card-2); color: var(--accent); }
