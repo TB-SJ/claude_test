@@ -123,3 +123,13 @@ test('explicit order overrides the default task ordering', () => {
   const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03', order: ['c', 'b', 'a'] });
   assert.deepEqual(plan.slots.map((s) => s.taskId), ['c', 'b', 'a']);
 });
+
+test('exclude drops tasks from the plan and frees their time', () => {
+  const tasks = [
+    { id: 'a', title: 'A', estimatedMinutes: 30, priority: 'high', deadline: null, done: false },
+    { id: 'b', title: 'B', estimatedMinutes: 30, priority: 'med', deadline: null, done: false },
+  ];
+  const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-03', exclude: ['a'] });
+  assert.deepEqual(plan.slots.map((s) => s.taskId), ['b']);
+  assert.equal(plan.unscheduled.length, 0, 'excluded task is not marked unscheduled');
+});

@@ -293,6 +293,9 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .plan-move { display: flex; flex-direction: column; gap: 2px; flex: 0 0 auto; margin-left: 6px; }
 .plan-move .mv { background: var(--card-2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; min-height: 0; padding: 1px 8px; font-size: 0.7rem; line-height: 1.2; cursor: pointer; }
 .plan-move .mv:hover { color: var(--accent); border-color: var(--accent); }
+.plan-move .plan-rm, .plan-move .plan-restore { background: var(--card-2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; min-height: 0; padding: 1px 8px; font-size: 0.72rem; line-height: 1.2; cursor: pointer; }
+.plan-move .plan-rm:hover { color: var(--danger); border-color: var(--danger); }
+.plan-move .plan-restore { color: var(--green); border-color: var(--green); }
 .event.unfit { opacity: 0.75; }
 .event.unfit .title { flex: 1; }
 

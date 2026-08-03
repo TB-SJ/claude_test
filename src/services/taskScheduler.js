@@ -59,7 +59,7 @@ function isTimed(ev) {
  *
  * @returns {{ dayKey, slots:[{taskId,title,start,end,priority}], unscheduled:[task], events }}
  */
-function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date, priorityTag = null, order = null } = {}) {
+function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date, priorityTag = null, order = null, exclude = null } = {}) {
   const rules = resolveRules(ruleOverrides);
   const off = rules.tzOffsetMinutes;
   const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
@@ -82,9 +82,12 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     busy.push([Math.max(s.minute, 0), e.dayKey === dayKey ? e.minute : workEnd]);
   }
 
+  // `exclude` drops specific tasks from this plan entirely (the user removed them
+  // from the layout); they stay in the task list, just aren't scheduled here.
+  const excluded = new Set(Array.isArray(exclude) ? exclude : []);
   // Ordering: an explicit manual `order` (list of task ids) wins outright; else
   // an optional `priorityTag` floats that tag to the front; else deadline/priority.
-  const pending = tasks.filter((t) => isPending(t, dayKey)).slice();
+  const pending = tasks.filter((t) => isPending(t, dayKey) && !excluded.has(t.id)).slice();
   if (Array.isArray(order) && order.length) {
     const idx = new Map(order.map((id, i) => [id, i]));
     pending.sort((a, b) => {

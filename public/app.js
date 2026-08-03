@@ -1666,12 +1666,18 @@ function startEditTask(id) {
   $('taskForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-async function planTasks(order) {
+let planExcluded = new Set(); // task ids removed from the current plan layout
+
+// `opts.keep` preserves the current reorder/removed state across a re-plan; a
+// fresh "Plan my day" starts clean.
+async function planTasks(order, opts = {}) {
+  if (!opts.keep) planExcluded = new Set();
   setLoading(true);
   try {
     const body = { tzOffsetMinutes: TZ_OFFSET };
     if (tagFilter !== 'all') body.priorityTag = tagFilter; // work/personal-first
     if (order) body.order = order;
+    if (planExcluded.size) body.exclude = [...planExcluded];
     const plan = await api(`/tasks/plan/${activeProvider}`, { method: 'POST', body });
     renderTaskPlan(plan);
   } catch (err) {
@@ -1697,27 +1703,47 @@ function renderTaskPlan(plan) {
   for (const s of plan.slots || []) items.push({ kind: 'task', title: s.title, start: s.start, end: s.end, taskId: s.taskId });
   items.sort((a, b) => new Date(a.start) - new Date(b.start));
 
-  const moveBtns = (id) => reorderable
-    ? `<div class="plan-move"><button class="mv" data-dir="-1" data-id="${escapeHtml(id)}" aria-label="earlier">▲</button><button class="mv" data-dir="1" data-id="${escapeHtml(id)}" aria-label="later">▼</button></div>`
-    : '';
+  const taskCtrls = (id) => {
+    const move = reorderable
+      ? `<button class="mv" data-dir="-1" data-id="${escapeHtml(id)}" aria-label="earlier">▲</button><button class="mv" data-dir="1" data-id="${escapeHtml(id)}" aria-label="later">▼</button>`
+      : '';
+    return `<div class="plan-move">${move}<button class="plan-rm" data-id="${escapeHtml(id)}" title="Remove from plan" aria-label="remove">✕</button></div>`;
+  };
 
   let html = '<div class="daygroup">';
   if (!items.length) html += '<p class="muted center">Nothing to plan — no events or tasks.</p>';
   for (const it of items) {
     const cls = it.kind === 'task' ? 'event task-slot' : 'event';
     const badge = it.kind === 'task' ? '📋 ' : '';
-    html += `<div class="${cls}"><div class="time">${fmtRange(it.start, it.end)}</div><div class="title">${badge}${escapeHtml(it.title)}</div>${it.kind === 'task' ? moveBtns(it.taskId) : ''}</div>`;
+    html += `<div class="${cls}"><div class="time">${fmtRange(it.start, it.end)}</div><div class="title">${badge}${escapeHtml(it.title)}</div>${it.kind === 'task' ? taskCtrls(it.taskId) : ''}</div>`;
   }
   html += '</div>';
   if (plan.unscheduled && plan.unscheduled.length) {
     html += '<h3 class="muted" style="margin:12px 0 4px">Couldn’t fit today</h3>';
     html += plan.unscheduled
-      .map((t) => `<div class="event unfit"><div class="title">${t.atRisk ? '⚠️ ' : ''}${escapeHtml(t.title)} <span class="muted">(${t.estimatedMinutes} min${t.deadline ? `, due ${t.deadline}` : ''})</span></div>${moveBtns(t.id)}</div>`)
+      .map((t) => `<div class="event unfit"><div class="title">${t.atRisk ? '⚠️ ' : ''}${escapeHtml(t.title)} <span class="muted">(${t.estimatedMinutes} min${t.deadline ? `, due ${t.deadline}` : ''})</span></div>${taskCtrls(t.id)}</div>`)
+      .join('');
+  }
+  // Items the user pulled out of this plan — with a one-tap restore.
+  if (planExcluded.size) {
+    const byId = new Map((lastTasks || []).map((t) => [t.id, t]));
+    html += '<h3 class="muted" style="margin:12px 0 4px">Removed from plan</h3>';
+    html += [...planExcluded]
+      .map((id) => {
+        const t = byId.get(id);
+        return `<div class="event unfit"><div class="title muted" style="text-decoration:line-through">${escapeHtml(t ? t.title : 'Task')}</div><div class="plan-move"><button class="plan-restore" data-id="${escapeHtml(id)}" title="Add back to plan" aria-label="restore">＋</button></div></div>`;
+      })
       .join('');
   }
   $('planBody').innerHTML = html;
   for (const b of $('planBody').querySelectorAll('.mv')) {
     b.addEventListener('click', () => moveTaskInPlan(b.dataset.id, parseInt(b.dataset.dir, 10)));
+  }
+  for (const b of $('planBody').querySelectorAll('.plan-rm')) {
+    b.addEventListener('click', () => removeFromPlan(b.dataset.id));
+  }
+  for (const b of $('planBody').querySelectorAll('.plan-restore')) {
+    b.addEventListener('click', () => restoreToPlan(b.dataset.id));
   }
   $('commitPlanBtn').classList.toggle('hidden', lastPlanSlots.length === 0);
   hide($('voiceCard'));
@@ -1734,7 +1760,19 @@ function moveTaskInPlan(id, dir) {
   if (i < 0 || j < 0 || j >= planTaskOrder.length) return;
   const arr = planTaskOrder.slice();
   [arr[i], arr[j]] = [arr[j], arr[i]];
-  planTasks(arr);
+  planTasks(arr, { keep: true });
+}
+
+// Pull a task out of this plan's layout (it stays in your task list). Re-plans
+// so the remaining tasks re-flow into the freed time.
+function removeFromPlan(id) {
+  planExcluded.add(id);
+  planTasks(planTaskOrder.filter((x) => x !== id), { keep: true });
+}
+
+function restoreToPlan(id) {
+  planExcluded.delete(id);
+  planTasks([...planTaskOrder, id], { keep: true });
 }
 
 // Time-blocking: write the suggested task slots onto the calendar (opt-in).
