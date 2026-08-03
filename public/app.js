@@ -18,6 +18,40 @@ const $ = (id) => document.getElementById(id);
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
 
+// --- Inline line-icons (original, currentColor stroke) ---------------------
+const ICONS = {
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  calendar: '<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+  check: '<rect x="3" y="3.5" width="18" height="17" rx="4.5"/><path d="M8 12l3 3 5-6"/>',
+  grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.2 5.6"/><path d="M20 4.5V11h-6.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  chart: '<path d="M4 20V11M10 20V4M16 20v-6M22 20H2"/>',
+  bell: '<path d="M18 8a6 6 0 1 0-12 0c0 6-2.5 8-2.5 8h17S18 14 18 8"/><path d="M10.5 21a1.8 1.8 0 0 0 3 0"/>',
+  edit: '<path d="M4 20.5h4L18.7 9.8a2 2 0 0 0-2.8-2.8L5 17.5v3z"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  moon: '<path d="M21 12.8A8 8 0 1 1 11.2 3 6.3 6.3 0 0 0 21 12.8z"/>',
+  play: '<path d="M7 5l12 7-12 7z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.4-1-1.5-1-2.6 0-.8.7-1.4 1.5-1.4H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="8" cy="11" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="11" r="1"/>',
+  logout: '<path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M10 12h10M17 9l3 3-3 3"/>',
+};
+
+function svgIcon(name, size = 20) {
+  return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+}
+
+// Inject icons into any [data-icon] element (icon-only or before existing text).
+function injectIcons(root = document) {
+  for (const el of root.querySelectorAll('[data-icon]')) {
+    if (el.dataset.iconDone) continue;
+    el.insertAdjacentHTML('afterbegin', svgIcon(el.dataset.icon, el.classList.contains('icon-tile') ? 18 : 20));
+    el.dataset.iconDone = '1';
+  }
+}
+
 function toast(msg, kind = '') {
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
@@ -53,6 +87,8 @@ function applyTheme(id) {
   $('brandName').textContent = meta.name;
   $('brandIcon').textContent = meta.icon;
   $('themeBtn').textContent = meta.icon;
+  const ts = $('themeStatus');
+  if (ts) ts.textContent = meta.label;
 
   // Anime themes can use a custom logo; show it only if it loads, else emoji.
   const logo = $('brandLogo');
@@ -91,18 +127,45 @@ function toggleThemeMenu() {
 }
 
 // --- Bottom tab navigation --------------------------------------------------
-const TAB_CARDS = { today: 'briefCard', schedule: 'todayCard', tasks: 'tasksCard' };
+const TAB_CARDS = {
+  today: ['setupCard', 'briefCard'],
+  schedule: ['todayCard'],
+  tasks: ['tasksCard'],
+  more: ['moreCard'],
+};
+const ALL_TAB_CARDS = ['setupCard', 'briefCard', 'todayCard', 'tasksCard', 'moreCard'];
 let activeTab = 'today';
 
 function setTab(name) {
   if (!TAB_CARDS[name]) name = 'today';
   activeTab = name;
-  for (const [tab, id] of Object.entries(TAB_CARDS)) $(id).classList.toggle('hidden', tab !== name);
+  for (const id of ALL_TAB_CARDS) hide($(id));
+  for (const id of TAB_CARDS[name]) show($(id));
   // Reset transient result cards when switching tabs.
   for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard']) hide($(id));
   for (const b of $('tabbar').querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === name);
+  renderSetup(); // may re-hide the setup card if complete/dismissed
   localStorage.setItem('activeTab', name);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// First-run checklist shown on the Today tab until complete or dismissed.
+function renderSetup() {
+  const card = $('setupCard');
+  if (activeTab !== 'today' || localStorage.getItem('setupDismissed') === '1') { hide(card); return; }
+  const steps = [
+    { label: 'Connect your calendar', done: Boolean(activeProvider) },
+    { label: 'Add your first task', done: (lastTasks || []).length > 0 },
+    { label: 'Turn on reminders', done: notifyOn },
+  ];
+  const done = steps.filter((s) => s.done).length;
+  if (done >= steps.length) { hide(card); return; } // auto-hide once everything's done
+  show(card);
+  $('setupPct').textContent = `${Math.round((done / steps.length) * 100)}%`;
+  $('setupBarFill').style.width = `${(done / steps.length) * 100}%`;
+  $('setupSteps').innerHTML = steps
+    .map((s) => `<div class="setup-step ${s.done ? 'done' : ''}">${s.done ? svgIcon('check', 18) : '<span class="step-dot"></span>'}<span>${s.label}</span></div>`)
+    .join('');
 }
 
 // --- Greeting hero + progress ring -----------------------------------------
@@ -194,7 +257,7 @@ function applyMoves(events, moves) {
 // adds a ✎ button that opens the inline edit form.
 function eventRow(ev, wasRange, editable) {
   const changed = Boolean(wasRange);
-  const edit = editable ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">✎</button>` : '';
+  const edit = editable ? `<button class="ev-edit" data-id="${escapeHtml(ev.id)}" aria-label="edit">${svgIcon('edit', 18)}</button>` : '';
   return `<div class="event ${changed ? 'changed' : ''}">
       <div class="time">${fmtRange(ev.start, ev.end)}</div>
       <div style="flex:1">
@@ -725,7 +788,7 @@ async function loadBrief() {
 }
 
 function renderBrief(b) {
-  $('briefTitle').textContent = `🌅 Today · ${dayLabelFromKey(b.dayKey)}`;
+  $('briefTitle').textContent = `Today · ${dayLabelFromKey(b.dayKey)}`;
   const rows = [];
   rows.push(
     b.meetingCount
@@ -879,9 +942,10 @@ function urlBase64ToUint8Array(base64String) {
 
 function setNotifyBtn(on) {
   notifyOn = on;
-  const btn = $('notifyBtn');
-  btn.textContent = on ? '🔔 On' : '🔔 Reminders';
-  btn.classList.toggle('active', on);
+  const status = $('notifyStatus');
+  if (status) status.textContent = on ? 'On' : 'Off';
+  $('notifyBtn').classList.toggle('on', on);
+  renderSetup(); // reminders is a setup step
 }
 
 async function setupNotifications() {
@@ -1015,9 +1079,9 @@ function renderTasks(tasks) {
         return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''}">
             <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
             <div class="t-title">${escapeHtml(t.title)} ${streak}${cat}<div class="t-meta">${escapeHtml(bits.join(' · '))}</div></div>
-            <button class="t-edit" data-id="${t.id}" aria-label="edit">✎</button>
-            <button class="t-defer" data-id="${t.id}" title="Move to Someday">💤</button>
-            <button class="del" data-id="${t.id}" aria-label="delete">✕</button>
+            <button class="t-edit" data-id="${t.id}" aria-label="edit">${svgIcon('edit', 18)}</button>
+            <button class="t-defer" data-id="${t.id}" title="Move to Someday">${svgIcon('moon', 18)}</button>
+            <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
           </div>`;
       })
       .join('');
@@ -1059,8 +1123,8 @@ function renderSomeday(deferred) {
       const meta = [PRIO_LABEL[t.priority], t.category].filter(Boolean).join(' · ');
       return `<div class="task">
           <div class="t-title">${escapeHtml(t.title)}<div class="t-meta">${escapeHtml(meta)}</div></div>
-          <button class="t-wake" data-id="${t.id}" title="Move back to active">☀️</button>
-          <button class="del" data-id="${t.id}" aria-label="delete">✕</button>
+          <button class="t-wake" data-id="${t.id}" title="Move back to active">${svgIcon('sun', 18)}</button>
+          <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
         </div>`;
     })
     .join('');
@@ -1290,8 +1354,11 @@ function init() {
     pendingVoice = null;
     hide($('voiceCard'));
   });
+  injectIcons();
   applyTheme(localStorage.getItem('appTheme') || 'default');
   $('themeBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleThemeMenu(); });
+  $('themeMoreBtn').addEventListener('click', (e) => { e.stopPropagation(); window.scrollTo({ top: 0, behavior: 'smooth' }); toggleThemeMenu(); });
+  $('setupDismiss').addEventListener('click', () => { localStorage.setItem('setupDismissed', '1'); renderSetup(); });
   document.addEventListener('click', (e) => {
     if (!$('themeMenu').classList.contains('hidden') && !e.target.closest('#themeMenu') && e.target !== $('themeBtn')) {
       hide($('themeMenu'));

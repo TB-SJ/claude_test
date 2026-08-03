@@ -533,12 +533,45 @@ body.theme-forest .card { box-shadow: 0 8px 22px rgba(47,158,111,0.09); }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   color: var(--muted); font-size: 0.7rem; font-weight: 600; padding: 4px;
 }
-.tabbar .tab .tab-ico { font-size: 1.2rem; line-height: 1; filter: grayscale(0.4); opacity: 0.7; }
+.tabbar .tab .tab-ico { display: inline-flex; }
+.tabbar .tab .tab-ico .icon { width: 22px; height: 22px; }
 .tabbar .tab.on { color: var(--accent); }
-.tabbar .tab.on .tab-ico { filter: none; opacity: 1; }
 
 /* Lift floating elements above the tab bar */
 .fab { bottom: 88px !important; }
 .focus-bar { bottom: 84px; }
 .mic-status { bottom: 158px; }
 .toast { bottom: 96px; }
+
+/* Line icons + icon tiles */
+.icon { display: inline-block; vertical-align: -3px; flex: 0 0 auto; }
+.icon-btn { min-width: 44px; padding: 10px; }
+.icon-tile {
+  width: 34px; height: 34px; border-radius: 10px; flex: 0 0 auto;
+  display: inline-grid; place-items: center;
+  background: var(--card-2); color: var(--accent);
+}
+@supports (background: color-mix(in srgb, red, blue)) {
+  .icon-tile { background: color-mix(in srgb, var(--accent) 15%, var(--card)); }
+}
+.card > .row > .icon-tile { margin-right: 4px; }
+
+/* More (settings) list */
+.more-list { display: flex; flex-direction: column; gap: 6px; }
+.more-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: transparent; border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; min-height: 58px; text-align: left;
+}
+.more-row .more-label { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; font-weight: 600; }
+.more-row .more-label .muted { font-size: 0.78rem; font-weight: 400; }
+.more-row .chev { color: var(--muted); font-size: 1.3rem; }
+.more-row.on .icon-tile { color: var(--green); }
+
+/* Setup checklist */
+.setup-bar { height: 8px; border-radius: 999px; background: var(--card-2); overflow: hidden; margin-top: 6px; }
+.setup-bar-fill { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 0.5s ease; }
+.setup-step { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-weight: 600; }
+.setup-step.done { color: var(--muted); font-weight: 400; text-decoration: line-through; }
+.setup-step .icon { color: var(--green); }
+.setup-step .step-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); flex: 0 0 auto; }

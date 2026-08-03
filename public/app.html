@@ -15,8 +15,7 @@
         <div class="sub" id="tzLabel"></div>
       </div>
       <div class="row" style="gap:6px; position:relative">
-        <button class="ghost" id="themeBtn" title="Change theme" aria-label="Change theme">🎨</button>
-        <button class="ghost" id="logoutBtn" title="Sign out">Sign out</button>
+        <button class="ghost icon-btn" id="themeBtn" title="Change theme" aria-label="Change theme">🎨</button>
         <div id="themeMenu" class="theme-menu hidden"></div>
       </div>
     </header>
@@ -28,15 +27,27 @@
       <div id="connectButtons"></div>
     </section>
 
+    <!-- First-run setup checklist (Today tab) -->
+    <section class="card hidden" id="setupCard">
+      <div class="row">
+        <span class="icon-tile" data-icon="play"></span>
+        <h2 style="margin:0">Get set up</h2>
+        <span class="spacer"></span>
+        <span class="pill" id="setupPct">0%</span>
+        <button class="ghost icon-btn" id="setupDismiss" data-icon="close" title="Dismiss"></button>
+      </div>
+      <div class="setup-bar"><div class="setup-bar-fill" id="setupBarFill"></div></div>
+      <div id="setupSteps" style="margin-top:12px"></div>
+    </section>
+
     <!-- Daily brief (how's my day) -->
     <section class="card hidden" id="briefCard">
       <div class="row">
         <button class="collapse-btn" id="briefCollapse" aria-label="Collapse brief">▾</button>
-        <h2 style="margin:0" id="briefTitle">🌅 Today</h2>
+        <span class="icon-tile" data-icon="sun"></span>
+        <h2 style="margin:0" id="briefTitle">Today</h2>
         <span class="spacer"></span>
-        <button class="ghost" id="reviewBtn" title="Weekly review">📊</button>
-        <button class="ghost hidden" id="notifyBtn" title="Enable reminders">🔔 Reminders</button>
-        <button class="ghost" id="briefRefresh" title="Refresh">↻</button>
+        <button class="ghost icon-btn" id="briefRefresh" data-icon="refresh" title="Refresh"></button>
       </div>
       <div class="card-body" id="briefBody">
         <div class="hero">
@@ -60,9 +71,10 @@
     <section class="card hidden" id="todayCard">
       <div class="row">
         <button class="collapse-btn" id="todayCollapse" aria-label="Collapse schedule">▾</button>
-        <h2 style="margin:0">Your schedule</h2>
+        <span class="icon-tile" data-icon="calendar"></span>
+        <h2 style="margin:0">Schedule</h2>
         <span class="spacer"></span>
-        <button class="ghost" id="addEventToggle">＋ Add</button>
+        <button class="ghost" id="addEventToggle" data-icon="plus">Add</button>
         <div class="toggle" id="scopeToggle">
           <button data-scope="day" class="active">Day</button>
           <button data-scope="week">Week</button>
@@ -98,10 +110,11 @@
     <section class="card hidden" id="tasksCard">
       <div class="row">
         <button class="collapse-btn" id="tasksCollapse" aria-label="Collapse tasks">▾</button>
-        <h2 style="margin:0">✅ Tasks</h2>
+        <span class="icon-tile" data-icon="check"></span>
+        <h2 style="margin:0">Tasks</h2>
         <span class="spacer"></span>
-        <button class="ghost" id="whatnowBtn" title="What should I do now?">▶ Now</button>
-        <button class="ghost" id="addTaskToggle">＋ Add</button>
+        <button class="ghost" id="whatnowBtn" data-icon="play" title="What should I do now?">Now</button>
+        <button class="ghost" id="addTaskToggle" data-icon="plus">Add</button>
       </div>
       <div class="card-body" id="tasksBody">
         <div id="taskForm" class="hidden" style="margin-top:10px">
@@ -138,6 +151,36 @@
           <div id="somedayList" class="hidden" style="margin-top:6px"></div>
         </div>
         <button class="primary full" id="planBtn" style="margin-top:12px">🗓 Plan my day</button>
+      </div>
+    </section>
+
+    <!-- More (settings) -->
+    <section class="card hidden" id="moreCard">
+      <div class="row">
+        <span class="icon-tile" data-icon="grid"></span>
+        <h2 style="margin:0">More</h2>
+      </div>
+      <div class="more-list" style="margin-top:8px">
+        <button class="more-row" id="reviewBtn">
+          <span class="icon-tile" data-icon="chart"></span>
+          <span class="more-label"><b>Weekly review</b><span class="muted">Meetings, focus, streaks</span></span>
+          <span class="chev">›</span>
+        </button>
+        <button class="more-row hidden" id="notifyBtn">
+          <span class="icon-tile" data-icon="bell"></span>
+          <span class="more-label"><b>Reminders</b><span class="muted" id="notifyStatus">Off</span></span>
+          <span class="chev">›</span>
+        </button>
+        <button class="more-row" id="themeMoreBtn">
+          <span class="icon-tile" data-icon="palette"></span>
+          <span class="more-label"><b>Theme</b><span class="muted" id="themeStatus">Classic</span></span>
+          <span class="chev">›</span>
+        </button>
+        <button class="more-row" id="logoutBtn">
+          <span class="icon-tile" data-icon="logout"></span>
+          <span class="more-label"><b>Sign out</b></span>
+          <span class="chev">›</span>
+        </button>
       </div>
     </section>
 
@@ -219,9 +262,10 @@
 
   <!-- Bottom tab bar -->
   <nav id="tabbar" class="tabbar hidden">
-    <button class="tab" data-tab="today"><span class="tab-ico">🏠</span><span>Today</span></button>
-    <button class="tab" data-tab="schedule"><span class="tab-ico">🗓</span><span>Schedule</span></button>
-    <button class="tab" data-tab="tasks"><span class="tab-ico">✅</span><span>Tasks</span></button>
+    <button class="tab" data-tab="today"><span class="tab-ico" data-icon="home"></span><span>Today</span></button>
+    <button class="tab" data-tab="schedule"><span class="tab-ico" data-icon="calendar"></span><span>Schedule</span></button>
+    <button class="tab" data-tab="tasks"><span class="tab-ico" data-icon="check"></span><span>Tasks</span></button>
+    <button class="tab" data-tab="more"><span class="tab-ico" data-icon="grid"></span><span>More</span></button>
   </nav>
 
   <script src="/app.js"></script>
