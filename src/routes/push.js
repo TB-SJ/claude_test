@@ -48,6 +48,26 @@ router.post('/unsubscribe', async (req, res) => {
   }
 });
 
+/**
+ * POST /push/snooze  { eventId, minutes? }
+ * Records a snooze so the next cron tick re-sends the event reminder. Called by
+ * the service worker when the user taps "Snooze" on a notification.
+ */
+router.post('/snooze', async (req, res) => {
+  try {
+    const { eventId } = req.body || {};
+    if (!eventId) throw validationError('`eventId` is required.');
+    const minutes = Math.max(1, Math.min(120, Number((req.body || {}).minutes) || 10));
+    const doc = await pushStore.load();
+    const state = doc.state || {};
+    state.snoozed = { ...(state.snoozed || {}), [eventId]: Date.now() + minutes * 60000 };
+    await pushStore.save({ ...doc, state });
+    res.json({ ok: true, snoozedMinutes: minutes });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 /** POST /push/test — send a test notification to every subscribed device. */
 router.post('/test', async (req, res) => {
   try {

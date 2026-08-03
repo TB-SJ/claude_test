@@ -2,7 +2,7 @@
 'use strict';
 
 // Bump this to force old shell caches to be dropped on the next activate.
-const CACHE = 'app-shell-v1';
+const CACHE = 'app-shell-v2';
 const SHELL = [
   '/',
   '/app.js',
@@ -65,20 +65,42 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),
-    data: { url: data.url || '/' },
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    actions: Array.isArray(data.actions) ? data.actions.slice(0, 2) : undefined,
+    // Keep everything the click handler needs (url + which task/event to act on).
+    data: { url: data.url || '/', type: data.type, eventId: data.eventId, taskId: data.taskId },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// Focus an open window or open a new one at `url`.
+function openApp(url) {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    for (const client of clients) {
+      if ('focus' in client) return client.focus();
+    }
+    return self.clients.openWindow(url || '/');
+  });
+}
+
+const postJSON = (url, body) =>
+  fetch(url, { method: url.startsWith('/tasks/') ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' }).catch(() => {});
+
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/';
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if ('focus' in client) return client.focus();
-      }
-      return self.clients.openWindow(url);
-    })
-  );
+  const n = event.notification;
+  const d = n.data || {};
+  n.close();
+
+  // Action buttons act without opening the app (cookies flow with the fetch).
+  if (event.action === 'done' && d.taskId) {
+    event.waitUntil(postJSON(`/tasks/${d.taskId}`, { done: true }));
+    return;
+  }
+  if (event.action === 'snooze' && d.eventId) {
+    event.waitUntil(postJSON('/push/snooze', { eventId: d.eventId, minutes: 10 }));
+    return;
+  }
+  // Body tap or the explicit "Open" action → focus/open the app.
+  event.waitUntil(openApp(d.url || '/'));
 });

@@ -15,7 +15,7 @@ const KV_KEY = 'push';
 
 const useSupabase = () => providerConfigured.supabase();
 
-const EMPTY = { subscriptions: [], tzOffsetMinutes: 0, state: { lastBriefDate: null, remindedDay: null, reminded: {} } };
+const EMPTY = { subscriptions: [], tzOffsetMinutes: 0, state: { lastBriefDate: null, remindedDay: null, reminded: {}, snoozed: {} } };
 
 async function load() {
   if (useSupabase()) {
@@ -39,6 +39,7 @@ function normalize(doc) {
       lastBriefDate: (d.state && d.state.lastBriefDate) || null,
       remindedDay: (d.state && d.state.remindedDay) || null,
       reminded: (d.state && d.state.reminded && typeof d.state.reminded === 'object') ? d.state.reminded : {},
+      snoozed: (d.state && d.state.snoozed && typeof d.state.snoozed === 'object') ? d.state.snoozed : {},
     },
   };
 }

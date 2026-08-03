@@ -47,6 +47,49 @@ test('does not remind an event far in the future', () => {
   assert.equal(r.notifications.filter((n) => n.type === 'reminder').length, 0);
 });
 
+test('brief carries a mark-done action + taskId when there is a top task', () => {
+  const brief = { lines: ['x'], events: [], topTask: { id: 't9', title: 'Ship it' } };
+  const r = planNotifications({ ...base, now: new Date(`${DAY}T07:05:00Z`), brief, state: {} });
+  const b = r.notifications.find((n) => n.type === 'brief');
+  assert.equal(b.taskId, 't9');
+  assert.ok(b.actions.some((a) => a.action === 'done'));
+});
+
+test('brief has only an open action when there is no top task', () => {
+  const brief = { lines: ['x'], events: [], topTask: null };
+  const r = planNotifications({ ...base, now: new Date(`${DAY}T07:05:00Z`), brief, state: {} });
+  const b = r.notifications.find((n) => n.type === 'brief');
+  assert.equal(b.taskId, null);
+  assert.deepEqual(b.actions.map((a) => a.action), ['open']);
+});
+
+test('event reminders carry snooze + open actions', () => {
+  const brief = { lines: [], events: [{ id: 'e1', title: 'Sync', start: `${DAY}T13:10:00Z` }] };
+  const r = planNotifications({ ...base, now: new Date(`${DAY}T13:00:00Z`), brief, state: { lastBriefDate: DAY, remindedDay: DAY, reminded: {} } });
+  const rem = r.notifications.find((n) => n.type === 'reminder');
+  assert.deepEqual(rem.actions.map((a) => a.action), ['snooze', 'open']);
+});
+
+test('a snoozed reminder re-fires once its snooze elapses, then clears', () => {
+  const ev = { id: 'e1', title: 'Sync', start: `${DAY}T14:00:00Z` };
+  const brief = { lines: [], events: [ev] };
+  // Snooze set to 13:00; now 13:05 → should re-fire and be cleared from state.
+  const state = { lastBriefDate: DAY, remindedDay: DAY, reminded: { e1: true }, snoozed: { e1: new Date(`${DAY}T13:00:00Z`).getTime() } };
+  const r = planNotifications({ ...base, now: new Date(`${DAY}T13:05:00Z`), brief, state });
+  assert.ok(r.notifications.find((n) => n.type === 'reminder' && n.eventId === 'e1'));
+  assert.equal(r.state.snoozed.e1, undefined);
+});
+
+test('a snoozed reminder does not fire before its time', () => {
+  const ev = { id: 'e1', title: 'Sync', start: `${DAY}T14:00:00Z` };
+  const brief = { lines: [], events: [ev] };
+  const until = new Date(`${DAY}T13:30:00Z`).getTime();
+  const state = { lastBriefDate: DAY, remindedDay: DAY, reminded: { e1: true }, snoozed: { e1: until } };
+  const r = planNotifications({ ...base, now: new Date(`${DAY}T13:05:00Z`), brief, state });
+  assert.equal(r.notifications.filter((n) => n.type === 'reminder').length, 0);
+  assert.equal(r.state.snoozed.e1, until); // still pending
+});
+
 test('the reminded set resets on a new day', () => {
   const brief = { lines: [], events: [{ id: 'e1', title: 'Sync', start: `2026-08-04T13:10:00Z` }] };
   const state = { lastBriefDate: '2026-08-04', remindedDay: DAY, reminded: { e1: true } }; // stale day

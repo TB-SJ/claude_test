@@ -300,6 +300,115 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// --- Visual week grid (7 day columns with proportional event blocks) --------
+function localMinutes(iso) {
+  const d = new Date(iso);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function weekKeysFromToday(n) {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  const out = [];
+  for (let i = 0; i < n; i += 1) {
+    const d = new Date(t);
+    d.setDate(t.getDate() + i);
+    out.push({ key: dateInputValue(d), dow: d.toLocaleDateString([], { weekday: 'short' }), date: d.getDate(), today: i === 0 });
+  }
+  return out;
+}
+
+function hhmm(min) {
+  const h = Math.floor((min % 1440) / 60);
+  const ap = h >= 12 ? 'p' : 'a';
+  const h12 = h % 12 || 12;
+  return `${h12}${ap}`;
+}
+
+// Compact, non-wrapping local time for tight grid blocks: "2p" / "2:30p".
+function fmtTimeCompact(iso) {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ap = h >= 12 ? 'p' : 'a';
+  h = h % 12 || 12;
+  return m ? `${h}:${pad2(m)}${ap}` : `${h}${ap}`;
+}
+
+// Renders the rolling 7-day week as a compact grid: each day is a column, each
+// event a block positioned by time. Blocks are tappable to edit. Horizontally
+// scrollable so columns stay legible on a phone.
+function renderWeekGrid(container, events) {
+  const days = weekKeysFromToday(7);
+  const timed = events.filter((e) => e.start.includes('T'));
+  const allday = events.filter((e) => !e.start.includes('T'));
+
+  // Display window: default awake hours, expanded to fit any earlier/later event.
+  let winStart = 6 * 60;
+  let winEnd = 21 * 60;
+  for (const e of timed) {
+    const s = localMinutes(e.start);
+    const durMin = Math.max(0, (new Date(e.end) - new Date(e.start)) / 60000);
+    winStart = Math.min(winStart, Math.floor(s / 60) * 60);
+    winEnd = Math.max(winEnd, Math.ceil((s + durMin) / 60) * 60);
+  }
+  winStart = Math.max(0, winStart);
+  winEnd = Math.min(24 * 60, winEnd); // a cross-midnight event clamps, not stretches
+  const span = Math.max(60, winEnd - winStart);
+  const H = 320; // track height in px
+  const pct = (min) => ((min - winStart) / span) * 100;
+
+  const byDay = new Map(days.map((d) => [d.key, []]));
+  for (const e of timed) {
+    const k = dateInputValue(new Date(e.start));
+    if (byDay.has(k)) byDay.get(k).push(e);
+  }
+  const alldayByDay = new Map(days.map((d) => [d.key, []]));
+  for (const e of allday) {
+    const k = dateInputValue(new Date(e.start));
+    if (alldayByDay.has(k)) alldayByDay.get(k).push(e);
+  }
+
+  // Faint gridlines + labels every 3 hours.
+  let axis = '';
+  const lines = [];
+  for (let m = Math.ceil(winStart / 180) * 180; m <= winEnd; m += 180) {
+    axis += `<div class="wg-hr" style="top:${pct(m)}%">${hhmm(m)}</div>`;
+    lines.push(`<div class="wg-line" style="top:${pct(m)}%"></div>`);
+  }
+  const lineHtml = lines.join('');
+
+  let cols = '';
+  for (const d of days) {
+    const list = byDay.get(d.key).sort((a, b) => new Date(a.start) - new Date(b.start));
+    let blocks = lineHtml;
+    for (const ad of alldayByDay.get(d.key)) {
+      blocks += `<div class="wg-allday wg-ev" data-id="${escapeHtml(ad.id)}" title="${escapeHtml(ad.title || '')}">${escapeHtml(ad.title || '')}</div>`;
+    }
+    for (const e of list) {
+      const s = localMinutes(e.start);
+      const durMin = Math.max(10, (new Date(e.end) - new Date(e.start)) / 60000);
+      const top = Math.max(0, pct(s));
+      const height = Math.min(100 - top, pct(winStart + durMin));
+      const isTask = /^📋/.test(e.title || '');
+      blocks += `<div class="wg-ev${isTask ? ' task' : ''}" data-id="${escapeHtml(e.id)}" style="top:${top}%;height:${height}%" title="${escapeHtml((e.title || '') + ' · ' + fmtRange(e.start, e.end))}">
+        <span class="wg-t">${fmtTimeCompact(e.start)}</span><span class="wg-n">${escapeHtml(e.title || '(untitled)')}</span>
+      </div>`;
+    }
+    cols += `<div class="wg-col${d.today ? ' today' : ''}">
+      <div class="wg-head"><span class="wg-dow">${d.dow}</span><span class="wg-date">${d.date}</span></div>
+      <div class="wg-track" style="height:${H}px">${blocks}</div>
+    </div>`;
+  }
+
+  container.innerHTML = `<p class="muted center" style="font-size:.8rem;margin:0 0 8px">Tap an event to edit.</p>
+    <div class="wgrid"><div class="wg-axis" style="height:${H}px;margin-top:34px">${axis}</div><div class="wg-cols">${cols}</div></div>`;
+
+  for (const b of container.querySelectorAll('.wg-ev')) {
+    b.addEventListener('click', () => startEditEvent(b.dataset.id));
+  }
+}
+
 // --- Flows -----------------------------------------------------------------
 async function refreshConnection() {
   try {
@@ -351,7 +460,8 @@ async function loadEvents() {
     const localAnchor = `${dateInputValue(now)}T12:00:00Z`;
     const data = await api(`/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}`);
     currentEvents = data.events || [];
-    renderSchedule($('eventList'), currentEvents, null, { editable: true });
+    if (scope === 'week') renderWeekGrid($('eventList'), currentEvents);
+    else renderSchedule($('eventList'), currentEvents, null, { editable: true });
   } catch (err) {
     $('eventList').innerHTML = `<p class="muted">Couldn't load events: ${escapeHtml(err.message)}</p>`;
   } finally {
