@@ -133,3 +133,15 @@ test('exclude drops tasks from the plan and frees their time', () => {
   assert.deepEqual(plan.slots.map((s) => s.taskId), ['b']);
   assert.equal(plan.unscheduled.length, 0, 'excluded task is not marked unscheduled');
 });
+
+test('a per-task floor pushes it after an event even when earlier time is free', () => {
+  const events = [ev('m1', 'Standup', '14:00', '14:15')];
+  const tasks = [{ id: 't1', title: 'Deep work', estimatedMinutes: 60, priority: 'high', deadline: null, done: false }];
+  const morning = new Date('2026-08-03T06:00:00Z'); // pin "now" to the morning
+  // No floor: schedules in the free morning, before the 2pm event.
+  const base = scheduleTasks(tasks, events, { tzOffsetMinutes: 0 }, { date: '2026-08-03', referenceDate: morning });
+  assert.ok(base.slots[0].start < '2026-08-03T14:00:00.000Z', 'defaults to before the event');
+  // Floor at 14:15 (after the event): now it lands after the event.
+  const floored = scheduleTasks(tasks, events, { tzOffsetMinutes: 0 }, { date: '2026-08-03', referenceDate: morning, floors: { t1: 855 } });
+  assert.ok(floored.slots[0].start >= '2026-08-03T14:15:00.000Z', 'floor pushes it past the event');
+});

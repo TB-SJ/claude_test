@@ -1667,17 +1667,19 @@ function startEditTask(id) {
 }
 
 let planExcluded = new Set(); // task ids removed from the current plan layout
+let planFloors = {}; // taskId -> earliest local start minute (push a task past events)
 
-// `opts.keep` preserves the current reorder/removed state across a re-plan; a
-// fresh "Plan my day" starts clean.
+// `opts.keep` preserves the current reorder/removed/floor state across a re-plan;
+// a fresh "Plan my day" starts clean.
 async function planTasks(order, opts = {}) {
-  if (!opts.keep) planExcluded = new Set();
+  if (!opts.keep) { planExcluded = new Set(); planFloors = {}; }
   setLoading(true);
   try {
     const body = { tzOffsetMinutes: TZ_OFFSET };
     if (tagFilter !== 'all') body.priorityTag = tagFilter; // work/personal-first
     if (order) body.order = order;
     if (planExcluded.size) body.exclude = [...planExcluded];
+    if (Object.keys(planFloors).length) body.floors = planFloors;
     const plan = await api(`/tasks/plan/${activeProvider}`, { method: 'POST', body });
     renderTaskPlan(plan);
   } catch (err) {
@@ -1689,6 +1691,7 @@ async function planTasks(order, opts = {}) {
 
 let lastPlanSlots = []; // task slots from the most recent plan, for time-blocking
 let planTaskOrder = []; // task ids in the current plan order (for manual rearrange)
+let planItems = []; // the current merged timeline (events + task slots), sorted
 
 // Merged timeline of today's events + suggested task slots (tasks marked 📋).
 // Task rows carry ↑/↓ controls to re-prioritize; re-planning re-slots them.
@@ -1696,12 +1699,14 @@ function renderTaskPlan(plan) {
   lastPlanSlots = (plan.slots || []).map((s) => ({ taskId: s.taskId, title: s.title, start: s.start, end: s.end }));
   // Canonical task order: scheduled (in placement order) then unscheduled.
   planTaskOrder = [...(plan.slots || []).map((s) => s.taskId), ...(plan.unscheduled || []).map((t) => t.id)];
-  const reorderable = planTaskOrder.length > 1;
+  // Show ▲/▼ when there's more than one task, or any event to move a task across.
+  const reorderable = planTaskOrder.length > 1 || (plan.events || []).some((e) => e.start.includes('T'));
 
   const items = [];
   for (const e of plan.events || []) if (e.start.includes('T')) items.push({ kind: 'event', title: e.title, start: e.start, end: e.end });
   for (const s of plan.slots || []) items.push({ kind: 'task', title: s.title, start: s.start, end: s.end, taskId: s.taskId });
   items.sort((a, b) => new Date(a.start) - new Date(b.start));
+  planItems = items; // for timeline-based move (▲/▼ can cross events)
 
   const taskCtrls = (id) => {
     const move = reorderable
@@ -1754,13 +1759,52 @@ function renderTaskPlan(plan) {
 
 // Move a task earlier/later in the plan queue, then re-plan with the new order
 // so it re-slots around the fixed events.
+// Move a task up/down through the day's timeline. Crossing another task swaps
+// their order; crossing an EVENT sets a start floor so the task lands on the far
+// side of it (this is what lets a task be placed after your meetings).
 function moveTaskInPlan(id, dir) {
-  const i = planTaskOrder.indexOf(id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= planTaskOrder.length) return;
-  const arr = planTaskOrder.slice();
-  [arr[i], arr[j]] = [arr[j], arr[i]];
-  planTasks(arr, { keep: true });
+  const k = planItems.findIndex((it) => it.kind === 'task' && it.taskId === id);
+  if (k < 0) {
+    // Unscheduled task (not on the timeline): just reorder its priority so it can
+    // claim a slot on the next plan.
+    const a = planTaskOrder.slice();
+    const i = a.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= a.length) return;
+    [a[i], a[j]] = [a[j], a[i]];
+    return planTasks(a, { keep: true });
+  }
+  const neighbor = planItems[k + dir];
+  if (!neighbor) { // no timeline neighbor — nudge the floor by 30 min
+    const cur = localMinutes(planItems[k].start);
+    planFloors[id] = Math.max(0, cur + dir * 30);
+    return planTasks(planTaskOrder, { keep: true });
+  }
+
+  if (neighbor.kind === 'task') {
+    // Reorder relative to the adjacent task (and clear any floor so it can move).
+    delete planFloors[id];
+    const a = planTaskOrder.slice();
+    const i = a.indexOf(id);
+    const j = a.indexOf(neighbor.taskId);
+    if (i >= 0 && j >= 0) { [a[i], a[j]] = [a[j], a[i]]; }
+    return planTasks(a, { keep: true });
+  }
+
+  // Neighbor is an event: cross it.
+  if (dir === 1) {
+    planFloors[id] = localMinutes(neighbor.end); // start after the event ends
+  } else {
+    // Move before this event: floor to just after the previous event (so it lands
+    // in the gap before `neighbor`), or clear the floor if there's no earlier event.
+    let prevEnd = null;
+    for (let x = k - 2; x >= 0; x -= 1) {
+      if (planItems[x].kind === 'event') { prevEnd = localMinutes(planItems[x].end); break; }
+    }
+    if (prevEnd == null) delete planFloors[id];
+    else planFloors[id] = prevEnd;
+  }
+  planTasks(planTaskOrder, { keep: true });
 }
 
 // Pull a task out of this plan's layout (it stays in your task list). Re-plans

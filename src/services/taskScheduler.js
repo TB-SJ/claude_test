@@ -59,7 +59,7 @@ function isTimed(ev) {
  *
  * @returns {{ dayKey, slots:[{taskId,title,start,end,priority}], unscheduled:[task], events }}
  */
-function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date, priorityTag = null, order = null, exclude = null } = {}) {
+function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new Date(), date, priorityTag = null, order = null, exclude = null, floors = null } = {}) {
   const rules = resolveRules(ruleOverrides);
   const off = rules.tzOffsetMinutes;
   const todayKey = localParts(referenceDate.toISOString(), off).dayKey;
@@ -110,9 +110,16 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
   const unscheduled = [];
   const placed = busy.slice();
 
+  // A per-task start floor (local minutes) lets the user push a task past an
+  // event even when earlier free time exists — it just won't start before it.
+  const floorFor = (t) => {
+    const f = floors && floors[t.id] != null ? Number(floors[t.id]) : null;
+    return Number.isFinite(f) ? Math.max(earliest, f) : earliest;
+  };
+
   for (const t of pending) {
     const dur = t.estimatedMinutes || 30;
-    const slot = earliestSlot(earliest, dur, placed, workEnd, rules.bufferMinutes);
+    const slot = earliestSlot(floorFor(t), dur, placed, workEnd, rules.bufferMinutes);
     if (slot == null) {
       // Couldn't fit today — flag it as at-risk if its deadline is pressing.
       const urg = taskUrgency(t, dayKey);

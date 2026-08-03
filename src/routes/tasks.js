@@ -53,7 +53,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/plan/:provider', async (req, res) => {
   try {
     calendar.assertProvider(req.params.provider);
-    const { tzOffsetMinutes, date, priorityTag, order, exclude } = req.body || {};
+    const { tzOffsetMinutes, date, priorityTag, order, exclude, floors } = req.body || {};
     const tz = Number(tzOffsetMinutes) || 0;
     const anchor = date || calendarUtils.localNoonAnchor(tz);
     const events = await calendar.getEvents(req.params.provider, { range: 'day', date: anchor, tzOffsetMinutes: tz });
@@ -62,6 +62,7 @@ router.post('/plan/:provider', async (req, res) => {
       priorityTag: calendarUtils.normTag(priorityTag),
       order: Array.isArray(order) ? order : null,
       exclude: Array.isArray(exclude) ? exclude : null,
+      floors: floors && typeof floors === 'object' ? floors : null,
     });
     res.json(plan);
   } catch (err) {
