@@ -129,7 +129,8 @@ button.full { width: 100%; }
 
 button.ghost.active { color: var(--green); border-color: var(--green); }
 
-.brief-stat { padding: 5px 0; font-size: 0.95rem; }
+.brief-stat { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; font-size: 0.95rem; }
+.brief-stat .stat-ico { flex: 0 0 auto; margin-top: 1px; line-height: 0; }
 .brief-stat.warn { color: var(--amber); }
 
 /* Focus timer bar */

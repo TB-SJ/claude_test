@@ -37,6 +37,12 @@ const ICONS = {
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/>',
   palette: '<path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.4-1-1.5-1-2.6 0-.8.7-1.4 1.5-1.4H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="8" cy="11" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16" cy="11" r="1"/>',
   logout: '<path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M10 12h10M17 9l3 3-3 3"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.6"/>',
+  next: '<path d="M6 5l8 7-8 7z"/><path d="M18 5v14"/>',
+  alert: '<path d="M12 3.5l9 16.5H3z"/><path d="M12 10v4.5"/><path d="M12 17.6v.1"/>',
+  flame: '<path d="M12 3s5 3.7 5 9a5 5 0 0 1-10 0c0-1.8.8-3.2 1.8-4.2C8.8 9.6 10 10.6 11 10.6 11 7.7 12 5.6 12 3z"/>',
+  shield: '<path d="M12 3l7 3v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
 };
 
 function svgIcon(name, size = 20) {
@@ -787,26 +793,29 @@ async function loadBrief() {
   }
 }
 
+// A stat line with a small colored leading icon. `text` must be safe HTML.
+function statRow(icon, text, { color, cls = '' } = {}) {
+  const style = color ? ` style="color:var(--${color})"` : '';
+  return `<div class="brief-stat ${cls}"><span class="stat-ico"${style}>${svgIcon(icon, 18)}</span><span>${text}</span></div>`;
+}
+
 function renderBrief(b) {
   $('briefTitle').textContent = `Today · ${dayLabelFromKey(b.dayKey)}`;
-  const rows = [];
-  rows.push(
-    b.meetingCount
-      ? `🗓 ${b.meetingCount} meeting${b.meetingCount === 1 ? '' : 's'} · ${fmtDur(b.meetingMinutes)} booked`
-      : '🗓 No meetings today'
-  );
-  const dw = b.deepWorkClear === true ? ' · deep-work protected ✓'
-    : b.deepWorkClear === false ? ' · deep-work has a meeting ⚠️' : '';
-  rows.push(`🎯 ${fmtDur(b.freeMinutes)} free${dw}`);
-  if (b.nextEvent) rows.push(`⏭ Next: ${escapeHtml(b.nextEvent.title)} at ${fmtTime(b.nextEvent.start)}`);
+  let html = '';
+  html += statRow('calendar',
+    b.meetingCount ? `${b.meetingCount} meeting${b.meetingCount === 1 ? '' : 's'} · ${fmtDur(b.meetingMinutes)} booked` : 'No meetings today',
+    { color: 'accent' });
+  const dw = b.deepWorkClear === true ? ' · deep-work protected'
+    : b.deepWorkClear === false ? ' · deep-work has a meeting' : '';
+  html += statRow('target', `${fmtDur(b.freeMinutes)} free${escapeHtml(dw)}`, { color: b.deepWorkClear === false ? 'amber' : 'green' });
+  if (b.nextEvent) html += statRow('next', `Next: ${escapeHtml(b.nextEvent.title)} at ${fmtTime(b.nextEvent.start)}`, { color: 'accent' });
   if (b.topTask) {
-    rows.push(`✅ Top task: ${escapeHtml(b.topTask.title)} (${fmtDur(b.topTask.estimatedMinutes || 30)}${b.topTask.priority === 'high' ? ', High' : ''})`);
+    html += statRow('check', `Top task: ${escapeHtml(b.topTask.title)} (${fmtDur(b.topTask.estimatedMinutes || 30)}${b.topTask.priority === 'high' ? ', High' : ''})`, { color: 'green' });
   } else if (b.pendingTaskCount === 0) {
-    rows.push('✅ No open tasks');
+    html += statRow('check', 'No open tasks', { color: 'green' });
   }
-  let html = rows.map((r) => `<div class="brief-stat">${r}</div>`).join('');
   for (const r of b.atRisk || []) {
-    html += `<div class="brief-stat warn">⚠️ ${escapeHtml(r.title)} — ${escapeHtml(r.when)}</div>`;
+    html += statRow('alert', `${escapeHtml(r.title)} — ${escapeHtml(r.when)}`, { color: 'amber', cls: 'warn' });
   }
   $('briefStats').innerHTML = html;
   updateHero(b);
@@ -826,18 +835,18 @@ async function loadReview() {
 }
 
 function renderReview(r) {
-  $('queryTitle').textContent = '📊 Weekly review';
+  $('queryTitle').textContent = 'Weekly review';
   $('queryHeard').textContent = `${r.range.from} → ${r.range.to}`;
   const trendArrow = r.meetings.trend === 'up' ? '▲' : r.meetings.trend === 'down' ? '▼' : '—';
-  const rows = [];
-  rows.push(`🗓 ${r.meetings.count} meetings · ${fmtDur(r.meetings.minutes)} <span class="muted">(${trendArrow} vs last week)</span>`);
-  rows.push(`🎯 ${fmtDur(r.freeMinutes)} free/focus time`);
-  if (r.deepWork.days) rows.push(`🧠 Deep-work protected ${r.deepWork.protected}/${r.deepWork.days} days`);
-  rows.push(`✅ ${r.tasks.completedThisWeek} done · ${r.tasks.open} open${r.tasks.overdue ? ` · <span class="brief-stat warn" style="display:inline">⚠️ ${r.tasks.overdue} overdue</span>` : ''}`);
-  let html = rows.map((x) => `<div class="brief-stat">${x}</div>`).join('');
+  let html = '';
+  html += statRow('calendar', `${r.meetings.count} meetings · ${fmtDur(r.meetings.minutes)} <span class="muted">(${trendArrow} vs last week)</span>`, { color: 'accent' });
+  html += statRow('target', `${fmtDur(r.freeMinutes)} free/focus time`, { color: 'green' });
+  if (r.deepWork.days) html += statRow('shield', `Deep-work protected ${r.deepWork.protected}/${r.deepWork.days} days`, { color: 'green' });
+  html += statRow('check', `${r.tasks.completedThisWeek} done · ${r.tasks.open} open`, { color: 'green' });
+  if (r.tasks.overdue) html += statRow('alert', `${r.tasks.overdue} overdue`, { color: 'amber', cls: 'warn' });
   if (r.habits.length) {
     html += '<h3 class="muted" style="margin:12px 0 4px">Habit streaks</h3>';
-    html += r.habits.map((h) => `<div class="brief-stat">🔥 ${escapeHtml(h.title)} — ${h.streak} day${h.streak === 1 ? '' : 's'}</div>`).join('');
+    html += r.habits.map((h) => statRow('flame', `${escapeHtml(h.title)} — ${h.streak} day${h.streak === 1 ? '' : 's'}`, { color: 'amber' })).join('');
   }
   $('queryBody').innerHTML = html;
   showQueryCard();
@@ -857,20 +866,20 @@ async function loadFocus() {
 }
 
 function renderFocus(f) {
-  $('queryTitle').textContent = '▶ What now?';
+  $('queryTitle').textContent = 'What now?';
   $('queryHeard').textContent = '';
   let html;
   if (f.status === 'ok') {
     const t = f.task;
     const metaBits = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.category].filter(Boolean).join(' · ');
-    html = `<div class="brief-stat">Work on <b>${escapeHtml(t.title)}</b></div>
-      <div class="brief-stat muted">${escapeHtml(metaBits)}</div>
-      <div class="brief-stat">🕒 ${fmtDur(f.availableMinutes)} until ${fmtTime(f.until)}${f.fits ? '' : ' — enough to make a start'}</div>
-      <button class="primary full" id="startFocusBtn" style="margin-top:10px">▶ Start focus (${Math.min(t.estimatedMinutes, f.availableMinutes)} min)</button>`;
+    html = statRow('check', `Work on <b>${escapeHtml(t.title)}</b>`, { color: 'green' })
+      + `<div class="brief-stat muted" style="padding-left:27px">${escapeHtml(metaBits)}</div>`
+      + statRow('clock', `${fmtDur(f.availableMinutes)} until ${fmtTime(f.until)}${f.fits ? '' : ' — enough to make a start'}`, { color: 'accent' })
+      + `<button class="primary full" id="startFocusBtn" style="margin-top:10px">${svgIcon('play', 18)} Start focus (${Math.min(t.estimatedMinutes, f.availableMinutes)} min)</button>`;
   } else if (f.status === 'busy') {
-    html = `<div class="brief-stat">You're in <b>${escapeHtml(f.event.title)}</b> until ${fmtTime(f.event.end)}.</div>`;
+    html = statRow('clock', `You're in <b>${escapeHtml(f.event.title)}</b> until ${fmtTime(f.event.end)}.`, { color: 'accent' });
   } else if (f.status === 'free_no_tasks') {
-    html = `<div class="brief-stat">🌊 ${fmtDur(f.availableMinutes)} free and nothing due — enjoy it, or add a task.</div>`;
+    html = statRow('sun', `${fmtDur(f.availableMinutes)} free and nothing due — enjoy it, or add a task.`, { color: 'amber' });
   } else {
     html = `<div class="brief-stat">Nothing to suggest right now${f.reason === 'day_over' ? " — your day's work window is over." : '.'}</div>`;
   }
