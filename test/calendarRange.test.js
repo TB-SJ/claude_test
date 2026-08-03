@@ -71,3 +71,13 @@ test('an unknown repeat preset or bad frequency throws', () => {
   assert.throws(() => recurrenceFromInput({ repeat: 'hourly' }), /Unknown repeat/);
   assert.throws(() => buildRecurrence({ freq: 'FORTNIGHTLY' }), /Invalid recurrence frequency/);
 });
+
+test('repeatUntil (date-only) becomes an end-of-day UNTIL', () => {
+  const r = recurrenceFromInput({ repeat: 'weekly', repeatUntil: '2026-12-31' });
+  assert.deepEqual(r, ['RRULE:FREQ=WEEKLY;UNTIL=20261231T235959Z']);
+});
+
+test('count takes precedence over until when both are given', () => {
+  const r = recurrenceFromInput({ repeat: 'weekly', repeatCount: 4, repeatUntil: '2026-12-31' });
+  assert.deepEqual(r, ['RRULE:FREQ=WEEKLY;COUNT=4']);
+});

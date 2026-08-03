@@ -179,7 +179,10 @@ function recurrenceFromInput(input = {}) {
   if (!repeat || repeat === 'none') return null;
   const base = typeof repeat === 'string' ? RECURRENCE_PRESETS[repeat.toLowerCase()] : repeat;
   if (!base) throw validationError(`Unknown repeat option: ${JSON.stringify(repeat)}`);
-  return buildRecurrence({ ...base, count: input.repeatCount });
+  // A date-only "until" (YYYY-MM-DD) should include that whole day.
+  let until = input.repeatUntil;
+  if (typeof until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(until)) until = `${until}T23:59:59Z`;
+  return buildRecurrence({ ...base, count: input.repeatCount, until });
 }
 
 module.exports = {

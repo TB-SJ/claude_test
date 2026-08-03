@@ -251,6 +251,25 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .wg-ev .wg-n { display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .wg-allday { position: relative; left: 0; right: 0; top: 0; margin: 2px; background: var(--accent-press); }
 
+/* Meditation & manifesting */
+.med-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 10px; display: flex; align-items: center; gap: 6px; }
+.med-label .icon { width: 14px; height: 14px; }
+.med-focus { margin: 4px 0 0; font-size: 1.02rem; line-height: 1.42; }
+.med-affirm { margin: 4px 0 0; font-size: 1.02rem; line-height: 1.42; font-style: italic; color: var(--accent); }
+.med-dur { flex: 1; }
+.med-timer { text-align: center; margin-top: 14px; }
+.med-breather { width: 150px; height: 150px; margin: 4px auto; display: flex; align-items: center; justify-content: center; }
+.med-orb { width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, var(--accent), var(--accent-press)); box-shadow: 0 0 34px var(--accent); animation: breathe 11s ease-in-out infinite; }
+@keyframes breathe {
+  0% { transform: scale(0.5); opacity: 0.65; }
+  36% { transform: scale(1); opacity: 1; }
+  55% { transform: scale(1); opacity: 1; }
+  91%, 100% { transform: scale(0.5); opacity: 0.65; }
+}
+@media (prefers-reduced-motion: reduce) { .med-orb { animation: none; } }
+.med-cue { font-size: 0.95rem; color: var(--muted); margin-top: 2px; }
+.med-clock { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0 8px; }
+
 /* Task list */
 .task { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
 .task:first-child { border-top: none; }

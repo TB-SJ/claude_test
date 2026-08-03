@@ -47,6 +47,8 @@ const ICONS = {
   list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
   sliders: '<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h13M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18.5" cy="18" r="2"/>',
   download: '<path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 20h16"/>',
+  lotus: '<path d="M12 20c-4.2 0-7.5-2.3-7.5-2.3C4.5 14.5 8 12.8 12 12.8s7.5 1.7 7.5 4.9c0 0-3.3 2.3-7.5 2.3z"/><path d="M12 13.2c-1.7-2.3-1.7-5.6 0-8.9 1.7 3.3 1.7 6.6 0 8.9z"/><path d="M12 13.2C9.3 12.1 7.6 9.3 7.2 6.1c2.9.8 4.6 3.6 4.8 7.1z"/><path d="M12 13.2c2.7-1.1 4.4-3.9 4.8-7.1-2.9.8-4.6 3.6-4.8 7.1z"/>',
+  sparkle: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
 };
 
 function svgIcon(name, size = 20) {
@@ -138,12 +140,12 @@ function toggleThemeMenu() {
 
 // --- Bottom tab navigation --------------------------------------------------
 const TAB_CARDS = {
-  today: ['setupCard', 'briefCard'],
+  today: ['setupCard', 'briefCard', 'meditationCard'],
   schedule: ['todayCard'],
   tasks: ['tasksCard'],
   more: ['moreCard'],
 };
-const ALL_TAB_CARDS = ['setupCard', 'briefCard', 'todayCard', 'tasksCard', 'moreCard'];
+const ALL_TAB_CARDS = ['setupCard', 'briefCard', 'meditationCard', 'todayCard', 'tasksCard', 'moreCard'];
 let activeTab = 'today';
 
 function setTab(name) {
@@ -155,6 +157,7 @@ function setTab(name) {
   for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard', 'settingsCard']) hide($(id));
   for (const b of $('tabbar').querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === name);
   renderSetup(); // may re-hide the setup card if complete/dismissed
+  if (name === 'today') renderMeditation();
   localStorage.setItem('activeTab', name);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -501,6 +504,13 @@ async function addEventFromForm() {
     if (repeat && repeat !== 'none') {
       body.repeat = repeat;
       body.timeZone = TZ_NAME;
+      const ends = $('evEnds').value;
+      if (ends === 'after') {
+        const n = parseInt($('evEndsCount').value, 10);
+        if (n > 0) body.repeatCount = n;
+      } else if (ends === 'on') {
+        if ($('evEndsDate').value) body.repeatUntil = $('evEndsDate').value;
+      }
     }
   }
   setLoading(true);
@@ -521,6 +531,18 @@ async function addEventFromForm() {
   }
 }
 
+// Show the "Ends" row only when a repeat is chosen; show the right end input.
+function onRepeatChange() {
+  const repeating = $('evRepeat').value !== 'none';
+  $('evEndsRow').classList.toggle('hidden', !repeating);
+  onEndsChange();
+}
+function onEndsChange() {
+  const v = $('evEnds').value;
+  $('evEndsCount').classList.toggle('hidden', v !== 'after');
+  $('evEndsDate').classList.toggle('hidden', v !== 'on');
+}
+
 function resetEventForm() {
   editingEventId = null;
   $('evTitle').value = '';
@@ -528,7 +550,9 @@ function resetEventForm() {
   $('evDate').value = '';
   $('evTime').value = '';
   $('evRepeat').value = 'none';
+  $('evEnds').value = 'never';
   show($('evRepeatRow')); // repeat is available when adding
+  onRepeatChange(); // hides the Ends row for a non-repeating event
   $('evAddBtn').textContent = 'Add event';
 }
 
@@ -544,6 +568,7 @@ function startEditEvent(id) {
   $('evMins').value = Math.max(5, Math.round((new Date(ev.end) - start) / 60000)) || 60;
   $('evDesc').value = ev.description || '';
   hide($('evRepeatRow')); // recurrence is set at creation, not per-instance edit
+  hide($('evEndsRow'));
   $('evAddBtn').textContent = 'Save changes';
   show($('eventForm'));
   $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1060,6 +1085,114 @@ async function saveSettings() {
   }
 }
 
+// --- Daily meditation + manifesting ----------------------------------------
+// Original prompts (no third-party content), rotated deterministically by day.
+const MED_FOCUS = [
+  'Follow your breath — in for four, out for six. Let each exhale soften your shoulders.',
+  'Notice five sounds around you, then let them settle into the background.',
+  'Scan from head to toe, releasing tension everywhere your attention lands.',
+  'Rest your attention in the quiet space between thoughts.',
+  'Breathe into your belly and feel it rise and fall like a calm tide.',
+  'Let each thought pass like a cloud — noticed, not chased.',
+  'Ground down. Feel every point where your body meets the earth.',
+  'Soften your jaw, your eyes, your hands. Let stillness spread from there.',
+];
+const MED_AFFIRM = [
+  'I am building a life that fits me, and today I take one clear step toward it.',
+  'Opportunity flows to me because I stay open, prepared, and calm.',
+  'I attract what I focus on — today I choose progress and peace.',
+  'I am enough as I am, and I am growing a little every day.',
+  'Abundance is my natural state; I welcome it with gratitude.',
+  'I trust my timing. What is meant for me will find its way to me.',
+  'My energy shapes my day. I choose steady, grounded, and positive.',
+  'I release what I cannot control and pour my focus into what I can.',
+];
+
+function dayOfYear(d = new Date()) {
+  const start = new Date(d.getFullYear(), 0, 0);
+  return Math.floor((d - start) / 86400000);
+}
+
+let medTimer = null;
+
+function renderMeditation() {
+  const di = dayOfYear();
+  $('medFocus').textContent = MED_FOCUS[di % MED_FOCUS.length];
+  $('medAffirm').textContent = MED_AFFIRM[(di * 3 + 1) % MED_AFFIRM.length];
+  updateMedStreak();
+}
+
+function updateMedStreak() {
+  const streak = Number(localStorage.getItem('med.streak') || 0);
+  const done = localStorage.getItem('med.lastDone') === dateInputValue(new Date());
+  $('medStreak').textContent = streak > 0
+    ? `🔥 ${streak}-day streak${done ? '' : ' — keep it going'}`
+    : 'Start your streak today';
+  $('medDoneChip').classList.toggle('hidden', !done);
+}
+
+function startMeditation(mins) {
+  stopMeditation();
+  let remaining = mins * 60;
+  hide($('medDurBtns'));
+  show($('medTimerWrap'));
+  const phases = [['Breathe in…', 4], ['Hold…', 2], ['Breathe out…', 4], ['Hold…', 1]];
+  let pi = 0;
+  let pt = 0;
+  $('medCue').textContent = phases[0][0];
+  updateMedClock(remaining);
+  medTimer = setInterval(() => {
+    remaining -= 1;
+    pt += 1;
+    if (pt >= phases[pi][1]) { pt = 0; pi = (pi + 1) % phases.length; $('medCue').textContent = phases[pi][0]; }
+    updateMedClock(remaining);
+    if (remaining <= 0) finishMeditation();
+  }, 1000);
+}
+
+function updateMedClock(s) {
+  $('medClock').textContent = `${Math.floor(s / 60)}:${pad2(Math.max(0, s % 60))}`;
+}
+
+function stopMeditation() {
+  if (medTimer) { clearInterval(medTimer); medTimer = null; }
+  hide($('medTimerWrap'));
+  show($('medDurBtns'));
+}
+
+function finishMeditation() {
+  stopMeditation();
+  markMeditationDone();
+  toast('Meditation complete 🧘', 'ok');
+}
+
+function markMeditationDone() {
+  const today = dateInputValue(new Date());
+  if (localStorage.getItem('med.lastDone') === today) { updateMedStreak(); return; }
+  const yesterday = dateInputValue(new Date(Date.now() - 86400000));
+  const prev = Number(localStorage.getItem('med.streak') || 0);
+  const streak = localStorage.getItem('med.lastDone') === yesterday ? prev + 1 : 1;
+  localStorage.setItem('med.streak', String(streak));
+  localStorage.setItem('med.lastDone', today);
+  updateMedStreak();
+  toast(`Nice — ${streak}-day streak 🔥`, 'ok');
+}
+
+// Prefill the quick-add form with a daily-recurring meditation block so the
+// user just picks a time. Reuses the recurring-events flow.
+function scheduleMeditation() {
+  setTab('schedule');
+  resetEventForm();
+  primeEventForm();
+  $('evTitle').value = '🧘 Meditation';
+  $('evMins').value = 10;
+  $('evRepeat').value = 'daily';
+  onRepeatChange();
+  show($('eventForm'));
+  $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  toast('Pick a time, then Add event', '');
+}
+
 // Download a JSON backup of tasks + settings (opens the authed export endpoint).
 function exportData() {
   const a = document.createElement('a');
@@ -1541,6 +1674,16 @@ function init() {
     form.classList.toggle('hidden');
   });
   $('evAddBtn').addEventListener('click', addEventFromForm);
+  $('evRepeat').addEventListener('change', onRepeatChange);
+  $('evEnds').addEventListener('change', onEndsChange);
+  // Meditation card
+  for (const b of document.querySelectorAll('.med-dur')) {
+    b.addEventListener('click', () => startMeditation(parseInt(b.dataset.min, 10) || 5));
+  }
+  $('medStopBtn').addEventListener('click', stopMeditation);
+  $('medDoneBtn').addEventListener('click', markMeditationDone);
+  $('medScheduleBtn').addEventListener('click', scheduleMeditation);
+  setupCollapse('meditationCard', 'medCollapse', 'collapse.meditation');
   $('claudeToggle').addEventListener('change', () => {
     localStorage.setItem('useClaudeOptimizer', $('claudeToggle').checked ? '1' : '0');
   });

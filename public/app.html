@@ -72,6 +72,45 @@
       </div>
     </section>
 
+    <!-- Daily meditation + manifesting (Today tab) -->
+    <section class="card hidden" id="meditationCard">
+      <div class="row">
+        <button class="collapse-btn" id="medCollapse" aria-label="Collapse meditation">▾</button>
+        <span class="icon-tile" data-icon="lotus"></span>
+        <h2 style="margin:0">Meditation</h2>
+        <span class="spacer"></span>
+        <span class="pill ok hidden" id="medDoneChip">Done today ✓</span>
+      </div>
+      <div class="card-body" id="medBody">
+        <div class="med-guide">
+          <div class="med-label" data-icon="lotus">Today's focus</div>
+          <p id="medFocus" class="med-focus"></p>
+          <div class="med-label" data-icon="sparkle">Manifest</div>
+          <p id="medAffirm" class="med-affirm"></p>
+        </div>
+
+        <div id="medDurBtns" class="row" style="gap:8px; margin-top:10px">
+          <button class="ghost med-dur" data-min="2">2 min</button>
+          <button class="ghost med-dur" data-min="5">5 min</button>
+          <button class="ghost med-dur" data-min="10">10 min</button>
+        </div>
+
+        <div id="medTimerWrap" class="hidden med-timer">
+          <div class="med-breather"><div class="med-orb"></div></div>
+          <div id="medCue" class="med-cue">Breathe in…</div>
+          <div id="medClock" class="med-clock">0:00</div>
+          <button class="ghost" id="medStopBtn">Stop</button>
+        </div>
+
+        <div class="row" style="margin-top:12px; align-items:center">
+          <span class="muted" id="medStreak" style="font-size:.85rem"></span>
+          <span class="spacer"></span>
+          <button class="ghost" id="medDoneBtn" data-icon="check">Mark done</button>
+        </div>
+        <button class="ghost full" id="medScheduleBtn" style="margin-top:10px" data-icon="calendar">Set aside daily time</button>
+      </div>
+    </section>
+
     <!-- Connected: today -->
     <section class="card hidden" id="todayCard">
       <div class="row">
@@ -106,6 +145,16 @@
               <option value="every4weeks">Every 4 weeks</option>
               <option value="monthly">Monthly</option>
             </select>
+          </div>
+          <div class="row hidden" id="evEndsRow" style="margin-top:8px; gap:8px; align-items:center">
+            <span class="muted" style="font-size:.82rem">Ends</span>
+            <select id="evEnds" style="flex:1">
+              <option value="never">Never</option>
+              <option value="after">After…</option>
+              <option value="on">On date…</option>
+            </select>
+            <input id="evEndsCount" type="number" min="1" max="730" value="10" class="hidden" style="width:78px" title="occurrences" />
+            <input id="evEndsDate" type="date" class="hidden" style="flex:1" title="end date" />
           </div>
           <input id="evDesc" placeholder="Notes (optional)" style="width:100%; margin-top:8px" />
           <button class="primary full" id="evAddBtn" style="margin-top:8px">Add event</button>
