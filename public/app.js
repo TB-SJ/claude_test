@@ -1452,7 +1452,15 @@ function init() {
     window.location.href = '/login';
   });
 
+  registerServiceWorker();
   refreshConnection();
+}
+
+// Register the service worker on load so the app is installable (PWA) and its
+// shell works offline. Push setup reuses this same registration when enabled.
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 document.addEventListener('DOMContentLoaded', init);
