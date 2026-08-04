@@ -188,13 +188,21 @@ function timeGreeting() {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function todayTaskProgress() {
+// Completion of everything "due today": today's timed events + tasks whose due
+// date is today (one-off with deadline today, or a recurring task due today).
+function todayProgress(events) {
   const todayKey = localTodayKey();
   const dow = new Date().getDay();
-  const rel = (lastTasks || []).filter((t) => !t.deferred && (isRecurring(t) ? t.repeat.includes(dow) : true));
-  if (!rel.length) return null;
-  const done = rel.filter((t) => (isRecurring(t) ? t.lastDone === todayKey : t.done)).length;
-  return { done, total: rel.length, pct: Math.round((done / rel.length) * 100) };
+  const dueTasks = (lastTasks || []).filter((t) => !t.deferred && (
+    isRecurring(t) ? t.repeat.includes(dow) : t.deadline === todayKey
+  ));
+  const taskDone = dueTasks.filter((t) => (isRecurring(t) ? t.lastDone === todayKey : t.done)).length;
+  const evs = (events || []).filter((e) => e.start && e.start.includes('T'));
+  const evDone = evs.filter((e) => e.done).length;
+  const total = dueTasks.length + evs.length;
+  if (!total) return null;
+  const done = taskDone + evDone;
+  return { done, total, pct: Math.round((done / total) * 100) };
 }
 
 function setRing(pct) {
@@ -203,12 +211,15 @@ function setRing(pct) {
   $('ringPct').textContent = pct == null ? '–' : `${pct}%`;
 }
 
+let lastBrief = null; // last loaded brief, so the ring can refresh on toggles
+
 function updateHero(b) {
+  if (b) lastBrief = b; else b = lastBrief;
   $('heroGreeting').textContent = timeGreeting();
-  const prog = todayTaskProgress();
+  const prog = todayProgress(b && b.events);
   if (prog) {
     setRing(prog.pct);
-    $('heroSub').textContent = `${prog.done}/${prog.total} task${prog.total === 1 ? '' : 's'} done today`;
+    $('heroSub').textContent = `${prog.done}/${prog.total} done today`;
   } else {
     setRing(null);
     $('heroSub').textContent = b && b.meetingCount ? `${b.meetingCount} meeting${b.meetingCount === 1 ? '' : 's'} today` : 'Nothing scheduled — enjoy it';
@@ -646,12 +657,17 @@ function startEditEvent(id) {
 async function toggleEventDone(id, done) {
   const ev = currentEvents.find((e) => e.id === id);
   if (ev) ev.done = done;
+  const be = lastBrief && (lastBrief.events || []).find((e) => e.id === id);
+  if (be) be.done = done;
   renderScheduleView();
+  updateHero(); // keep the Today ring in sync
   try {
     await api(`/calendar/${activeProvider}/events/${encodeURIComponent(id)}`, { method: 'PATCH', body: { done } });
   } catch (err) {
     if (ev) ev.done = !done;
+    if (be) be.done = !done;
     renderScheduleView();
+    updateHero();
     toast(err.message, 'err');
   }
 }
@@ -1563,6 +1579,7 @@ function renderTasks(tasks) {
   }
 
   renderSomeday(tasks.filter((t) => t.deferred));
+  updateHero(); // today's ring counts due-today tasks too
 }
 
 function renderTaskFilter(cats) {
