@@ -101,6 +101,9 @@
           <button class="ghost med-dur" data-min="5">5 min</button>
           <button class="ghost med-dur" data-min="10">10 min</button>
         </div>
+        <label class="set-toggle" id="medVoiceRow" style="margin-top:10px">
+          <input id="medVoice" type="checkbox" /> <span>🔊 Spoken guidance &amp; mantras</span>
+        </label>
 
         <div id="medTimerWrap" class="hidden med-timer">
           <div class="med-breather"><div class="med-orb"></div></div>
@@ -233,6 +236,10 @@
             </div>
           </div>
           <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
+        </div>
+        <div class="toggle tag-seg" id="taskView" style="margin-top:10px">
+          <button type="button" data-view="active" class="active">Active</button>
+          <button type="button" data-view="done">Completed <span id="doneCount" class="seg-count"></span></button>
         </div>
         <div id="taskFilter" class="row" style="gap:6px; margin-top:8px"></div>
         <div id="taskList" style="margin-top:10px"></div>

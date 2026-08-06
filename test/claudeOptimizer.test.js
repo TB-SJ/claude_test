@@ -27,6 +27,9 @@ const { resolveRules } = require('../src/services/scheduleRules');
 // A weekday (Wed 2026-08-05) with two morning meetings that intrude on the
 // 09:00–11:00 deep-work block. tzOffset 0 → UTC is local.
 const RULES = { tzOffsetMinutes: 0 };
+// Pin "now" to the morning of the fixture day so the current-time-aware
+// validator is deterministic regardless of the real wall clock.
+const REF_OPTS = { referenceDate: new Date('2026-08-05T08:00:00Z') };
 function events() {
   return [
     { id: 'a', provider: 'google', title: 'Standup', start: '2026-08-05T09:30:00Z', end: '2026-08-05T10:00:00Z' },
@@ -43,7 +46,8 @@ test('buildValidatedResult accepts a clean proposal and preserves durations', ()
       { id: 'a', new_start: '13:00', reason: 'Group into afternoon' },
       { id: 'b', new_start: '13:45', reason: 'Group into afternoon' },
     ],
-    rules
+    rules,
+    REF_OPTS
   );
   assert.ok(result, 'expected a valid result');
   assert.equal(result.moves.length, 2);
@@ -62,7 +66,8 @@ test('buildValidatedResult rejects a proposal that creates an overlap', () => {
       { id: 'a', new_start: '13:00', reason: 'x' },
       { id: 'b', new_start: '13:00', reason: 'x' },
     ],
-    rules
+    rules,
+    REF_OPTS
   );
   assert.equal(result, null);
 });
@@ -75,7 +80,8 @@ test('buildValidatedResult rejects a move that lands inside the deep-work block'
       { id: 'a', new_start: '09:00', reason: 'x' }, // still inside 09:00–11:00
       { id: 'b', new_start: '13:00', reason: 'x' },
     ],
-    rules
+    rules,
+    REF_OPTS
   );
   assert.equal(result, null);
 });
@@ -85,7 +91,8 @@ test('buildValidatedResult rejects a hallucinated event id', () => {
   const result = claudeOptimizer.buildValidatedResult(
     events(),
     [{ id: 'does-not-exist', new_start: '13:00', reason: 'x' }],
-    rules
+    rules,
+    REF_OPTS
   );
   assert.equal(result, null);
 });
@@ -98,7 +105,8 @@ test('buildValidatedResult rejects a move outside work hours', () => {
       { id: 'a', new_start: '22:00', reason: 'x' }, // after 21:00 workday end
       { id: 'b', new_start: '13:00', reason: 'x' },
     ],
-    rules
+    rules,
+    REF_OPTS
   );
   assert.equal(result, null);
 });

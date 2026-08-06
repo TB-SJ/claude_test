@@ -287,6 +287,10 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .tag-seg button.active { background: var(--muted); }
 .tag-seg button.active[data-tag="work"] { background: #3b82f6; color: #fff; }
 .tag-seg button.active[data-tag="personal"] { background: #14b8a6; color: #fff; }
+.seg-count { font-size: 0.78rem; opacity: 0.8; }
+.archive-check { color: var(--green); flex: 0 0 auto; display: inline-flex; }
+.t-restore { background: none; border: none; color: var(--muted); font-size: 1rem; min-height: auto; padding: 4px 8px; cursor: pointer; }
+.t-restore:hover { color: var(--green); }
 .tagpill { display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 7px; border-radius: 999px; vertical-align: middle; }
 .tagpill.work { color: #2563eb; background: rgba(59, 130, 246, 0.16); }
 .tagpill.personal { color: #0d9488; background: rgba(20, 184, 166, 0.18); }

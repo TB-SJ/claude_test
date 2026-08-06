@@ -1248,9 +1248,52 @@ function updateMedStreak() {
   $('medDoneChip').classList.toggle('hidden', !done);
 }
 
+// --- Spoken guidance (Web Speech API — on-device, no cost) ------------------
+let medVoiceOn = localStorage.getItem('med.voice') !== '0';
+const speechOk = () => 'speechSynthesis' in window;
+
+function pickCalmVoice() {
+  if (!speechOk()) return null;
+  const vs = window.speechSynthesis.getVoices() || [];
+  return vs.find((v) => /^en/i.test(v.lang) && /(Samantha|Google US English|Jenny|Aria|Zira|female)/i.test(v.name))
+    || vs.find((v) => /^en/i.test(v.lang)) || null;
+}
+function medSpeak(text) {
+  if (!medVoiceOn || !speechOk()) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.82; u.pitch = 1.0;
+    const v = pickCalmVoice(); if (v) u.voice = v;
+    window.speechSynthesis.speak(u);
+  } catch (_) { /* ignore */ }
+}
+function medStopSpeech() { if (speechOk()) window.speechSynthesis.cancel(); }
+
+// A calming spoken script: settle-in, guided breaths, then manifesting mantras
+// interleaved with breath reminders, and a gentle close.
+function medGuidanceScript(totalSec) {
+  const di = dayOfYear();
+  const mantra = (i) => MED_AFFIRM[(di + i * 2 + 1) % MED_AFFIRM.length];
+  const s = [
+    { t: 0, text: 'Find a comfortable position. Relax your shoulders, and gently close your eyes.' },
+    { t: 9, text: 'Breathe in slowly through your nose.' },
+    { t: 15, text: 'And breathe out, releasing any tension.' },
+    { t: 23, text: 'Once more — breathe in, and slowly out.' },
+  ];
+  let t = 34;
+  let i = 0;
+  while (t < totalSec - 12) {
+    s.push({ t, text: mantra(i) }); i += 1; t += 18;
+    if (t < totalSec - 12) { s.push({ t, text: 'Breathe in… and out.' }); t += 12; }
+  }
+  s.push({ t: Math.max(1, totalSec - 8), text: 'Gently bring your awareness back. When you are ready, open your eyes.' });
+  return s;
+}
+
 function startMeditation(mins) {
   stopMeditation();
-  let remaining = mins * 60;
+  const totalSec = mins * 60;
+  let remaining = totalSec;
   hide($('medDurBtns'));
   show($('medTimerWrap'));
   const phases = [['Breathe in…', 4], ['Hold…', 2], ['Breathe out…', 4], ['Hold…', 1]];
@@ -1258,11 +1301,20 @@ function startMeditation(mins) {
   let pt = 0;
   $('medCue').textContent = phases[0][0];
   updateMedClock(remaining);
+
+  // Spoken guidance, fired by elapsed seconds.
+  const script = medGuidanceScript(totalSec);
+  let gp = 0;
+  medStopSpeech();
+  if (script[0] && script[0].t === 0) { medSpeak(script[0].text); gp = 1; }
+
   medTimer = setInterval(() => {
     remaining -= 1;
     pt += 1;
     if (pt >= phases[pi][1]) { pt = 0; pi = (pi + 1) % phases.length; $('medCue').textContent = phases[pi][0]; }
     updateMedClock(remaining);
+    const elapsed = totalSec - remaining;
+    while (gp < script.length && script[gp].t <= elapsed) { medSpeak(script[gp].text); gp += 1; }
     if (remaining <= 0) finishMeditation();
   }, 1000);
 }
@@ -1273,6 +1325,7 @@ function updateMedClock(s) {
 
 function stopMeditation() {
   if (medTimer) { clearInterval(medTimer); medTimer = null; }
+  medStopSpeech();
   hide($('medTimerWrap'));
   show($('medDurBtns'));
 }
@@ -1517,6 +1570,34 @@ function isOverdue(t, todayKey) {
   return !isRecurring(t) && !t.done && t.deadline && t.deadline < todayKey;
 }
 
+let taskView = 'active'; // 'active' | 'done' (archive)
+
+function renderArchive(list) {
+  if (!list.length) {
+    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">No completed tasks yet. Finished tasks are archived here.</p>';
+    return;
+  }
+  list.sort((a, b) => String(b.completedAt || '').localeCompare(String(a.completedAt || '')));
+  $('taskList').innerHTML = list
+    .map((t) => {
+      const cat = t.category ? `<span class="cat-chip">${escapeHtml(t.category)}</span>` : '';
+      const when = t.completedAt ? `Done ${t.completedAt.slice(0, 10)}` : 'Done';
+      return `<div class="task done ${t.tag ? `tag-${t.tag}` : ''}">
+          <span class="archive-check">${svgIcon('check', 20)}</span>
+          <div class="t-title">${escapeHtml(t.title)} ${tagPill(t.tag)}${cat}<div class="t-meta">${escapeHtml(when)}</div></div>
+          <button class="t-restore" data-id="${t.id}" title="Restore to active">${svgIcon('refresh', 18)}</button>
+          <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
+        </div>`;
+    })
+    .join('');
+  for (const b of $('taskList').querySelectorAll('.t-restore')) {
+    b.addEventListener('click', () => { toggleTask(b.dataset.id, false); toast('Restored to active', 'ok'); });
+  }
+  for (const d of $('taskList').querySelectorAll('.del')) {
+    d.addEventListener('click', () => deleteTask(d.dataset.id));
+  }
+}
+
 function renderTasks(tasks) {
   lastTasks = tasks;
   const todayKey = localTodayKey();
@@ -1526,7 +1607,22 @@ function renderTasks(tasks) {
   const allCats = [...new Set(tasks.map((t) => t.category).filter(Boolean))].sort();
   $('catList').innerHTML = allCats.map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
 
-  // Active (not deferred) tasks relevant today; recurring only on due days.
+  // Completed archive = finished one-off tasks (recurring habits reset daily).
+  const completed = tasks.filter((t) => !t.deferred && !isRecurring(t) && t.done);
+  $('doneCount').textContent = completed.length ? `(${completed.length})` : '';
+
+  if (taskView === 'done') {
+    renderTaskFilter([]);
+    renderArchive(completed.filter((t) => passTag(t)));
+    hide($('somedaySection'));
+    hide($('planBtn'));
+    updateHero();
+    return;
+  }
+  show($('planBtn'));
+
+  // Active (not deferred): recurring due today, plus one-off tasks not yet done
+  // (finished one-off tasks move to the Completed archive).
   const active = tasks
     .filter((t) => !t.deferred)
     .map((t) => {
@@ -1534,7 +1630,7 @@ function renderTasks(tasks) {
       const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
       return { t, recurring, checked };
     })
-    .filter(({ t, recurring, checked }) => !recurring || t.repeat.includes(todayDow) || checked)
+    .filter(({ t, recurring, checked }) => (recurring ? (t.repeat.includes(todayDow) || checked) : !t.done))
     .filter(({ t }) => passTag(t)); // work/personal lens
 
   renderTaskFilter([...new Set(active.map(({ t }) => t.category).filter(Boolean))].sort());
@@ -1925,6 +2021,19 @@ function init() {
   $('medStopBtn').addEventListener('click', stopMeditation);
   $('medDoneBtn').addEventListener('click', markMeditationDone);
   $('medScheduleBtn').addEventListener('click', scheduleMeditation);
+  const medVoiceEl = $('medVoice');
+  if (!speechOk()) { hide($('medVoiceRow')); }
+  else {
+    medVoiceEl.checked = medVoiceOn;
+    medVoiceEl.addEventListener('change', () => {
+      medVoiceOn = medVoiceEl.checked;
+      localStorage.setItem('med.voice', medVoiceOn ? '1' : '0');
+      if (!medVoiceOn) medStopSpeech();
+    });
+    // Warm up the voice list (populated asynchronously in some browsers).
+    if (window.speechSynthesis.onvoiceschanged === null) window.speechSynthesis.onvoiceschanged = () => {};
+    window.speechSynthesis.getVoices();
+  }
   setupCollapse('meditationCard', 'medCollapse', 'collapse.meditation');
   $('claudeToggle').addEventListener('change', () => {
     localStorage.setItem('useClaudeOptimizer', $('claudeToggle').checked ? '1' : '0');
@@ -1938,6 +2047,13 @@ function init() {
     form.classList.toggle('hidden');
   });
   $('taskAddBtn').addEventListener('click', addTaskFromForm);
+  $('taskView').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (!b) return;
+    taskView = b.dataset.view;
+    for (const x of $('taskView').querySelectorAll('button')) x.classList.toggle('active', x === b);
+    renderTasks(lastTasks);
+  });
   $('taskRepeat').addEventListener('click', (e) => {
     if (e.target.matches('button[data-d]')) e.target.classList.toggle('on');
   });
