@@ -121,6 +121,26 @@
       </div>
     </section>
 
+    <!-- Countdowns to important dates (Today tab) -->
+    <section class="card hidden" id="countdownCard">
+      <div class="row">
+        <span class="icon-tile" data-icon="clock"></span>
+        <h2 style="margin:0">Countdowns</h2>
+        <span class="spacer"></span>
+        <button class="ghost icon-btn" id="cdAddToggle" data-icon="plus" title="Add a countdown"></button>
+      </div>
+      <div class="card-body">
+        <div id="cdForm" class="hidden" style="margin-bottom:10px">
+          <input id="cdName" placeholder="What are you counting down to?" style="width:100%" />
+          <div class="row" style="margin-top:8px; gap:8px">
+            <input id="cdDate" type="date" style="flex:1" />
+            <button class="primary" id="cdAddBtn">Add</button>
+          </div>
+        </div>
+        <div id="cdList"></div>
+      </div>
+    </section>
+
     <!-- Connected: today -->
     <section class="card hidden" id="todayCard">
       <div class="row">

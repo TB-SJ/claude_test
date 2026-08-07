@@ -142,12 +142,12 @@ function toggleThemeMenu() {
 
 // --- Bottom tab navigation --------------------------------------------------
 const TAB_CARDS = {
-  today: ['setupCard', 'briefCard', 'meditationCard'],
+  today: ['setupCard', 'briefCard', 'countdownCard', 'meditationCard'],
   schedule: ['todayCard'],
   tasks: ['tasksCard'],
   more: ['moreCard'],
 };
-const ALL_TAB_CARDS = ['setupCard', 'briefCard', 'meditationCard', 'todayCard', 'tasksCard', 'moreCard'];
+const ALL_TAB_CARDS = ['setupCard', 'briefCard', 'countdownCard', 'meditationCard', 'todayCard', 'tasksCard', 'moreCard'];
 let activeTab = 'today';
 
 function setTab(name) {
@@ -159,7 +159,7 @@ function setTab(name) {
   for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard', 'settingsCard']) hide($(id));
   for (const b of $('tabbar').querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === name);
   renderSetup(); // may re-hide the setup card if complete/dismissed
-  if (name === 'today') renderMeditation();
+  if (name === 'today') { renderMeditation(); renderCountdowns(); }
   localStorage.setItem('activeTab', name);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1266,6 +1266,47 @@ async function saveSettings() {
   } finally {
     setLoading(false);
   }
+}
+
+// --- Countdowns to important dates -----------------------------------------
+function cdGet() { try { return JSON.parse(localStorage.getItem('countdowns') || '[]'); } catch (_) { return []; } }
+function cdSet(a) { localStorage.setItem('countdowns', JSON.stringify(a)); }
+function cdDays(dateKey, todayKey) {
+  return Math.round((Date.parse(`${dateKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86400000);
+}
+function renderCountdowns() {
+  const today = localTodayKey();
+  const items = cdGet().map((c) => ({ ...c, d: cdDays(c.date, today) }))
+    .sort((a, b) => { const ap = a.d < 0; const bp = b.d < 0; if (ap !== bp) return ap ? 1 : -1; return ap ? b.d - a.d : a.d - b.d; });
+  if (!items.length) {
+    $('cdList').innerHTML = '<p class="muted" style="margin:4px 0">No countdowns yet — add an important date.</p>';
+    return;
+  }
+  $('cdList').innerHTML = items.map((c) => {
+    const big = c.d > 0 ? String(c.d) : c.d === 0 ? '🎉' : String(-c.d);
+    const unit = c.d > 0 ? `day${c.d === 1 ? '' : 's'} to go` : c.d === 0 ? 'Today!' : `day${c.d === -1 ? '' : 's'} ago`;
+    const cls = c.d < 0 ? 'past' : c.d === 0 ? 'now' : '';
+    return `<div class="cd-item ${cls}">
+        <div class="cd-num">${big}</div>
+        <div class="cd-info"><div class="cd-name">${escapeHtml(c.name)}</div><div class="muted" style="font-size:.78rem">${unit} · ${escapeHtml(c.date)}</div></div>
+        <button class="del" data-id="${escapeHtml(c.id)}" aria-label="remove">${svgIcon('close', 18)}</button>
+      </div>`;
+  }).join('');
+  for (const b of $('cdList').querySelectorAll('.del')) {
+    b.addEventListener('click', () => { cdSet(cdGet().filter((x) => x.id !== b.dataset.id)); renderCountdowns(); });
+  }
+}
+function addCountdown() {
+  const name = $('cdName').value.trim();
+  const date = $('cdDate').value;
+  if (!name || !date) return toast('Enter a name and a date', 'err');
+  const a = cdGet();
+  a.push({ id: String(Date.now()), name, date });
+  cdSet(a);
+  $('cdName').value = ''; $('cdDate').value = '';
+  hide($('cdForm'));
+  renderCountdowns();
+  return undefined;
 }
 
 // --- Daily meditation + manifesting ----------------------------------------
@@ -2411,6 +2452,9 @@ function init() {
   for (const b of document.querySelectorAll('.med-dur')) {
     b.addEventListener('click', () => startMeditation(parseInt(b.dataset.min, 10) || 5));
   }
+  $('cdAddToggle').addEventListener('click', () => $('cdForm').classList.toggle('hidden'));
+  $('cdAddBtn').addEventListener('click', addCountdown);
+  $('cdName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('cdDate').focus(); });
   $('medStopBtn').addEventListener('click', stopMeditation);
   $('medDoneBtn').addEventListener('click', markMeditationDone);
   $('medScheduleBtn').addEventListener('click', scheduleMeditation);
