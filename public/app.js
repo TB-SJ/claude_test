@@ -395,7 +395,7 @@ function renderMonthGrid(container, events) {
     d.setDate(gs.getDate() + i);
     const key = dateInputValue(d);
     const all = byDay.get(key) || [];
-    const items = all.slice(0, 3);
+    const items = all.slice(0, 4);
     const more = all.length - items.length;
     cells += `<button class="mo-cell${d.getMonth() === first.getMonth() ? '' : ' out'}${key === todayKey ? ' today' : ''}" data-date="${key}">
         <span class="mo-day">${d.getDate()}</span>
@@ -2086,6 +2086,7 @@ function renderTasks(tasks) {
   }
   show($('planBtn'));
   show($('taskLayoutRow'));
+  for (const x of $('taskLayout').querySelectorAll('button')) x.classList.toggle('active', x.dataset.layout === taskLayout);
   $('boardGroup').classList.toggle('hidden', taskLayout !== 'board');
   for (const x of $('boardGroup').querySelectorAll('button')) x.classList.toggle('active', x.dataset.bg === boardGroupBy);
 
