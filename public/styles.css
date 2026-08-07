@@ -312,6 +312,10 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .med-cue { font-size: 0.95rem; color: var(--muted); margin-top: 2px; }
 .med-clock { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0 8px; }
 
+/* Overdue peek */
+.overdue-toggle { color: var(--danger); font-weight: 700; font-size: 0.9rem; }
+.od-today { min-height: auto; padding: 3px 8px; font-size: 0.72rem; flex: 0 0 auto; }
+
 /* Today agenda (TickTick-style unified list) */
 .agenda-h { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); margin: 12px 0 2px; }
 .agenda-h .stat-ico { display: inline-flex; }

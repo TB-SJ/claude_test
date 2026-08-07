@@ -217,6 +217,7 @@ let lastBrief = null; // last loaded brief, so the ring can refresh on toggles
 function updateHero(b) {
   if (b) lastBrief = b; else b = lastBrief;
   renderTodayAgenda();
+  renderOverduePeek();
   $('heroGreeting').textContent = timeGreeting();
   const prog = todayProgress(b && b.events);
   if (prog) {
@@ -1198,6 +1199,33 @@ function taskCompletedToday(t, todayKey) {
   if (isRecurring(t)) return t.lastDone === todayKey;
   if (!t.done) return false;
   return t.completedAt ? String(t.completedAt).slice(0, 10) === todayKey : true;
+}
+
+// Overdue peek — past-due tasks, collapsed by default so they don't clutter today.
+function renderOverduePeek() {
+  const el = $('overduePeek');
+  if (!el) return;
+  const todayKey = localTodayKey();
+  const overdue = (lastTasks || [])
+    .filter((t) => !t.deferred && passTag(t) && !isRecurring(t) && !t.done && t.deadline && t.deadline < todayKey)
+    .sort((a, b) => (a.deadline < b.deadline ? -1 : 1));
+  if (!overdue.length) { hide(el); return; }
+  show(el);
+  $('overdueCount').textContent = overdue.length;
+  $('overdueList').innerHTML = overdue.map((t) => `<div class="agenda-item overdue ${t.tag ? `tag-${t.tag}` : ''}">
+      <input type="checkbox" class="t-check" data-id="${escapeHtml(t.id)}" />
+      <span class="ag-time">${escapeHtml(t.deadline)}</span>
+      <span class="ag-title" data-edit-task="${escapeHtml(t.id)}">${escapeHtml(t.title)} ${prioFlag(t.priority)}${tagPill(t.tag)}</span>
+      <button class="ghost od-today" data-id="${escapeHtml(t.id)}" title="Move to today">→ Today</button>
+    </div>`).join('');
+  for (const c of $('overdueList').querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  for (const s of $('overdueList').querySelectorAll('[data-edit-task]')) s.addEventListener('click', () => editAgendaTask(s.dataset.editTask));
+  for (const b of $('overdueList').querySelectorAll('.od-today')) b.addEventListener('click', () => rescheduleToToday(b.dataset.id));
+}
+async function rescheduleToToday(id) {
+  await api(`/tasks/${id}`, { method: 'PATCH', body: { deadline: localTodayKey() } }).catch(() => {});
+  loadTasks();
+  loadBrief();
 }
 
 let todayView = 'todo'; // 'todo' (incomplete) | 'done' (completed)
@@ -2595,6 +2623,11 @@ function init() {
   for (const b of document.querySelectorAll('.med-dur')) {
     b.addEventListener('click', () => startMeditation(parseInt(b.dataset.min, 10) || 5));
   }
+  $('overdueToggle').addEventListener('click', () => {
+    const list = $('overdueList');
+    list.classList.toggle('hidden');
+    $('overdueChevron').textContent = list.classList.contains('hidden') ? '▸' : '▾';
+  });
   $('todayViewToggle').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-tv]');
     if (!b) return;
