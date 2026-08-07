@@ -476,7 +476,7 @@ function renderWeekGrid(container, events) {
   winStart = Math.max(0, winStart);
   winEnd = Math.min(24 * 60, winEnd); // a cross-midnight event clamps, not stretches
   const span = Math.max(60, winEnd - winStart);
-  const H = 320; // track height in px
+  const H = 460; // track height in px (taller = more readable blocks)
   const pct = (min) => ((min - winStart) / span) * 100;
 
   const byDay = new Map(days.map((d) => [d.key, []]));
@@ -1247,6 +1247,18 @@ function readSettingsForm() {
       longBreak: Number($('setPomoLong').value), roundsPerLong: Number($('setPomoRounds').value),
     },
   };
+}
+
+// Display density (comfortable | compact) — a client-side visual preference.
+function applyDensity() {
+  const d = localStorage.getItem('density') || 'comfortable';
+  document.body.classList.toggle('compact', d === 'compact');
+  const seg = $('setDensity');
+  if (seg) for (const b of seg.querySelectorAll('button')) b.classList.toggle('active', b.dataset.density === d);
+}
+function setDensity(d) {
+  localStorage.setItem('density', d);
+  applyDensity();
 }
 
 // Cache pomodoro config so the timer can read it without a round-trip.
@@ -2451,6 +2463,7 @@ function setScope(next) {
 function init() {
   tzBase = `UTC${TZ_OFFSET >= 0 ? '+' : ''}${(TZ_OFFSET / 60).toFixed(0)}h · ${Intl.DateTimeFormat().resolvedOptions().timeZone || ''}`;
   $('tzLabel').textContent = tzBase;
+  applyDensity();
 
   // Handle OAuth redirect results.
   const params = new URLSearchParams(window.location.search);
@@ -2568,6 +2581,10 @@ function init() {
   $('settingsBtn').addEventListener('click', openSettings);
   $('settingsCloseBtn').addEventListener('click', () => hide($('settingsCard')));
   $('settingsSaveBtn').addEventListener('click', saveSettings);
+  $('setDensity').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-density]');
+    if (b) setDensity(b.dataset.density);
+  });
   $('exportBtn').addEventListener('click', exportData);
   setupCollapse('briefCard', 'briefCollapse', 'collapse.brief');
   setupCollapse('todayCard', 'todayCollapse', 'collapse.schedule');

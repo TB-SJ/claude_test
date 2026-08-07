@@ -42,6 +42,19 @@ html, body {
 /* Roomy cards (Schedule / Tasks) give the calendar + board more usable width. */
 .card.roomy { padding: 12px; }
 
+/* Compact density — tighter spacing across lists and cards. */
+body.compact .card { padding: 13px; }
+body.compact .card.roomy { padding: 9px; }
+body.compact .task { padding: 6px 0; }
+body.compact .t-title { font-size: 0.9rem; }
+body.compact .t-meta { font-size: 0.72rem; margin-top: 1px; }
+body.compact .task-group-h { margin: 10px 0 0; }
+body.compact .tcard { padding: 7px; margin-bottom: 5px; }
+body.compact .tc-title { font-size: 0.88rem; }
+body.compact .brief-stat { padding: 4px 0; font-size: 0.9rem; }
+body.compact .sub-item { padding: 4px 0; }
+body.compact .mo-cell { min-height: 78px; }
+
 header {
   display: flex;
   align-items: center;
@@ -365,15 +378,15 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .board-col .tc-title { font-size: 0.95rem; }
 
 /* Eisenhower matrix */
-.matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.mx-quad { border: 1px solid var(--border); border-radius: 12px; padding: 8px; min-height: 90px; }
+.matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mx-quad { border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 170px; background: var(--card-2); }
 .mx-quad.q1 { border-top: 3px solid var(--danger); }
 .mx-quad.q2 { border-top: 3px solid var(--accent); }
 .mx-quad.q3 { border-top: 3px solid var(--amber); }
 .mx-quad.q4 { border-top: 3px solid var(--muted); }
-.mx-h { font-size: 0.78rem; font-weight: 700; margin-bottom: 6px; }
-.mx-quad .tcard { padding: 6px; }
-.mx-quad .tc-title { font-size: 0.82rem; }
+.mx-h { font-size: 0.82rem; font-weight: 700; margin-bottom: 8px; }
+.mx-quad .tcard { padding: 7px; background: var(--card); }
+.mx-quad .tc-title { font-size: 0.85rem; }
 
 /* Timeline */
 .timeline { position: relative; margin-left: 6px; }
