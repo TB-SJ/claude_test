@@ -548,6 +548,7 @@ async function refreshConnection() {
       show($('micBtn')); // voice control available once connected
       show($('tabbar'));
       show($('tagFilterBar'));
+      api('/settings').then((r) => setPomoCfg(r.settings.pomodoro)).catch(() => {}); // pomodoro durations
       await loadEvents();
       await loadTasks();
       await loadBrief();
@@ -1225,6 +1226,11 @@ function fillSettings(s) {
   $('setBriefTime').value = s.briefTime;
   $('setLead').value = s.reminderLeadMinutes;
   $('setPrefs').value = s.optimizePrefs || '';
+  const p = s.pomodoro || pomoCfg;
+  $('setPomoWork').value = p.work;
+  $('setPomoBreak').value = p.break;
+  $('setPomoLong').value = p.longBreak;
+  $('setPomoRounds').value = p.roundsPerLong;
 }
 
 function readSettingsForm() {
@@ -1236,13 +1242,25 @@ function readSettingsForm() {
     briefTime: $('setBriefTime').value,
     reminderLeadMinutes: Number($('setLead').value),
     optimizePrefs: $('setPrefs').value,
+    pomodoro: {
+      work: Number($('setPomoWork').value), break: Number($('setPomoBreak').value),
+      longBreak: Number($('setPomoLong').value), roundsPerLong: Number($('setPomoRounds').value),
+    },
   };
+}
+
+// Cache pomodoro config so the timer can read it without a round-trip.
+function setPomoCfg(p) {
+  if (!p) return;
+  pomoCfg = { work: p.work, break: p.break, longBreak: p.longBreak, roundsPerLong: p.roundsPerLong };
+  localStorage.setItem('pomo.cfg', JSON.stringify(pomoCfg));
 }
 
 async function openSettings() {
   setLoading(true);
   try {
     const { settings } = await api('/settings');
+    setPomoCfg(settings.pomodoro);
     fillSettings(settings);
     for (const id of ['proposalCard', 'queryCard', 'voiceCard', 'taskPlanCard']) hide($(id));
     show($('settingsCard'));
@@ -1258,6 +1276,7 @@ async function saveSettings() {
   setLoading(true);
   try {
     const { settings } = await api('/settings', { method: 'PUT', body: readSettingsForm() });
+    setPomoCfg(settings.pomodoro);
     fillSettings(settings);
     toast('Settings saved', 'ok');
     hide($('settingsCard'));
@@ -1514,7 +1533,7 @@ function renderFocus(f) {
   }
   const done = pomoDoneToday();
   $('queryBody').innerHTML = html
-    + `<button class="ghost full" id="pomoBtn" style="margin-top:8px">🍅 Start a Pomodoro (25 min)${done ? ` · ${done} today` : ''}</button>`;
+    + `<button class="ghost full" id="pomoBtn" style="margin-top:8px">🍅 Start a Pomodoro (${pomoCfg.work} min)${done ? ` · ${done} today` : ''}</button>`;
   showQueryCard();
   if (f.status === 'ok') {
     const mins = Math.min(f.task.estimatedMinutes, f.availableMinutes);
@@ -1551,7 +1570,9 @@ function tickFocus() {
 }
 
 // --- Pomodoro (work/break cycles) ------------------------------------------
-const POMO = { work: 25, break: 5, longBreak: 15, roundsPerLong: 4 };
+// Durations come from Settings (server), cached locally; defaults if unset.
+let pomoCfg = { work: 25, break: 5, longBreak: 15, roundsPerLong: 4 };
+try { const c = JSON.parse(localStorage.getItem('pomo.cfg') || 'null'); if (c) pomoCfg = c; } catch (_) { /* keep defaults */ }
 
 function pomoDoneToday() {
   const today = localTodayKey();
@@ -1584,7 +1605,7 @@ function renderFocusBar() {
 
 function startPomodoro(task) {
   hide($('queryCard'));
-  focusState = { taskId: task ? task.id : null, title: task ? task.title : 'Focus session', pomodoro: true, phase: 'focus', round: 1, long: false, endMs: Date.now() + POMO.work * 60000 };
+  focusState = { taskId: task ? task.id : null, title: task ? task.title : 'Focus session', pomodoro: true, phase: 'focus', round: 1, long: false, endMs: Date.now() + pomoCfg.work * 60000 };
   renderFocusBar();
   show($('focusBar'));
   tickFocus();
@@ -1596,15 +1617,15 @@ function advancePomodoro() {
   const s = focusState;
   if (s.phase === 'focus') {
     const n = bumpPomoCount();
-    s.long = s.round % POMO.roundsPerLong === 0;
+    s.long = s.round % pomoCfg.roundsPerLong === 0;
     s.phase = 'break';
-    s.endMs = Date.now() + (s.long ? POMO.longBreak : POMO.break) * 60000;
+    s.endMs = Date.now() + (s.long ? pomoCfg.longBreak : pomoCfg.break) * 60000;
     chime(`🍅 ${n} done — ${s.long ? 'long ' : ''}break time`);
   } else {
     s.round += 1;
     s.phase = 'focus';
     s.long = false;
-    s.endMs = Date.now() + POMO.work * 60000;
+    s.endMs = Date.now() + pomoCfg.work * 60000;
     chime('Back to focus 🍅');
   }
   renderFocusBar();
@@ -1900,15 +1921,28 @@ function wireCards(root) {
   for (const b of root.querySelectorAll('[data-edit]')) b.addEventListener('click', () => startEditTask(b.dataset.edit));
 }
 
-// Kanban board — columns by priority.
+let boardGroupBy = localStorage.getItem('boardGroupBy') || 'priority'; // priority|list|tag
+
+// Columns for the Kanban board, per the chosen grouping dimension.
+function boardColumns(items) {
+  if (boardGroupBy === 'list') {
+    return allLists()
+      .filter((l) => items.some((t) => (t.list || 'Inbox') === l))
+      .map((l) => ({ label: l, tasks: items.filter((t) => (t.list || 'Inbox') === l) }));
+  }
+  if (boardGroupBy === 'tag') {
+    return [['work', 'Work'], ['personal', 'Personal'], [null, 'No tag']]
+      .map(([v, label]) => ({ label, tasks: items.filter((t) => (t.tag || null) === v) }));
+  }
+  return [['high', 'High'], ['med', 'Medium'], ['low', 'Low']]
+    .map(([p, label]) => ({ label, tasks: items.filter((t) => t.priority === p) }));
+}
+
 function renderBoard(items, todayKey) {
-  const cols = [['high', 'High'], ['med', 'Medium'], ['low', 'Low']];
-  $('taskList').innerHTML = `<div class="board">${cols.map(([p, label]) => {
-    const list = items.filter((t) => t.priority === p);
-    return `<div class="board-col"><div class="board-h">${label} <span class="muted">${list.length}</span></div>`
-      + (list.map((t) => taskCard(t, todayKey)).join('') || '<p class="muted" style="font-size:.8rem;margin:6px 2px">—</p>')
-      + '</div>';
-  }).join('')}</div>`;
+  const cols = boardColumns(items);
+  $('taskList').innerHTML = `<div class="board">${cols.map((c) => `<div class="board-col"><div class="board-h">${escapeHtml(c.label)} <span class="muted">${c.tasks.length}</span></div>`
+    + (c.tasks.map((t) => taskCard(t, todayKey)).join('') || '<p class="muted" style="font-size:.8rem;margin:6px 2px">—</p>')
+    + '</div>').join('')}</div>`;
   wireCards($('taskList'));
 }
 
@@ -2052,6 +2086,8 @@ function renderTasks(tasks) {
   }
   show($('planBtn'));
   show($('taskLayoutRow'));
+  $('boardGroup').classList.toggle('hidden', taskLayout !== 'board');
+  for (const x of $('boardGroup').querySelectorAll('button')) x.classList.toggle('active', x.dataset.bg === boardGroupBy);
 
   // Active pool (respect the work/personal lens); finished one-off tasks live
   // in the Completed archive, so they're excluded here.
@@ -2494,8 +2530,17 @@ function init() {
     for (const x of $('taskLayout').querySelectorAll('button')) x.classList.toggle('active', x === b);
     renderTasks(lastTasks);
   });
-  // Reflect the persisted layout choice on load.
+  $('boardGroup').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-bg]');
+    if (!b) return;
+    boardGroupBy = b.dataset.bg;
+    localStorage.setItem('boardGroupBy', boardGroupBy);
+    for (const x of $('boardGroup').querySelectorAll('button')) x.classList.toggle('active', x === b);
+    renderTasks(lastTasks);
+  });
+  // Reflect persisted choices on load.
   for (const x of $('taskLayout').querySelectorAll('button')) x.classList.toggle('active', x.dataset.layout === taskLayout);
+  for (const x of $('boardGroup').querySelectorAll('button')) x.classList.toggle('active', x.dataset.bg === boardGroupBy);
   $('taskSubAdd').addEventListener('click', addFormSub);
   $('taskSubInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFormSub(); } });
   $('taskRepeat').addEventListener('click', (e) => {

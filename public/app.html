@@ -283,6 +283,12 @@
             <button type="button" data-layout="matrix">Matrix</button>
             <button type="button" data-layout="timeline">Timeline</button>
           </div>
+          <span class="spacer"></span>
+          <div class="toggle view-switch hidden" id="boardGroup" title="Group board by">
+            <button type="button" data-bg="priority" class="active">Priority</button>
+            <button type="button" data-bg="list">List</button>
+            <button type="button" data-bg="tag">Tag</button>
+          </div>
         </div>
         <div id="catFilter" class="cat-filter"></div>
         <div id="taskList" style="margin-top:10px"></div>
@@ -379,6 +385,16 @@
         <h3 class="set-group">Optimizer preferences <span class="pill">🧠 Claude</span></h3>
         <p class="muted set-hint">Plain-English preferences the AI optimizer will try to honor (one per line). Hard rules above always win.</p>
         <textarea id="setPrefs" rows="4" placeholder="e.g.&#10;No meetings before 10am&#10;Keep Fridays light&#10;Batch errands in the afternoon"></textarea>
+
+        <h3 class="set-group">Pomodoro 🍅</h3>
+        <div class="row">
+          <label class="set-field"><span>Focus (min)</span><input id="setPomoWork" type="number" min="1" max="120" /></label>
+          <label class="set-field"><span>Break (min)</span><input id="setPomoBreak" type="number" min="1" max="60" /></label>
+        </div>
+        <div class="row">
+          <label class="set-field"><span>Long break (min)</span><input id="setPomoLong" type="number" min="1" max="60" /></label>
+          <label class="set-field"><span>Rounds / long break</span><input id="setPomoRounds" type="number" min="2" max="12" /></label>
+        </div>
 
         <button class="primary full" id="settingsSaveBtn" style="margin-top:14px">Save settings</button>
       </div>

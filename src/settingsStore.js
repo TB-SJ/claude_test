@@ -23,6 +23,7 @@ const DEFAULTS = {
   briefTime: '07:00',
   reminderLeadMinutes: 10,
   optimizePrefs: '',
+  pomodoro: { work: 25, break: 5, longBreak: 15, roundsPerLong: 4 },
 };
 
 const useSupabase = () => providerConfigured.supabase();
@@ -39,8 +40,20 @@ function merge(base, patch) {
     if (patch.briefTime != null) out.briefTime = patch.briefTime;
     if (patch.reminderLeadMinutes != null) out.reminderLeadMinutes = patch.reminderLeadMinutes;
     if (patch.optimizePrefs != null) out.optimizePrefs = patch.optimizePrefs;
+    if (patch.pomodoro) out.pomodoro = { ...base.pomodoro, ...patch.pomodoro };
   }
   return out;
+}
+
+/** Clamps the pomodoro durations to sane ranges. */
+function normPomodoro(p) {
+  const clamp = (v, lo, hi, dflt) => Math.max(lo, Math.min(hi, parseInt(v, 10) || dflt));
+  return {
+    work: clamp(p.work, 1, 120, 25),
+    break: clamp(p.break, 1, 60, 5),
+    longBreak: clamp(p.longBreak, 1, 60, 15),
+    roundsPerLong: clamp(p.roundsPerLong, 2, 12, 4),
+  };
 }
 
 async function init() {
@@ -94,6 +107,7 @@ async function save(patch) {
   next.bufferMinutes = Math.max(0, Math.min(120, parseInt(next.bufferMinutes, 10) || 0));
   next.reminderLeadMinutes = Math.max(0, Math.min(120, parseInt(next.reminderLeadMinutes, 10) || 0));
   next.optimizePrefs = String(next.optimizePrefs || '').slice(0, 500);
+  next.pomodoro = normPomodoro(next.pomodoro || {});
   // resolveRules throws on malformed HH:MM / bad windows — validate before saving.
   resolveRules(rules(0) && {
     workday: next.workday, deepWork: next.deepWork, bufferMinutes: next.bufferMinutes, meetingWindow: next.meetingWindow,
