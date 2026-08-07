@@ -702,7 +702,8 @@ function resetEventForm() {
 
 // Opens the form prefilled to edit an existing event.
 function startEditEvent(id) {
-  const ev = currentEvents.find((e) => e.id === id);
+  const ev = (currentEvents || []).find((e) => e.id === id)
+    || ((lastBrief && lastBrief.events) || []).find((e) => e.id === id);
   if (!ev || !ev.start.includes('T')) return toast("This event can't be edited here.", 'err');
   const start = new Date(ev.start);
   editingEventId = id;
@@ -1156,7 +1157,7 @@ function agendaEventRow(e) {
   return `<div class="agenda-item ${e.done ? 'done' : ''} ${e.tag ? `tag-${e.tag}` : ''}">
       <input type="checkbox" class="ev-check" data-id="${escapeHtml(e.id)}" ${e.done ? 'checked' : ''} />
       <span class="ag-time">${fmtTime(e.start)}</span>
-      <span class="ag-title">${escapeHtml(e.title || '(untitled)')} ${tagPill(e.tag)}</span>
+      <span class="ag-title" data-edit-ev="${escapeHtml(e.id)}">${escapeHtml(e.title || '(untitled)')} ${tagPill(e.tag)}</span>
     </div>`;
 }
 function agendaTaskRow(t, todayKey) {
@@ -1167,9 +1168,13 @@ function agendaTaskRow(t, todayKey) {
   return `<div class="agenda-item ${checked ? 'done' : ''} ${over ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
       <input type="checkbox" class="t-check" data-id="${escapeHtml(t.id)}" ${checked ? 'checked' : ''} />
       <span class="ag-time">${mark}</span>
-      <span class="ag-title">${escapeHtml(t.title)} ${prioFlag(t.priority)}${tagPill(t.tag)}</span>
+      <span class="ag-title" data-edit-task="${escapeHtml(t.id)}">${escapeHtml(t.title)} ${prioFlag(t.priority)}${tagPill(t.tag)}</span>
     </div>`;
 }
+
+// Tap an agenda event → open it on the Schedule tab; a task → on the Tasks tab.
+function editAgendaEvent(id) { setTab('schedule'); startEditEvent(id); }
+function editAgendaTask(id) { setTab('tasks'); startEditTask(id); }
 function renderTodayAgenda() {
   const el = $('todayAgenda');
   if (!el) return;
@@ -1194,6 +1199,21 @@ function renderTodayAgenda() {
   el.innerHTML = html || '<p class="muted center" style="margin:10px 0 4px">Nothing due today — enjoy it 🎉</p>';
   for (const c of el.querySelectorAll('.ev-check')) c.addEventListener('change', () => toggleEventDone(c.dataset.id, c.checked));
   for (const c of el.querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  for (const s of el.querySelectorAll('[data-edit-ev]')) s.addEventListener('click', () => editAgendaEvent(s.dataset.editEv));
+  for (const s of el.querySelectorAll('[data-edit-task]')) s.addEventListener('click', () => editAgendaTask(s.dataset.editTask));
+}
+
+async function quickAddToday() {
+  const raw = $('todayQuickAddInput').value.trim();
+  if (!raw) return;
+  const p = parseQuickAdd(raw, localTodayKey());
+  if (!p.title) return;
+  const body = { title: p.title, priority: p.priority, deadline: p.deadline || localTodayKey(), category: p.category, list: p.list || 'Inbox' };
+  if (p.estimatedMinutes) body.estimatedMinutes = p.estimatedMinutes;
+  rememberList(body.list);
+  $('todayQuickAddInput').value = '';
+  try { await api('/tasks', { method: 'POST', body }); loadTasks(); loadBrief(); }
+  catch (err) { toast(err.message, 'err'); }
 }
 
 // --- Weekly review ---------------------------------------------------------
@@ -2542,6 +2562,8 @@ function init() {
   for (const b of document.querySelectorAll('.med-dur')) {
     b.addEventListener('click', () => startMeditation(parseInt(b.dataset.min, 10) || 5));
   }
+  $('todayQuickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') quickAddToday(); });
+  $('todayQuickAddBar').querySelector('.qa-plus').addEventListener('click', quickAddToday);
   $('cdAddToggle').addEventListener('click', () => $('cdForm').classList.toggle('hidden'));
   $('cdAddBtn').addEventListener('click', addCountdown);
   $('cdName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('cdDate').focus(); });

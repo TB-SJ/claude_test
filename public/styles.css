@@ -319,7 +319,7 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .agenda-item:first-of-type { border-top: none; }
 .agenda-item input { width: 20px; height: 20px; accent-color: var(--green); flex: 0 0 auto; }
 .agenda-item .ag-time { flex: 0 0 auto; min-width: 52px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.agenda-item .ag-title { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.agenda-item .ag-title { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; cursor: pointer; }
 .agenda-item.done .ag-title { text-decoration: line-through; color: var(--muted); }
 .agenda-item.done { opacity: 0.7; }
 .agenda-item.overdue .ag-time { color: var(--danger); }
