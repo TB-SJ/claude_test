@@ -1471,12 +1471,15 @@ function renderFocus(f) {
   } else {
     html = `<div class="brief-stat">Nothing to suggest right now${f.reason === 'day_over' ? " — your day's work window is over." : '.'}</div>`;
   }
-  $('queryBody').innerHTML = html;
+  const done = pomoDoneToday();
+  $('queryBody').innerHTML = html
+    + `<button class="ghost full" id="pomoBtn" style="margin-top:8px">🍅 Start a Pomodoro (25 min)${done ? ` · ${done} today` : ''}</button>`;
   showQueryCard();
   if (f.status === 'ok') {
     const mins = Math.min(f.task.estimatedMinutes, f.availableMinutes);
     $('startFocusBtn').addEventListener('click', () => startFocus(f.task, mins));
   }
+  $('pomoBtn').addEventListener('click', () => startPomodoro(f.status === 'ok' ? f.task : null));
 }
 
 let focusTimer = null;
@@ -1486,6 +1489,7 @@ function startFocus(task, minutes) {
   hide($('queryCard'));
   focusState = { taskId: task.id, title: task.title, endMs: Date.now() + minutes * 60000 };
   $('focusTitle').textContent = task.title;
+  hide($('focusSkipBtn'));
   show($('focusBar'));
   tickFocus();
   if (focusTimer) clearInterval(focusTimer);
@@ -1495,6 +1499,7 @@ function startFocus(task, minutes) {
 function tickFocus() {
   if (!focusState) return;
   const remain = focusState.endMs - Date.now();
+  if (focusState.pomodoro && remain <= 0) { advancePomodoro(); return; }
   const over = remain < 0;
   const abs = Math.abs(remain);
   const mm = Math.floor(abs / 60000);
@@ -1502,6 +1507,71 @@ function tickFocus() {
   const el = $('focusTime');
   el.textContent = `${over ? '+' : ''}${mm}:${String(ss).padStart(2, '0')}`;
   el.classList.toggle('over', over);
+}
+
+// --- Pomodoro (work/break cycles) ------------------------------------------
+const POMO = { work: 25, break: 5, longBreak: 15, roundsPerLong: 4 };
+
+function pomoDoneToday() {
+  const today = localTodayKey();
+  if (localStorage.getItem('pomo.date') !== today) { localStorage.setItem('pomo.date', today); localStorage.setItem('pomo.count', '0'); }
+  return Number(localStorage.getItem('pomo.count') || 0);
+}
+function bumpPomoCount() {
+  const n = pomoDoneToday() + 1;
+  localStorage.setItem('pomo.count', String(n));
+  return n;
+}
+function chime(msg) {
+  try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (_) { /* */ }
+  if (msg) toast(msg, 'ok');
+}
+
+function renderFocusBar() {
+  const s = focusState;
+  if (!s) return;
+  if (s.pomodoro) {
+    const done = pomoDoneToday();
+    const label = s.phase === 'focus' ? '🍅 Focus' : (s.long ? '🌴 Long break' : '☕ Break');
+    $('focusTitle').textContent = `${label} · ${escapeHtml(s.title)}${done ? ` · ${done} done today` : ''}`;
+    show($('focusSkipBtn'));
+  } else {
+    $('focusTitle').textContent = s.title;
+    hide($('focusSkipBtn'));
+  }
+}
+
+function startPomodoro(task) {
+  hide($('queryCard'));
+  focusState = { taskId: task ? task.id : null, title: task ? task.title : 'Focus session', pomodoro: true, phase: 'focus', round: 1, long: false, endMs: Date.now() + POMO.work * 60000 };
+  renderFocusBar();
+  show($('focusBar'));
+  tickFocus();
+  if (focusTimer) clearInterval(focusTimer);
+  focusTimer = setInterval(tickFocus, 1000);
+}
+
+function advancePomodoro() {
+  const s = focusState;
+  if (s.phase === 'focus') {
+    const n = bumpPomoCount();
+    s.long = s.round % POMO.roundsPerLong === 0;
+    s.phase = 'break';
+    s.endMs = Date.now() + (s.long ? POMO.longBreak : POMO.break) * 60000;
+    chime(`🍅 ${n} done — ${s.long ? 'long ' : ''}break time`);
+  } else {
+    s.round += 1;
+    s.phase = 'focus';
+    s.long = false;
+    s.endMs = Date.now() + POMO.work * 60000;
+    chime('Back to focus 🍅');
+  }
+  renderFocusBar();
+  tickFocus();
+}
+
+function skipPhase() {
+  if (focusState && focusState.pomodoro) { focusState.endMs = Date.now(); advancePomodoro(); }
 }
 
 function stopFocus() {
@@ -2394,6 +2464,7 @@ function init() {
     $('somedayChevron').textContent = list.classList.contains('hidden') ? '▸' : '▾';
   });
   $('focusDoneBtn').addEventListener('click', focusDone);
+  $('focusSkipBtn').addEventListener('click', skipPhase);
   $('focusStopBtn').addEventListener('click', stopFocus);
   for (const b of $('tabbar').querySelectorAll('.tab')) {
     b.addEventListener('click', () => setTab(b.dataset.tab));
