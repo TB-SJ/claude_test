@@ -110,6 +110,25 @@ function normCategory(v) {
   return s || null;
 }
 
+/** Normalizes a list name (trimmed, capped); defaults to "Inbox". */
+function normList(v) {
+  const s = String(v == null ? '' : v).trim().slice(0, 40);
+  return s || 'Inbox';
+}
+
+/** Normalizes a subtasks array into [{id, title, done}]. */
+function normSubtasks(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((s) => ({
+      id: s && s.id ? String(s.id) : crypto.randomUUID(),
+      title: String((s && s.title) || '').trim().slice(0, 200),
+      done: Boolean(s && s.done),
+    }))
+    .filter((s) => s.title)
+    .slice(0, 50);
+}
+
 /** The most recent recurrence day strictly before `dateKey`, or null. */
 function previousDue(repeat, dateKey) {
   const base = new Date(`${dateKey}T00:00:00Z`);
@@ -129,7 +148,7 @@ function list() {
   return currentAll();
 }
 
-function add({ title, estimatedMinutes, priority, deadline, repeat, category, tag }) {
+function add({ title, estimatedMinutes, priority, deadline, repeat, category, tag, list: listName, subtasks }) {
   const t = {
     id: crypto.randomUUID(),
     title: String(title || '').trim(),
@@ -139,6 +158,8 @@ function add({ title, estimatedMinutes, priority, deadline, repeat, category, ta
     repeat: normRepeat(repeat), // null (one-off) or [weekdays]
     category: normCategory(category),
     tag: normTag(tag), // 'work' | 'personal' | null
+    list: normList(listName), // organizational list (default "Inbox")
+    subtasks: normSubtasks(subtasks), // [{id, title, done}]
     deferred: false, // "Someday/Later" bucket
     streak: 0,
     lastDone: null, // last completion date (recurring) — YYYY-MM-DD
@@ -165,6 +186,8 @@ function update(id, patch = {}) {
   if (patch.repeat !== undefined) clean.repeat = normRepeat(patch.repeat);
   if (patch.category !== undefined) clean.category = normCategory(patch.category);
   if (patch.tag !== undefined) clean.tag = normTag(patch.tag);
+  if (patch.list !== undefined) clean.list = normList(patch.list);
+  if (patch.subtasks !== undefined) clean.subtasks = normSubtasks(patch.subtasks);
   if (patch.deferred != null) clean.deferred = Boolean(patch.deferred);
 
   if (patch.done != null) {

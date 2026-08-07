@@ -202,6 +202,11 @@
         <button class="ghost" id="addTaskToggle" data-icon="plus">Add</button>
       </div>
       <div class="card-body" id="tasksBody">
+        <!-- Natural-language quick-add: "Call Bob tomorrow 3pm !high #work" -->
+        <div class="quick-add" id="quickAddBar">
+          <span class="qa-plus">+</span>
+          <input id="quickAddInput" placeholder="Add a task…  (try “Pay rent friday !high”)" autocomplete="off" />
+        </div>
         <div id="taskForm" class="hidden" style="margin-top:10px">
           <input id="taskTitle" placeholder="What do you need to do?" style="width:100%" />
           <div class="row" style="margin-top:8px">
@@ -221,8 +226,12 @@
               <button type="button" data-tag="personal">Personal</button>
             </div>
           </div>
-          <input id="taskCategory" list="catList" placeholder="Category (optional, e.g. errands, home, health)" style="width:100%; margin-top:8px" />
-          <datalist id="catList"></datalist>
+          <div class="row" style="margin-top:8px; gap:8px">
+            <input id="taskListInput" list="listOptions" placeholder="List (e.g. Inbox, Home)" style="flex:1" />
+            <datalist id="listOptions"></datalist>
+            <input id="taskCategory" list="catList" placeholder="Category (optional)" style="flex:1" />
+            <datalist id="catList"></datalist>
+          </div>
           <div class="row" style="margin-top:8px; gap:8px; align-items:center">
             <span class="muted" style="font-size:.82rem">Repeat</span>
             <div class="daychips" id="taskRepeat">
@@ -237,11 +246,7 @@
           </div>
           <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
         </div>
-        <div class="toggle tag-seg" id="taskView" style="margin-top:10px">
-          <button type="button" data-view="active" class="active">Active</button>
-          <button type="button" data-view="done">Completed <span id="doneCount" class="seg-count"></span></button>
-        </div>
-        <div id="taskFilter" class="row" style="gap:6px; margin-top:8px"></div>
+        <div id="taskNav" class="task-nav"></div>
         <div id="taskList" style="margin-top:10px"></div>
         <div id="somedaySection" class="hidden" style="margin-top:12px">
           <button class="collapse-btn" id="somedayToggle"><span id="somedayChevron">▸</span> 💤 Someday (<span id="somedayCount">0</span>)</button>

@@ -49,6 +49,7 @@ const ICONS = {
   download: '<path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 20h16"/>',
   lotus: '<path d="M12 20c-4.2 0-7.5-2.3-7.5-2.3C4.5 14.5 8 12.8 12 12.8s7.5 1.7 7.5 4.9c0 0-3.3 2.3-7.5 2.3z"/><path d="M12 13.2c-1.7-2.3-1.7-5.6 0-8.9 1.7 3.3 1.7 6.6 0 8.9z"/><path d="M12 13.2C9.3 12.1 7.6 9.3 7.2 6.1c2.9.8 4.6 3.6 4.8 7.1z"/><path d="M12 13.2c2.7-1.1 4.4-3.9 4.8-7.1-2.9.8-4.6 3.6-4.8 7.1z"/>',
   trash: '<path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M10 11v6M14 11v6"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 3.5L16 11H5"/>',
   sparkle: '<path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
 };
 
@@ -1564,13 +1565,169 @@ function repeatLabel(days) {
   return days.slice().sort((a, b) => a - b).map((d) => DOW_ABBR[d]).join(' ');
 }
 
-let taskFilterCat = null; // active category filter (null = All)
+// --- Task views (TickTick-style smart lists + custom lists) ----------------
+let taskViewSel = localStorage.getItem('taskView') || 'today'; // 'today'|'next7'|'all'|'completed'|'list:<name>'
 
 function isOverdue(t, todayKey) {
   return !isRecurring(t) && !t.done && t.deadline && t.deadline < todayKey;
 }
+function daysFromToday(dateKey, todayKey) {
+  return Math.round((Date.parse(`${dateKey}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86400000);
+}
+// Colored priority flag: high=red, low=blue; medium shows none (reduces noise).
+function prioFlag(p) {
+  if (p === 'high') return `<span class="flag high" title="High priority">${svgIcon('flag', 15)}</span>`;
+  if (p === 'low') return `<span class="flag low" title="Low priority">${svgIcon('flag', 15)}</span>`;
+  return '';
+}
 
-let taskView = 'active'; // 'active' | 'done' (archive)
+// Custom lists — persisted names so empty lists survive across reloads.
+function storedLists() { try { return JSON.parse(localStorage.getItem('lists') || '[]'); } catch (_) { return []; } }
+function rememberList(name) {
+  if (!name || name === 'Inbox') return;
+  const s = new Set(storedLists()); if (s.has(name)) return;
+  s.add(name); localStorage.setItem('lists', JSON.stringify([...s]));
+}
+function allLists() {
+  return [...new Set(['Inbox', ...storedLists(), ...(lastTasks || []).map((t) => t.list || 'Inbox')])];
+}
+
+// Which active tasks belong to a smart list.
+function isPendingToday(t, todayKey, todayDow) {
+  if (isRecurring(t)) return t.repeat.includes(todayDow);
+  return t.deadline ? t.deadline <= todayKey : false; // due today or overdue
+}
+function inNext7(t, todayKey, todayDow) {
+  if (isRecurring(t)) return true;
+  if (!t.deadline) return false;
+  return daysFromToday(t.deadline, todayKey) <= 7; // overdue + within a week
+}
+
+// Date bucket for grouping (chronological via `order`).
+function bucketOf(t, todayKey) {
+  if (isRecurring(t)) return { order: 300, label: 'Recurring' };
+  if (!t.deadline) return { order: 200, label: 'No date' };
+  const d = daysFromToday(t.deadline, todayKey);
+  if (d < 0) return { order: -1, label: 'Overdue' };
+  if (d > 7) return { order: 100, label: 'Later' };
+  const label = d === 0 ? 'Today' : d === 1 ? 'Tomorrow'
+    : new Date(`${t.deadline}T00:00:00`).toLocaleDateString([], { weekday: 'long' });
+  return { order: d, label };
+}
+function groupTasks(items, todayKey) {
+  const map = new Map();
+  for (const t of items) {
+    const b = bucketOf(t, todayKey);
+    if (!map.has(b.order)) map.set(b.order, { order: b.order, label: b.label, tasks: [] });
+    map.get(b.order).tasks.push(t);
+  }
+  const groups = [...map.values()].sort((a, b) => a.order - b.order);
+  for (const g of groups) g.tasks.sort((a, b) => (PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1));
+  return groups;
+}
+
+// --- Natural-language quick-add --------------------------------------------
+// e.g. "Pay rent friday !high #bills ~30m @Home" → structured task.
+function parseQuickAdd(text, todayKey) {
+  let s = ` ${text.trim()} `;
+  const out = { title: '', priority: 'med', deadline: null, category: null, list: null, estimatedMinutes: null };
+  s = s.replace(/\s!\s?(high|h|1)(?=\s)/i, () => { out.priority = 'high'; return ' '; });
+  s = s.replace(/\s!\s?(low|l|3)(?=\s)/i, () => { out.priority = 'low'; return ' '; });
+  s = s.replace(/\s!\s?(med|medium|m|2)(?=\s)/i, () => { out.priority = 'med'; return ' '; });
+  s = s.replace(/\s~\s?(\d+)\s?h(?=\s)/i, (_, h) => { out.estimatedMinutes = (out.estimatedMinutes || 0) + parseInt(h, 10) * 60; return ' '; });
+  s = s.replace(/\s~\s?(\d+)\s?m(in)?(?=\s)/i, (_, m) => { out.estimatedMinutes = (out.estimatedMinutes || 0) + parseInt(m, 10); return ' '; });
+  s = s.replace(/\s#([\p{L}\p{N}_-]+)/gu, (_, w) => { out.category = w; return ' '; });
+  s = s.replace(/\s@([\p{L}\p{N}_-]+)/gu, (_, w) => { out.list = w; return ' '; });
+  const base = new Date(`${todayKey}T00:00:00`);
+  const addDays = (n) => { const d = new Date(base); d.setDate(base.getDate() + n); return dateInputValue(d); };
+  const DOW = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2, wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6 };
+  let m;
+  if ((m = s.match(/\s(today|tonight)(?=\s)/i))) { out.deadline = addDays(0); s = s.replace(m[0], ' '); }
+  else if ((m = s.match(/\s(tomorrow|tmrw?|tmr)(?=\s)/i))) { out.deadline = addDays(1); s = s.replace(m[0], ' '); }
+  else if ((m = s.match(/\snext week(?=\s)/i))) { out.deadline = addDays(7); s = s.replace(m[0], ' '); }
+  else if ((m = s.match(/\sin (\d+) days?(?=\s)/i))) { out.deadline = addDays(parseInt(m[1], 10)); s = s.replace(m[0], ' '); }
+  else if ((m = s.match(/\s(\d{4}-\d{2}-\d{2})(?=\s)/))) { out.deadline = m[1]; s = s.replace(m[0], ' '); }
+  else if ((m = s.match(/\s(\d{1,2})\/(\d{1,2})(?=\s)/))) { out.deadline = `${base.getFullYear()}-${pad2(m[1])}-${pad2(m[2])}`; s = s.replace(m[0], ' '); }
+  else if ((m = s.match(new RegExp(`\\s(${Object.keys(DOW).join('|')})(?=\\s)`, 'i')))) {
+    let n = (DOW[m[1].toLowerCase()] - base.getDay() + 7) % 7; if (n === 0) n = 7;
+    out.deadline = addDays(n); s = s.replace(m[0], ' ');
+  }
+  out.title = s.replace(/\s+/g, ' ').trim();
+  return out;
+}
+
+async function quickAdd() {
+  const raw = $('quickAddInput').value.trim();
+  if (!raw) return;
+  const p = parseQuickAdd(raw, localTodayKey());
+  if (!p.title) return;
+  const viewList = taskViewSel.startsWith('list:') ? taskViewSel.slice(5) : null;
+  const body = { title: p.title, priority: p.priority, deadline: p.deadline, category: p.category, list: p.list || viewList || 'Inbox' };
+  if (p.estimatedMinutes) body.estimatedMinutes = p.estimatedMinutes;
+  if (!body.deadline && taskViewSel === 'today') body.deadline = localTodayKey();
+  rememberList(body.list);
+  $('quickAddInput').value = '';
+  try { await api('/tasks', { method: 'POST', body }); loadTasks(); loadBrief(); }
+  catch (err) { toast(err.message, 'err'); }
+}
+
+function taskCounts() {
+  const todayKey = localTodayKey();
+  const dow = new Date().getDay();
+  const active = (lastTasks || []).filter((t) => !t.deferred && passTag(t)).filter((t) => isRecurring(t) || !t.done);
+  const c = { all: active.length, today: 0, next7: 0,
+    completed: (lastTasks || []).filter((t) => !t.deferred && !isRecurring(t) && t.done && passTag(t)).length };
+  for (const t of active) {
+    if (isPendingToday(t, todayKey, dow)) c.today += 1;
+    if (inNext7(t, todayKey, dow)) c.next7 += 1;
+    const k = `list:${t.list || 'Inbox'}`; c[k] = (c[k] || 0) + 1;
+  }
+  return c;
+}
+
+function renderTaskNav() {
+  const counts = taskCounts();
+  const smart = [['today', 'Today'], ['next7', 'Next 7 Days'], ['all', 'All'], ['completed', 'Completed']];
+  const chip = (id, label) =>
+    `<button class="nav-chip ${taskViewSel === id ? 'on' : ''}" data-view="${escapeHtml(id)}">${escapeHtml(label)}${counts[id] ? `<span class="nav-n">${counts[id]}</span>` : ''}</button>`;
+  let html = smart.map(([id, label]) => chip(id, label)).join('');
+  html += '<span class="nav-sep"></span>';
+  html += allLists().map((l) => chip(`list:${l}`, l)).join('');
+  $('taskNav').innerHTML = html;
+  for (const b of $('taskNav').querySelectorAll('.nav-chip')) {
+    b.addEventListener('click', () => { taskViewSel = b.dataset.view; localStorage.setItem('taskView', taskViewSel); renderTasks(lastTasks); });
+  }
+}
+
+// A unified task row (checkbox, title, tag/subtasks/streak/category, flag, actions).
+function taskRow(t, todayKey) {
+  const recurring = isRecurring(t);
+  const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
+  const overdue = isOverdue(t, todayKey);
+  const bits = [];
+  if (t.estimatedMinutes) bits.push(`${t.estimatedMinutes}m`);
+  if (!recurring && t.deadline) bits.push(overdue ? `⚠️ ${t.deadline}` : t.deadline);
+  if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
+  const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
+  const cat = t.category ? `<span class="cat-chip">${escapeHtml(t.category)}</span>` : '';
+  const nSub = (t.subtasks || []).length;
+  const sub = nSub ? `<span class="sub-count">${(t.subtasks).filter((s) => s.done).length}/${nSub}</span>` : '';
+  const meta = bits.length ? `<div class="t-meta">${escapeHtml(bits.join(' · '))}</div>` : '';
+  return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
+      <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
+      <div class="t-title">${escapeHtml(t.title)} ${tagPill(t.tag)}${sub}${streak}${cat}${meta}</div>
+      ${prioFlag(t.priority)}
+      <button class="t-edit" data-id="${t.id}" aria-label="edit">${svgIcon('edit', 18)}</button>
+      <button class="t-defer" data-id="${t.id}" title="Move to Someday">${svgIcon('moon', 18)}</button>
+      <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
+    </div>`;
+}
+function wireTaskRows(root) {
+  for (const c of root.querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  for (const e of root.querySelectorAll('.t-edit')) e.addEventListener('click', () => startEditTask(e.dataset.id));
+  for (const b of root.querySelectorAll('.t-defer')) b.addEventListener('click', () => deferTask(b.dataset.id, true));
+  for (const d of root.querySelectorAll('.del')) d.addEventListener('click', () => deleteTask(d.dataset.id));
+}
 
 function renderArchive(list) {
   if (!list.length) {
@@ -1603,17 +1760,15 @@ function renderTasks(tasks) {
   const todayKey = localTodayKey();
   const todayDow = new Date().getDay();
 
-  // Category suggestions for the form.
-  const allCats = [...new Set(tasks.map((t) => t.category).filter(Boolean))].sort();
-  $('catList').innerHTML = allCats.map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
+  // Form datalists.
+  $('catList').innerHTML = [...new Set(tasks.map((t) => t.category).filter(Boolean))].sort()
+    .map((c) => `<option value="${escapeHtml(c)}"></option>`).join('');
+  $('listOptions').innerHTML = allLists().map((l) => `<option value="${escapeHtml(l)}"></option>`).join('');
 
-  // Completed archive = finished one-off tasks (recurring habits reset daily).
-  const completed = tasks.filter((t) => !t.deferred && !isRecurring(t) && t.done);
-  $('doneCount').textContent = completed.length ? `(${completed.length})` : '';
+  renderTaskNav();
 
-  if (taskView === 'done') {
-    renderTaskFilter([]);
-    renderArchive(completed.filter((t) => passTag(t)));
+  if (taskViewSel === 'completed') {
+    renderArchive(tasks.filter((t) => !t.deferred && !isRecurring(t) && t.done && passTag(t)));
     hide($('somedaySection'));
     hide($('planBtn'));
     updateHero();
@@ -1621,72 +1776,33 @@ function renderTasks(tasks) {
   }
   show($('planBtn'));
 
-  // Active (not deferred): recurring due today, plus one-off tasks not yet done
-  // (finished one-off tasks move to the Completed archive).
-  const active = tasks
-    .filter((t) => !t.deferred)
-    .map((t) => {
-      const recurring = isRecurring(t);
-      const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
-      return { t, recurring, checked };
-    })
-    .filter(({ t, recurring, checked }) => (recurring ? (t.repeat.includes(todayDow) || checked) : !t.done))
-    .filter(({ t }) => passTag(t)); // work/personal lens
+  // Active pool (respect the work/personal lens); finished one-off tasks live
+  // in the Completed archive, so they're excluded here.
+  const active = tasks.filter((t) => !t.deferred && passTag(t)).filter((t) => isRecurring(t) || !t.done);
 
-  renderTaskFilter([...new Set(active.map(({ t }) => t.category).filter(Boolean))].sort());
-  const shown = taskFilterCat ? active.filter(({ t }) => t.category === taskFilterCat) : active;
+  let items = active;
+  if (taskViewSel.startsWith('list:')) {
+    const name = taskViewSel.slice(5);
+    items = active.filter((t) => (t.list || 'Inbox') === name);
+  } else if (taskViewSel === 'today') {
+    items = active.filter((t) => isPendingToday(t, todayKey, todayDow));
+  } else if (taskViewSel === 'next7') {
+    items = active.filter((t) => inNext7(t, todayKey, todayDow));
+  }
 
-  if (!shown.length) {
-    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing here. Add a task, then tap “Plan my day.”</p>';
+  const groups = groupTasks(items, todayKey);
+  if (!groups.length) {
+    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing here yet. Add a task above.</p>';
   } else {
-    shown.sort((a, b) =>
-      a.checked - b.checked
-      || (isOverdue(b.t, todayKey) - isOverdue(a.t, todayKey))
-      || (PRIO_RANK[a.t.priority] ?? 1) - (PRIO_RANK[b.t.priority] ?? 1));
-    $('taskList').innerHTML = shown
-      .map(({ t, recurring, checked }) => {
-        const overdue = isOverdue(t, todayKey);
-        const bits = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority]];
-        if (!recurring && t.deadline) bits.push(overdue ? `⚠️ was due ${t.deadline}` : `by ${t.deadline}`);
-        if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
-        const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
-        const cat = t.category ? `<span class="cat-chip">${escapeHtml(t.category)}</span>` : '';
-        return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
-            <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
-            <div class="t-title">${escapeHtml(t.title)} ${tagPill(t.tag)}${streak}${cat}<div class="t-meta">${escapeHtml(bits.join(' · '))}</div></div>
-            <button class="t-edit" data-id="${t.id}" aria-label="edit">${svgIcon('edit', 18)}</button>
-            <button class="t-defer" data-id="${t.id}" title="Move to Someday">${svgIcon('moon', 18)}</button>
-            <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
-          </div>`;
-      })
+    $('taskList').innerHTML = groups
+      .map((g) => `<div class="task-group-h">${escapeHtml(g.label)} <span class="muted">${g.tasks.length}</span></div>`
+        + g.tasks.map((t) => taskRow(t, todayKey)).join(''))
       .join('');
-    for (const c of $('taskList').querySelectorAll('.t-check')) {
-      c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
-    }
-    for (const e of $('taskList').querySelectorAll('.t-edit')) {
-      e.addEventListener('click', () => startEditTask(e.dataset.id));
-    }
-    for (const b of $('taskList').querySelectorAll('.t-defer')) {
-      b.addEventListener('click', () => deferTask(b.dataset.id, true));
-    }
-    for (const d of $('taskList').querySelectorAll('.del')) {
-      d.addEventListener('click', () => deleteTask(d.dataset.id));
-    }
+    wireTaskRows($('taskList'));
   }
 
   renderSomeday(tasks.filter((t) => t.deferred));
   updateHero(); // today's ring counts due-today tasks too
-}
-
-function renderTaskFilter(cats) {
-  const el = $('taskFilter');
-  if (!cats.length) { el.innerHTML = ''; return; }
-  const chip = (label, val) =>
-    `<button class="ghost filter-chip ${taskFilterCat === val ? 'on' : ''}" data-cat="${val == null ? '' : escapeHtml(val)}">${escapeHtml(label)}</button>`;
-  el.innerHTML = chip('All', null) + cats.map((c) => chip(c, c)).join('');
-  for (const b of el.querySelectorAll('.filter-chip')) {
-    b.addEventListener('click', () => { taskFilterCat = b.dataset.cat || null; renderTasks(lastTasks); });
-  }
 }
 
 function renderSomeday(deferredAll) {
@@ -1758,7 +1874,9 @@ async function addTaskFromForm() {
     repeat: selectedRepeatDays(), // [] → one-off
     category: $('taskCategory').value.trim() || null,
     tag: segValue('taskTag') || null,
+    list: $('taskListInput').value.trim() || 'Inbox',
   };
+  rememberList(body.list);
   try {
     if (editing) {
       await api(`/tasks/${editing}`, { method: 'PATCH', body });
@@ -1781,6 +1899,8 @@ function resetTaskForm() {
   $('taskMins').value = '30';
   $('taskPriority').value = 'med';
   $('taskCategory').value = '';
+  // Default the list to the current list view (else Inbox).
+  $('taskListInput').value = taskViewSel.startsWith('list:') ? taskViewSel.slice(5) : '';
   setSeg('taskTag', '');
   setRepeatDays([]);
   $('taskAddBtn').textContent = 'Add task';
@@ -1795,6 +1915,7 @@ function startEditTask(id) {
   $('taskPriority').value = t.priority || 'med';
   $('taskDeadline').value = t.deadline || '';
   $('taskCategory').value = t.category || '';
+  $('taskListInput').value = t.list || 'Inbox';
   setSeg('taskTag', t.tag || '');
   setRepeatDays(t.repeat || []);
   $('taskAddBtn').textContent = 'Save changes';
@@ -2047,13 +2168,8 @@ function init() {
     form.classList.toggle('hidden');
   });
   $('taskAddBtn').addEventListener('click', addTaskFromForm);
-  $('taskView').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-view]');
-    if (!b) return;
-    taskView = b.dataset.view;
-    for (const x of $('taskView').querySelectorAll('button')) x.classList.toggle('active', x === b);
-    renderTasks(lastTasks);
-  });
+  $('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') quickAdd(); });
+  $('quickAddBar').querySelector('.qa-plus').addEventListener('click', quickAdd);
   $('taskRepeat').addEventListener('click', (e) => {
     if (e.target.matches('button[data-d]')) e.target.classList.toggle('on');
   });
