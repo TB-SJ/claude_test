@@ -1710,10 +1710,11 @@ function taskRow(t, todayKey) {
   if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
   const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
   const cat = t.category ? `<span class="cat-chip">${escapeHtml(t.category)}</span>` : '';
-  const nSub = (t.subtasks || []).length;
-  const sub = nSub ? `<span class="sub-count">${(t.subtasks).filter((s) => s.done).length}/${nSub}</span>` : '';
+  const subs = t.subtasks || [];
+  const nSub = subs.length;
+  const sub = nSub ? `<span class="sub-count" data-toggle="${t.id}">☑ ${subs.filter((s) => s.done).length}/${nSub}</span>` : '';
   const meta = bits.length ? `<div class="t-meta">${escapeHtml(bits.join(' · '))}</div>` : '';
-  return `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
+  const row = `<div class="task ${checked ? 'done' : ''} ${overdue ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}" data-id="${t.id}">
       <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
       <div class="t-title">${escapeHtml(t.title)} ${tagPill(t.tag)}${sub}${streak}${cat}${meta}</div>
       ${prioFlag(t.priority)}
@@ -1721,12 +1722,38 @@ function taskRow(t, todayKey) {
       <button class="t-defer" data-id="${t.id}" title="Move to Someday">${svgIcon('moon', 18)}</button>
       <button class="del" data-id="${t.id}" aria-label="delete">${svgIcon('close', 18)}</button>
     </div>`;
+  const block = nSub
+    ? `<div class="subtasks hidden" data-for="${t.id}">${subs.map((s) => `<label class="sub-item"><input type="checkbox" class="sub-check" data-id="${t.id}" data-sub="${escapeHtml(s.id)}" ${s.done ? 'checked' : ''} /><span${s.done ? ' class="done"' : ''}>${escapeHtml(s.title)}</span></label>`).join('')}</div>`
+    : '';
+  return row + block;
 }
 function wireTaskRows(root) {
   for (const c of root.querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
   for (const e of root.querySelectorAll('.t-edit')) e.addEventListener('click', () => startEditTask(e.dataset.id));
   for (const b of root.querySelectorAll('.t-defer')) b.addEventListener('click', () => deferTask(b.dataset.id, true));
   for (const d of root.querySelectorAll('.del')) d.addEventListener('click', () => deleteTask(d.dataset.id));
+  for (const s of root.querySelectorAll('.sub-count[data-toggle]')) {
+    s.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const blk = root.querySelector(`.subtasks[data-for="${s.dataset.toggle}"]`);
+      if (blk) blk.classList.toggle('hidden');
+    });
+  }
+  for (const c of root.querySelectorAll('.sub-check')) {
+    c.addEventListener('change', () => toggleSubtask(c.dataset.id, c.dataset.sub, c.checked));
+  }
+}
+
+// Toggle one subtask done/undone (optimistic; persists the whole array).
+function toggleSubtask(taskId, subId, done) {
+  const t = (lastTasks || []).find((x) => x.id === taskId);
+  if (!t) return;
+  t.subtasks = (t.subtasks || []).map((s) => (s.id === subId ? { ...s, done } : s));
+  const badge = document.querySelector(`.task[data-id="${taskId}"] .sub-count`);
+  if (badge) badge.textContent = `☑ ${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}`;
+  const span = document.querySelector(`.subtasks[data-for="${taskId}"] .sub-check[data-sub="${subId}"] + span`);
+  if (span) span.classList.toggle('done', done);
+  api(`/tasks/${taskId}`, { method: 'PATCH', body: { subtasks: t.subtasks } }).catch(() => {});
 }
 
 function renderArchive(list) {
@@ -1861,6 +1888,23 @@ function setRepeatDays(days) {
 }
 
 let editingTaskId = null; // when set, the task form saves an edit instead of adding
+let formSubtasks = []; // subtasks being edited in the detailed form
+
+function renderFormSubs() {
+  $('taskSubList').innerHTML = formSubtasks
+    .map((s, i) => `<div class="sub-edit"><span>${escapeHtml(s.title)}</span><button type="button" class="sub-rm" data-i="${i}" aria-label="remove">✕</button></div>`)
+    .join('');
+  for (const b of $('taskSubList').querySelectorAll('.sub-rm')) {
+    b.addEventListener('click', () => { formSubtasks.splice(Number(b.dataset.i), 1); renderFormSubs(); });
+  }
+}
+function addFormSub() {
+  const v = $('taskSubInput').value.trim();
+  if (!v) return;
+  formSubtasks.push({ title: v, done: false });
+  $('taskSubInput').value = '';
+  renderFormSubs();
+}
 
 async function addTaskFromForm() {
   const title = $('taskTitle').value.trim();
@@ -1875,6 +1919,7 @@ async function addTaskFromForm() {
     category: $('taskCategory').value.trim() || null,
     tag: segValue('taskTag') || null,
     list: $('taskListInput').value.trim() || 'Inbox',
+    subtasks: formSubtasks,
   };
   rememberList(body.list);
   try {
@@ -1903,6 +1948,8 @@ function resetTaskForm() {
   $('taskListInput').value = taskViewSel.startsWith('list:') ? taskViewSel.slice(5) : '';
   setSeg('taskTag', '');
   setRepeatDays([]);
+  formSubtasks = [];
+  renderFormSubs();
   $('taskAddBtn').textContent = 'Add task';
 }
 
@@ -1918,6 +1965,8 @@ function startEditTask(id) {
   $('taskListInput').value = t.list || 'Inbox';
   setSeg('taskTag', t.tag || '');
   setRepeatDays(t.repeat || []);
+  formSubtasks = (t.subtasks || []).map((s) => ({ ...s }));
+  renderFormSubs();
   $('taskAddBtn').textContent = 'Save changes';
   show($('taskForm'));
   $('taskForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2170,6 +2219,8 @@ function init() {
   $('taskAddBtn').addEventListener('click', addTaskFromForm);
   $('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') quickAdd(); });
   $('quickAddBar').querySelector('.qa-plus').addEventListener('click', quickAdd);
+  $('taskSubAdd').addEventListener('click', addFormSub);
+  $('taskSubInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFormSub(); } });
   $('taskRepeat').addEventListener('click', (e) => {
     if (e.target.matches('button[data-d]')) e.target.classList.toggle('on');
   });
