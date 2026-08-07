@@ -1764,6 +1764,77 @@ function renderTaskNav() {
   }
 }
 
+let taskLayout = localStorage.getItem('taskLayout') || 'list'; // list|board|matrix|timeline
+let catFilterSel = null; // active category filter within the current view
+
+// Compact card used by the Board and Matrix views.
+function taskCard(t, todayKey) {
+  const recurring = isRecurring(t);
+  const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
+  const due = !recurring && t.deadline
+    ? `<span class="tc-due ${isOverdue(t, todayKey) ? 'over' : ''}">${t.deadline}</span>`
+    : (recurring ? '<span class="tc-due">🔁</span>' : '');
+  const nSub = (t.subtasks || []).length;
+  const sub = nSub ? `<span class="sub-count">☑ ${t.subtasks.filter((s) => s.done).length}/${nSub}</span>` : '';
+  return `<div class="tcard ${checked ? 'done' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
+      <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
+      <div class="tc-body" data-edit="${t.id}">
+        <div class="tc-title">${escapeHtml(t.title)} ${prioFlag(t.priority)}</div>
+        <div class="tc-meta">${tagPill(t.tag)}${sub}${due}</div>
+      </div>
+    </div>`;
+}
+function wireCards(root) {
+  for (const c of root.querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
+  for (const b of root.querySelectorAll('[data-edit]')) b.addEventListener('click', () => startEditTask(b.dataset.edit));
+}
+
+// Kanban board — columns by priority.
+function renderBoard(items, todayKey) {
+  const cols = [['high', 'High'], ['med', 'Medium'], ['low', 'Low']];
+  $('taskList').innerHTML = `<div class="board">${cols.map(([p, label]) => {
+    const list = items.filter((t) => t.priority === p);
+    return `<div class="board-col"><div class="board-h">${label} <span class="muted">${list.length}</span></div>`
+      + (list.map((t) => taskCard(t, todayKey)).join('') || '<p class="muted" style="font-size:.8rem;margin:6px 2px">—</p>')
+      + '</div>';
+  }).join('')}</div>`;
+  wireCards($('taskList'));
+}
+
+// Eisenhower matrix — importance (priority=high) × urgency (due soon).
+function renderMatrix(items, todayKey) {
+  const dow = new Date().getDay();
+  const urgent = (t) => (isRecurring(t) ? t.repeat.includes(dow) : (t.deadline && daysFromToday(t.deadline, todayKey) <= 1));
+  const important = (t) => t.priority === 'high';
+  const q = { q1: [], q2: [], q3: [], q4: [] };
+  for (const t of items) { const key = important(t) ? (urgent(t) ? 'q1' : 'q2') : (urgent(t) ? 'q3' : 'q4'); q[key].push(t); }
+  const quad = (key, title, cls) => `<div class="mx-quad ${cls}"><div class="mx-h">${title} <span class="muted">${q[key].length}</span></div><div class="mx-list">${q[key].map((t) => taskCard(t, todayKey)).join('') || '<p class="muted" style="font-size:.78rem">—</p>'}</div></div>`;
+  $('taskList').innerHTML = `<div class="matrix">
+      ${quad('q1', '🔥 Do first', 'q1')}${quad('q2', '📅 Schedule', 'q2')}
+      ${quad('q3', '👐 Delegate', 'q3')}${quad('q4', '🧹 Later', 'q4')}
+    </div>`;
+  wireCards($('taskList'));
+}
+
+// Timeline — grouped by due date along a vertical rail.
+function renderTimeline(items, todayKey) {
+  const groups = groupTasks(items, todayKey);
+  if (!groups.length) { $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing scheduled.</p>'; return; }
+  $('taskList').innerHTML = `<div class="timeline">${groups.map((g) => `<div class="tl-node"><div class="tl-mark"><span class="tl-dot"></span></div><div class="tl-body"><div class="tl-day">${escapeHtml(g.label)}</div>${g.tasks.map((t) => taskRow(t, todayKey)).join('')}</div></div>`).join('')}</div>`;
+  wireTaskRows($('taskList'));
+}
+
+function renderCatFilter(pool) {
+  const cats = [...new Set(pool.map((t) => t.category).filter(Boolean))].sort();
+  const el = $('catFilter');
+  if (!cats.length) { el.innerHTML = ''; catFilterSel = null; return; }
+  const chip = (label, val) => `<button class="cat-chip-btn ${catFilterSel === val ? 'on' : ''}" data-cat="${val == null ? '' : escapeHtml(val)}">${escapeHtml(label)}</button>`;
+  el.innerHTML = chip('All', null) + cats.map((c) => chip(c, c)).join('');
+  for (const b of el.querySelectorAll('.cat-chip-btn')) {
+    b.addEventListener('click', () => { catFilterSel = b.dataset.cat || null; renderTasks(lastTasks); });
+  }
+}
+
 // A unified task row (checkbox, title, tag/subtasks/streak/category, flag, actions).
 function taskRow(t, todayKey) {
   const recurring = isRecurring(t);
@@ -1863,10 +1934,13 @@ function renderTasks(tasks) {
     renderArchive(tasks.filter((t) => !t.deferred && !isRecurring(t) && t.done && passTag(t)));
     hide($('somedaySection'));
     hide($('planBtn'));
+    hide($('taskLayoutRow'));
+    $('catFilter').innerHTML = '';
     updateHero();
     return;
   }
   show($('planBtn'));
+  show($('taskLayoutRow'));
 
   // Active pool (respect the work/personal lens); finished one-off tasks live
   // in the Completed archive, so they're excluded here.
@@ -1882,15 +1956,23 @@ function renderTasks(tasks) {
     items = active.filter((t) => inNext7(t, todayKey, todayDow));
   }
 
-  const groups = groupTasks(items, todayKey);
-  if (!groups.length) {
-    $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing here yet. Add a task above.</p>';
-  } else {
-    $('taskList').innerHTML = groups
-      .map((g) => `<div class="task-group-h">${escapeHtml(g.label)} <span class="muted">${g.tasks.length}</span></div>`
-        + g.tasks.map((t) => taskRow(t, todayKey)).join(''))
-      .join('');
-    wireTaskRows($('taskList'));
+  renderCatFilter(items);
+  if (catFilterSel) items = items.filter((t) => (t.category || null) === catFilterSel);
+
+  if (taskLayout === 'board') renderBoard(items, todayKey);
+  else if (taskLayout === 'matrix') renderMatrix(items, todayKey);
+  else if (taskLayout === 'timeline') renderTimeline(items, todayKey);
+  else {
+    const groups = groupTasks(items, todayKey);
+    if (!groups.length) {
+      $('taskList').innerHTML = '<p class="muted" style="margin:6px 0">Nothing here yet. Add a task above.</p>';
+    } else {
+      $('taskList').innerHTML = groups
+        .map((g) => `<div class="task-group-h">${escapeHtml(g.label)} <span class="muted">${g.tasks.length}</span></div>`
+          + g.tasks.map((t) => taskRow(t, todayKey)).join(''))
+        .join('');
+      wireTaskRows($('taskList'));
+    }
   }
 
   renderSomeday(tasks.filter((t) => t.deferred));
@@ -2290,6 +2372,16 @@ function init() {
   $('taskAddBtn').addEventListener('click', addTaskFromForm);
   $('quickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') quickAdd(); });
   $('quickAddBar').querySelector('.qa-plus').addEventListener('click', quickAdd);
+  $('taskLayout').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-layout]');
+    if (!b) return;
+    taskLayout = b.dataset.layout;
+    localStorage.setItem('taskLayout', taskLayout);
+    for (const x of $('taskLayout').querySelectorAll('button')) x.classList.toggle('active', x === b);
+    renderTasks(lastTasks);
+  });
+  // Reflect the persisted layout choice on load.
+  for (const x of $('taskLayout').querySelectorAll('button')) x.classList.toggle('active', x.dataset.layout === taskLayout);
   $('taskSubAdd').addEventListener('click', addFormSub);
   $('taskSubInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addFormSub(); } });
   $('taskRepeat').addEventListener('click', (e) => {

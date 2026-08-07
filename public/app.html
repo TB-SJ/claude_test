@@ -256,6 +256,15 @@
           <button class="primary full" id="taskAddBtn" style="margin-top:8px">Add task</button>
         </div>
         <div id="taskNav" class="task-nav"></div>
+        <div class="row" id="taskLayoutRow" style="margin-top:6px; gap:8px; align-items:center">
+          <div class="toggle view-switch" id="taskLayout">
+            <button type="button" data-layout="list" class="active">List</button>
+            <button type="button" data-layout="board">Board</button>
+            <button type="button" data-layout="matrix">Matrix</button>
+            <button type="button" data-layout="timeline">Timeline</button>
+          </div>
+        </div>
+        <div id="catFilter" class="cat-filter"></div>
         <div id="taskList" style="margin-top:10px"></div>
         <div id="somedaySection" class="hidden" style="margin-top:12px">
           <button class="collapse-btn" id="somedayToggle"><span id="somedayChevron">▸</span> 💤 Someday (<span id="somedayCount">0</span>)</button>
