@@ -216,6 +216,7 @@ let lastBrief = null; // last loaded brief, so the ring can refresh on toggles
 
 function updateHero(b) {
   if (b) lastBrief = b; else b = lastBrief;
+  renderTodayAgenda();
   $('heroGreeting').textContent = timeGreeting();
   const prog = todayProgress(b && b.events);
   if (prog) {
@@ -1136,6 +1137,7 @@ function statRow(icon, text, { color, cls = '' } = {}) {
 
 function renderBrief(b) {
   $('briefTitle').textContent = `Today · ${dayLabelFromKey(b.dayKey)}`;
+  // Condensed summary — the actual items live in the agenda below.
   let html = '';
   html += statRow('calendar',
     b.meetingCount ? `${b.meetingCount} meeting${b.meetingCount === 1 ? '' : 's'} · ${fmtDur(b.meetingMinutes)} booked` : 'No meetings today',
@@ -1143,17 +1145,55 @@ function renderBrief(b) {
   const dw = b.deepWorkClear === true ? ' · deep-work protected'
     : b.deepWorkClear === false ? ' · deep-work has a meeting' : '';
   html += statRow('target', `${fmtDur(b.freeMinutes)} free${escapeHtml(dw)}`, { color: b.deepWorkClear === false ? 'amber' : 'green' });
-  if (b.nextEvent) html += statRow('next', `Next: ${escapeHtml(b.nextEvent.title)} at ${fmtTime(b.nextEvent.start)}`, { color: 'accent' });
-  if (b.topTask) {
-    html += statRow('check', `Top task: ${escapeHtml(b.topTask.title)} (${fmtDur(b.topTask.estimatedMinutes || 30)}${b.topTask.priority === 'high' ? ', High' : ''})`, { color: 'green' });
-  } else if (b.pendingTaskCount === 0) {
-    html += statRow('check', 'No open tasks', { color: 'green' });
-  }
-  for (const r of b.atRisk || []) {
-    html += statRow('alert', `${escapeHtml(r.title)} — ${escapeHtml(r.when)}`, { color: 'amber', cls: 'warn' });
-  }
   $('briefStats').innerHTML = html;
   updateHero(b);
+  renderTodayAgenda();
+}
+
+// A TickTick-style unified "today" list: timed events + tasks due today, all
+// checkable inline. Reads the loaded brief (today's events) + tasks.
+function agendaEventRow(e) {
+  return `<div class="agenda-item ${e.done ? 'done' : ''} ${e.tag ? `tag-${e.tag}` : ''}">
+      <input type="checkbox" class="ev-check" data-id="${escapeHtml(e.id)}" ${e.done ? 'checked' : ''} />
+      <span class="ag-time">${fmtTime(e.start)}</span>
+      <span class="ag-title">${escapeHtml(e.title || '(untitled)')} ${tagPill(e.tag)}</span>
+    </div>`;
+}
+function agendaTaskRow(t, todayKey) {
+  const recurring = isRecurring(t);
+  const checked = recurring ? t.lastDone === todayKey : Boolean(t.done);
+  const over = isOverdue(t, todayKey);
+  const mark = recurring ? '🔁' : (over ? '⚠️' : '·');
+  return `<div class="agenda-item ${checked ? 'done' : ''} ${over ? 'overdue' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
+      <input type="checkbox" class="t-check" data-id="${escapeHtml(t.id)}" ${checked ? 'checked' : ''} />
+      <span class="ag-time">${mark}</span>
+      <span class="ag-title">${escapeHtml(t.title)} ${prioFlag(t.priority)}${tagPill(t.tag)}</span>
+    </div>`;
+}
+function renderTodayAgenda() {
+  const el = $('todayAgenda');
+  if (!el) return;
+  const todayKey = localTodayKey();
+  const dow = new Date().getDay();
+  const events = ((lastBrief && lastBrief.events) || [])
+    .filter((e) => e.start && e.start.includes('T') && passTag(e))
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
+  const due = (lastTasks || [])
+    .filter((t) => !t.deferred && passTag(t) && isPendingToday(t, todayKey, dow))
+    .sort((a, b) => (isOverdue(b, todayKey) - isOverdue(a, todayKey)) || ((PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1)));
+
+  let html = '';
+  if (events.length) {
+    html += `<div class="agenda-h"><span class="stat-ico" style="color:var(--accent)">${svgIcon('calendar', 15)}</span> Schedule</div>`;
+    html += events.map(agendaEventRow).join('');
+  }
+  if (due.length) {
+    html += `<div class="agenda-h"><span class="stat-ico" style="color:var(--green)">${svgIcon('check', 15)}</span> Tasks</div>`;
+    html += due.map((t) => agendaTaskRow(t, todayKey)).join('');
+  }
+  el.innerHTML = html || '<p class="muted center" style="margin:10px 0 4px">Nothing due today — enjoy it 🎉</p>';
+  for (const c of el.querySelectorAll('.ev-check')) c.addEventListener('change', () => toggleEventDone(c.dataset.id, c.checked));
+  for (const c of el.querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
 }
 
 // --- Weekly review ---------------------------------------------------------

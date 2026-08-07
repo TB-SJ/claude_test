@@ -312,6 +312,20 @@ textarea { width: 100%; font-family: inherit; resize: vertical; line-height: 1.4
 .med-cue { font-size: 0.95rem; color: var(--muted); margin-top: 2px; }
 .med-clock { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 2px 0 8px; }
 
+/* Today agenda (TickTick-style unified list) */
+.agenda-h { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); margin: 12px 0 2px; }
+.agenda-h .stat-ico { display: inline-flex; }
+.agenda-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+.agenda-item:first-of-type { border-top: none; }
+.agenda-item input { width: 20px; height: 20px; accent-color: var(--green); flex: 0 0 auto; }
+.agenda-item .ag-time { flex: 0 0 auto; min-width: 52px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.agenda-item .ag-title { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.agenda-item.done .ag-title { text-decoration: line-through; color: var(--muted); }
+.agenda-item.done { opacity: 0.7; }
+.agenda-item.overdue .ag-time { color: var(--danger); }
+.agenda-item.tag-work { box-shadow: inset 3px 0 0 #3b82f6; padding-left: 8px; }
+.agenda-item.tag-personal { box-shadow: inset 3px 0 0 #14b8a6; padding-left: 8px; }
+
 /* Countdowns */
 .cd-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
 .cd-item:first-child { border-top: none; }
