@@ -5,8 +5,8 @@ const { config, providerConfigured } = require('../config');
 const { addMinutes } = require('./calendarUtils');
 const logger = require('../logger');
 
-// Strict output schema — guarantees Claude returns valid, parseable JSON.
-const INTENT_SCHEMA = {
+// A single intent within an utterance. Strict schema — guarantees valid JSON.
+const ACTION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -29,12 +29,23 @@ const INTENT_SCHEMA = {
     estimated_minutes: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     priority: { anyOf: [{ type: 'string', enum: ['high', 'med', 'low'] }, { type: 'null' }] },
     deadline: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    by_time: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     done: { anyOf: [{ type: 'boolean' }, { type: 'null' }] },
   },
   required: [
     'action', 'scope', 'title', 'new_title', 'start', 'end', 'date',
-    'date_specified', 'time_specified', 'estimated_minutes', 'priority', 'deadline', 'done',
+    'date_specified', 'time_specified', 'estimated_minutes', 'priority', 'deadline', 'by_time', 'done',
   ],
+};
+
+// An utterance can carry one or more intents — Claude returns them in spoken order.
+const INTENT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    actions: { type: 'array', items: ACTION_SCHEMA },
+  },
+  required: ['actions'],
 };
 
 function isEnabled() {
@@ -54,11 +65,13 @@ function buildSystemPrompt(now, offsetMin) {
   const weekday = shifted.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   const off = offsetString(offsetMin);
   return [
-    'You convert a spoken calendar/task command into a single structured intent.',
+    'You convert a spoken calendar/task command into one or more structured intents.',
+    'Return `actions` — an ordered list, one entry per distinct thing the user asked for.',
+    'Most utterances are a single action, but one sentence can contain several ("reduce cleaning to 20 minutes and add prepare food by 5pm and prepare food by 8pm" → three actions). Split on each separate request; keep them in the order spoken.',
     `Right now it is ${localDate} (${weekday}), timezone offset ${off}.`,
     'Resolve relative dates/times ("tomorrow", "next Friday", "in an hour", "this afternoon") to absolute values.',
     '',
-    'Rules for the fields:',
+    'Rules for the fields (each action):',
     `- start / end: ISO 8601 with the ${off} offset (e.g. ${localDate}T14:00:00${off}). null if not applicable.`,
     `- date: a calendar day as YYYY-MM-DD (local), used by show_schedule/show_free when the user names a specific day; null means today / this week.`,
     '- action "optimize": set scope to "day" or "week" (default "day").',
@@ -66,8 +79,8 @@ function buildSystemPrompt(now, offsetMin) {
     '- action "move": reschedule an existing event. title = words identifying which event. start = the new time. date_specified=true only if the user named a day (not just a time). end optional.',
     '- action "edit": change an existing event\'s title, duration, or description (NOT just its time — use "move" for a pure time change). title = words identifying the event; new_title = the renamed title if renaming; estimated_minutes = the new duration in minutes if changing length; start = a new time if also retiming.',
     '- action "remove": delete an existing event. title = words identifying it.',
-    '- action "add_task": a flexible to-do (no fixed time). title, estimated_minutes (default 30), priority (high/med/low), deadline (YYYY-MM-DD or null).',
-    '- action "edit_task": change an existing task. title = words identifying the task; set new_title (rename), estimated_minutes, priority, deadline, and/or done (true when marking complete) — only the fields the user changed.',
+    '- action "add_task": a flexible to-do (no fixed time). title, estimated_minutes (default 30), priority (high/med/low), deadline (YYYY-MM-DD or null). by_time = a clock time "HH:MM" (24h, local) when the user wants it DONE BY a time of day ("prepare food by 5pm" → by_time "17:00"); null otherwise. by_time is a same-day soft deadline for scheduling, distinct from `start` (a fixed appointment) and `deadline` (a calendar day).',
+    '- action "edit_task": change an existing task. title = words identifying the task; set new_title (rename), estimated_minutes, priority, deadline, by_time (a "HH:MM" done-by time, or null to leave it), and/or done (true when marking complete) — only the fields the user changed.',
     '- action "plan_tasks": user wants their tasks fitted into free time ("plan my day", "schedule my tasks").',
     '- action "brief": user wants a summary of their day ("how\'s my day", "brief me", "what does my day look like").',
     '- action "review": user wants a look-back over the past week ("weekly review", "how was my week").',
@@ -77,6 +90,17 @@ function buildSystemPrompt(now, offsetMin) {
     '- action "unknown": anything not about the calendar or tasks.',
     'Never invent details that were not said; use null.',
   ].join('\n');
+}
+
+/** Normalizes a spoken clock time to "HH:MM" 24h, or null. */
+function cleanTime(v) {
+  if (typeof v !== 'string') return null;
+  const m = v.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
 /** Maps Claude\'s flat JSON to the internal parsed shape the resolver expects. */
@@ -122,6 +146,7 @@ function adaptToParsed(raw) {
         estimatedMinutes: minutesOf(raw),
         priority: ['high', 'med', 'low'].includes(raw.priority) ? raw.priority : null,
         deadline: clean(raw.deadline),
+        byTime: cleanTime(raw.by_time),
         done: typeof raw.done === 'boolean' ? raw.done : null,
         transcript: '',
       };
@@ -132,6 +157,7 @@ function adaptToParsed(raw) {
         estimatedMinutes: Number.isFinite(raw.estimated_minutes) ? raw.estimated_minutes : 30,
         priority: ['high', 'med', 'low'].includes(raw.priority) ? raw.priority : 'med',
         deadline: clean(raw.deadline),
+        byTime: cleanTime(raw.by_time),
         transcript: '',
       };
     case 'add': {
@@ -158,14 +184,15 @@ function adaptToParsed(raw) {
 }
 
 /**
- * Parses a transcript into the internal intent shape using Claude. Throws on any
- * API/parse error so the caller can fall back to the rules parser.
+ * Parses a transcript into an ordered list of internal intent shapes using
+ * Claude. Always returns a non-empty array (falls back to a single "unknown").
+ * Throws on any API/parse error so the caller can fall back to the rules parser.
  */
 async function parse(transcript, { referenceDate = new Date(), tzOffsetMinutes = 0 } = {}) {
   const client = getAnthropic();
   const response = await client.messages.create({
     model: config.anthropic.model,
-    max_tokens: 512,
+    max_tokens: 1024,
     thinking: { type: 'disabled' }, // fast, cheap — this is a lightweight extraction
     system: buildSystemPrompt(referenceDate, tzOffsetMinutes),
     output_config: { format: { type: 'json_schema', schema: INTENT_SCHEMA } },
@@ -177,8 +204,9 @@ async function parse(transcript, { referenceDate = new Date(), tzOffsetMinutes =
   }
   const block = (response.content || []).find((b) => b.type === 'text');
   const raw = JSON.parse(block ? block.text : '{}');
-  logger.info('voice.intent via claude', { action: raw && raw.action });
-  return adaptToParsed(raw);
+  const actions = Array.isArray(raw.actions) && raw.actions.length ? raw.actions : [{ action: 'unknown' }];
+  logger.info('voice.intent via claude', { count: actions.length, actions: actions.map((a) => a && a.action) });
+  return actions.map(adaptToParsed);
 }
 
-module.exports = { isEnabled, parse, adaptToParsed, buildSystemPrompt, INTENT_SCHEMA };
+module.exports = { isEnabled, parse, adaptToParsed, buildSystemPrompt, INTENT_SCHEMA, ACTION_SCHEMA };

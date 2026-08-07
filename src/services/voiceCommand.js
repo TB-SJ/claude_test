@@ -310,7 +310,7 @@ function rangeLabel(scope, dateKey, todayKey) {
  * returned command carries an `engine` field ("claude" | "rules" | "rules-fallback").
  */
 async function buildCommand(provider, transcript, { referenceDate = new Date(), tzOffsetMinutes = 0 } = {}) {
-  let parsed;
+  let parsed; // either a single parsed intent, or an array of them (Claude path)
   let engine;
   if (claudeIntent.isEnabled()) {
     try {
@@ -326,7 +326,22 @@ async function buildCommand(provider, transcript, { referenceDate = new Date(), 
     engine = 'rules';
   }
 
-  const result = await resolveParsed(provider, parsed, { referenceDate, tzOffsetMinutes, transcript });
+  // Claude returns an ordered list of intents. A single intent resolves to its
+  // usual command shape (back-compat); several become one confirmable batch.
+  const intents = Array.isArray(parsed) ? parsed : [parsed];
+  if (intents.length > 1) {
+    const steps = [];
+    for (const intent of intents) {
+      // Each step re-uses the shared resolver, then keeps only the fields the
+      // client needs to summarize + apply it. transcript is on the batch, not
+      // each step, so pass an empty one to avoid duplicating the raw utterance.
+      const r = await resolveParsed(provider, intent, { referenceDate, tzOffsetMinutes, transcript: '' });
+      steps.push(r);
+    }
+    return { type: 'batch', engine, transcript, steps };
+  }
+
+  const result = await resolveParsed(provider, intents[0], { referenceDate, tzOffsetMinutes, transcript });
   if (result && typeof result === 'object') result.engine = engine;
   return result;
 }
@@ -351,6 +366,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
         estimatedMinutes: parsed.estimatedMinutes,
         priority: parsed.priority || 'med',
         deadline: parsed.deadline || null,
+        byTime: parsed.byTime || null,
       },
     };
   }
@@ -455,6 +471,7 @@ async function resolveParsed(provider, parsed, { referenceDate = new Date(), tzO
     if (parsed.estimatedMinutes) patch.estimatedMinutes = parsed.estimatedMinutes;
     if (parsed.priority) patch.priority = parsed.priority;
     if (parsed.deadline != null) patch.deadline = parsed.deadline;
+    if (parsed.byTime != null) patch.byTime = parsed.byTime;
     if (parsed.done != null) patch.done = parsed.done;
     if (Object.keys(patch).length === 0) return { type: 'edit_task', error: 'need_change', title: parsed.title, transcript };
     return { type: 'edit_task', transcript, task, patch };

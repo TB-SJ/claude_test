@@ -104,6 +104,18 @@ function isPending(task, dateKey) {
   return !task.done;
 }
 
+/** Normalizes a "done by" clock time to "HH:MM" (24h, local), or null. A
+ *  same-day soft deadline the scheduler tries to finish the task before. */
+function normByTime(v) {
+  if (v == null || v === '') return null;
+  const m = String(v).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
 /** Normalizes a free-text category/tag (trimmed, capped), or null. */
 function normCategory(v) {
   const s = String(v == null ? '' : v).trim().slice(0, 24);
@@ -148,13 +160,14 @@ function list() {
   return currentAll();
 }
 
-function add({ title, estimatedMinutes, priority, deadline, repeat, category, tag, list: listName, subtasks }) {
+function add({ title, estimatedMinutes, priority, deadline, byTime, repeat, category, tag, list: listName, subtasks }) {
   const t = {
     id: crypto.randomUUID(),
     title: String(title || '').trim(),
     estimatedMinutes: clampMinutes(estimatedMinutes),
     priority: normPriority(priority),
     deadline: deadline || null, // YYYY-MM-DD or null
+    byTime: normByTime(byTime), // "HH:MM" same-day done-by target, or null
     repeat: normRepeat(repeat), // null (one-off) or [weekdays]
     category: normCategory(category),
     tag: normTag(tag), // 'work' | 'personal' | null
@@ -183,6 +196,7 @@ function update(id, patch = {}) {
   if (patch.estimatedMinutes != null) clean.estimatedMinutes = clampMinutes(patch.estimatedMinutes);
   if (patch.priority != null) clean.priority = normPriority(patch.priority);
   if (patch.deadline !== undefined) clean.deadline = patch.deadline || null;
+  if (patch.byTime !== undefined) clean.byTime = normByTime(patch.byTime);
   if (patch.repeat !== undefined) clean.repeat = normRepeat(patch.repeat);
   if (patch.category !== undefined) clean.category = normCategory(patch.category);
   if (patch.tag !== undefined) clean.tag = normTag(patch.tag);

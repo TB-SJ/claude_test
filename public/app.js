@@ -238,6 +238,15 @@ function fmtRange(start, end) {
   if (!start.includes('T')) return 'All day';
   return `${fmtTime(start)}–${fmtTime(end)}`;
 }
+// Formats an "HH:MM" 24h clock string as a local-style 12h time ("5:00 PM").
+function fmtHM(hm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hm || '');
+  if (!m) return hm || '';
+  const h = Number(m[1]);
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m[2]} ${ampm}`;
+}
 function dayLabel(iso) {
   return new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -986,6 +995,72 @@ function renderQueryFree(result, transcript) {
   showQueryCard();
 }
 
+// Step types a batch can apply in one confirm/tap (writes). Read-only intents
+// (brief, optimize, show_*, …) can't be batched — they open their own view.
+const APPLY_TYPES = new Set(['add', 'remove', 'move', 'edit', 'add_task', 'edit_task']);
+
+// A one-line human summary of a single resolved voice step (used by batches).
+function voiceStepSummary(s) {
+  if (s.error) return `${VOICE_ERRORS[s.error] || 'Couldn\'t resolve'}${s.title ? ` — “${s.title}”` : ''}`;
+  switch (s.type) {
+    case 'add_task': {
+      const t = s.task;
+      const meta = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.byTime ? `by ${fmtHM(t.byTime)}` : null, t.deadline ? `by ${t.deadline}` : null].filter(Boolean).join(' · ');
+      return `Add task: “${t.title}” (${meta})`;
+    }
+    case 'edit_task': {
+      const p = s.patch;
+      const parts = [];
+      if (p.title) parts.push(`rename to “${p.title}”`);
+      if (p.estimatedMinutes) parts.push(`${p.estimatedMinutes} min`);
+      if (p.priority) parts.push(`${PRIO_LABEL[p.priority]} priority`);
+      if (p.byTime) parts.push(`by ${fmtHM(p.byTime)}`);
+      if (p.deadline) parts.push(`by ${p.deadline}`);
+      if (p.done != null) parts.push(p.done ? 'mark done' : 'reopen');
+      return `Edit task “${s.task.title}”: ${parts.join(', ')}`;
+    }
+    case 'add':
+      return `Add “${s.event.title}” — ${dayLabel(s.event.start)}, ${fmtRange(s.event.start, s.event.end)}`;
+    case 'remove':
+      return `Remove “${s.match.title}” — ${dayLabel(s.match.start)}, ${fmtRange(s.match.start, s.match.end)}`;
+    case 'move':
+      return `Move “${s.match.title}” → ${dayLabel(s.to.start)}, ${fmtRange(s.to.start, s.to.end)}`;
+    case 'edit': {
+      const ch = s.changes;
+      const parts = [];
+      if (ch.title) parts.push(`rename to “${ch.title}”`);
+      if (ch.duration) parts.push(`${ch.duration} min long`);
+      if (ch.start) parts.push(`→ ${dayLabel(ch.start)}, ${fmtTime(ch.start)}`);
+      return `Edit “${s.match.title}”: ${parts.join(', ')}`;
+    }
+    case 'optimize': return 'Optimize (skipped — open Optimizer)';
+    case 'plan_tasks': return 'Plan my day (skipped)';
+    case 'brief': return 'Daily brief (skipped)';
+    case 'review': return 'Weekly review (skipped)';
+    case 'whatnow': return 'What now (skipped)';
+    case 'show_schedule': return 'Show schedule (skipped)';
+    case 'show_free': return 'Show free time (skipped)';
+    default: return 'Not understood (skipped)';
+  }
+}
+
+// Applies one resolved voice step (write). Shared by single + batch confirm.
+async function applyVoiceStep(v) {
+  if (v.type === 'add_task') {
+    await api('/tasks', { method: 'POST', body: v.task });
+  } else if (v.type === 'edit_task') {
+    await api(`/tasks/${v.task.id}`, { method: 'PATCH', body: v.patch });
+  } else if (v.type === 'edit') {
+    await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'PATCH', body: v.changes });
+  } else if (v.type === 'add') {
+    await api(`/calendar/${activeProvider}/events`, { method: 'POST', body: v.event });
+  } else if (v.type === 'remove') {
+    await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'DELETE' });
+  } else if (v.type === 'move') {
+    await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'PATCH', body: { start: v.to.start, end: v.to.end } });
+  }
+}
+
 function dispatchVoice(result, transcript) {
   if (result.type === 'unknown') {
     toast(`Heard "${transcript}" — try "optimize my day", "add…", "move…", or "remove…".`, 'err');
@@ -1024,11 +1099,33 @@ function dispatchVoice(result, transcript) {
     renderQueryFree(result, transcript);
     return;
   }
+  if (result.type === 'batch') {
+    // A single utterance carried several actions. Only the ones we can apply
+    // with one tap (add/remove/move/edit + task add/edit) go into the confirm
+    // list; read-only or unresolved steps are noted but skipped.
+    const applicable = result.steps.filter((s) => APPLY_TYPES.has(s.type) && !s.error);
+    if (!applicable.length) {
+      toast(`Heard "${transcript}", but couldn't turn it into any actions.`, 'err');
+      return;
+    }
+    pendingVoice = { type: 'batch', steps: applicable };
+    const lines = result.steps.map((s) => {
+      const bullet = APPLY_TYPES.has(s.type) && !s.error ? '•' : '◦';
+      return `${bullet} ${voiceStepSummary(s)}`;
+    });
+    const skipped = result.steps.length - applicable.length;
+    $('voiceHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
+    $('voiceSummary').textContent = `${applicable.length} action${applicable.length > 1 ? 's' : ''}:\n${lines.join('\n')}${skipped ? `\n(${skipped} skipped)` : ''}`;
+    hide($('proposalCard'));
+    show($('voiceCard'));
+    $('voiceCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   if (result.type === 'add_task') {
     if (result.error) return toast(VOICE_ERRORS[result.error] || "Couldn't add that task.", 'err');
     pendingVoice = result;
     const t = result.task;
-    const meta = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.deadline ? `by ${t.deadline}` : null].filter(Boolean).join(' · ');
+    const meta = [`${t.estimatedMinutes} min`, PRIO_LABEL[t.priority], t.byTime ? `by ${fmtHM(t.byTime)}` : null, t.deadline ? `by ${t.deadline}` : null].filter(Boolean).join(' · ');
     $('voiceHeard').textContent = `Heard: "${transcript}"${engineSuffix(result)}`;
     $('voiceSummary').textContent = `Add task: “${t.title}” (${meta})`;
     hide($('proposalCard'));
@@ -1080,37 +1177,38 @@ async function confirmVoice() {
   hide($('voiceCard'));
   setLoading(true);
   try {
+    if (v.type === 'batch') {
+      let ok = 0;
+      const touchesTasks = v.steps.some((s) => s.type === 'add_task' || s.type === 'edit_task');
+      const touchesEvents = v.steps.some((s) => s.type === 'add' || s.type === 'remove' || s.type === 'move' || s.type === 'edit');
+      for (const step of v.steps) {
+        try { await applyVoiceStep(step); ok += 1; } catch (_) { /* keep going */ }
+      }
+      toast(ok === v.steps.length ? `${ok} action${ok > 1 ? 's' : ''} applied ✓` : `${ok}/${v.steps.length} applied`, ok ? 'ok' : 'err');
+      if (touchesTasks) await loadTasks();
+      if (touchesEvents) await loadEvents();
+      return;
+    }
     if (v.type === 'add_task') {
-      await api('/tasks', { method: 'POST', body: v.task });
+      await applyVoiceStep(v);
       toast('Task added ✓', 'ok');
       await loadTasks();
       return;
     }
     if (v.type === 'edit_task') {
-      await api(`/tasks/${v.task.id}`, { method: 'PATCH', body: v.patch });
+      await applyVoiceStep(v);
       toast('Task updated ✓', 'ok');
       await loadTasks();
       return;
     }
     if (v.type === 'edit') {
-      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'PATCH', body: v.changes });
+      await applyVoiceStep(v);
       toast('Event updated ✓', 'ok');
       await loadEvents();
       return;
     }
-    if (v.type === 'add') {
-      await api(`/calendar/${activeProvider}/events`, { method: 'POST', body: v.event });
-      toast('Event added ✓', 'ok');
-    } else if (v.type === 'remove') {
-      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, { method: 'DELETE' });
-      toast('Event removed ✓', 'ok');
-    } else if (v.type === 'move') {
-      await api(`/calendar/${activeProvider}/events/${encodeURIComponent(v.match.id)}`, {
-        method: 'PATCH',
-        body: { start: v.to.start, end: v.to.end },
-      });
-      toast('Event moved ✓', 'ok');
-    }
+    await applyVoiceStep(v);
+    toast(v.type === 'add' ? 'Event added ✓' : v.type === 'remove' ? 'Event removed ✓' : 'Event moved ✓', 'ok');
     await loadEvents();
   } catch (err) {
     toast(err.message, 'err');
@@ -2041,11 +2139,12 @@ function taskCard(t, todayKey) {
     : (recurring ? '<span class="tc-due">🔁</span>' : '');
   const nSub = (t.subtasks || []).length;
   const sub = nSub ? `<span class="sub-count">☑ ${t.subtasks.filter((s) => s.done).length}/${nSub}</span>` : '';
+  const byT = t.byTime ? `<span class="tc-due">⏰ ${fmtHM(t.byTime)}</span>` : '';
   return `<div class="tcard ${checked ? 'done' : ''} ${t.tag ? `tag-${t.tag}` : ''}">
       <input type="checkbox" class="t-check" data-id="${t.id}" ${checked ? 'checked' : ''} />
       <div class="tc-body" data-edit="${t.id}">
         <div class="tc-title">${escapeHtml(t.title)} ${prioFlag(t.priority)}</div>
-        <div class="tc-meta">${tagPill(t.tag)}${sub}${due}</div>
+        <div class="tc-meta">${tagPill(t.tag)}${sub}${byT}${due}</div>
       </div>
     </div>`;
 }
@@ -2120,6 +2219,7 @@ function taskRow(t, todayKey) {
   const overdue = isOverdue(t, todayKey);
   const bits = [];
   if (t.estimatedMinutes) bits.push(`${t.estimatedMinutes}m`);
+  if (t.byTime) bits.push(`⏰ by ${fmtHM(t.byTime)}`);
   if (!recurring && t.deadline) bits.push(overdue ? `⚠️ ${t.deadline}` : t.deadline);
   if (recurring) bits.push(`🔁 ${repeatLabel(t.repeat)}`);
   const streak = recurring && t.streak > 0 ? `<span class="t-badge streak">🔥 ${t.streak}</span>` : '';
@@ -2343,6 +2443,7 @@ async function addTaskFromForm() {
     estimatedMinutes: parseInt($('taskMins').value, 10) || 30,
     priority: $('taskPriority').value,
     deadline: $('taskDeadline').value || null,
+    byTime: $('taskByTime').value || null, // "HH:MM" done-by target, or null
     repeat: selectedRepeatDays(), // [] → one-off
     category: $('taskCategory').value.trim() || null,
     tag: segValue('taskTag') || null,
@@ -2369,6 +2470,7 @@ function resetTaskForm() {
   editingTaskId = null;
   $('taskTitle').value = '';
   $('taskDeadline').value = '';
+  $('taskByTime').value = '';
   $('taskMins').value = '30';
   $('taskPriority').value = 'med';
   $('taskCategory').value = '';
@@ -2389,6 +2491,7 @@ function startEditTask(id) {
   $('taskMins').value = t.estimatedMinutes || 30;
   $('taskPriority').value = t.priority || 'med';
   $('taskDeadline').value = t.deadline || '';
+  $('taskByTime').value = t.byTime || '';
   $('taskCategory').value = t.category || '';
   $('taskListInput').value = t.list || 'Inbox';
   setSeg('taskTag', t.tag || '');

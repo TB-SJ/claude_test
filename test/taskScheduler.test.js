@@ -42,6 +42,28 @@ test('higher priority is scheduled before lower', () => {
   assert.equal(plan.slots[0].title, 'High');
 });
 
+test('a "do by HH:MM" task is placed to finish before its bound, and leads', () => {
+  // Future day → planning starts at work open (06:00), ignores current time.
+  const tasks = [
+    { id: 'hi', title: 'High no-bound', estimatedMinutes: 30, priority: 'high', deadline: null, done: false },
+    { id: 'bt', title: 'Prepare food', estimatedMinutes: 30, priority: 'low', deadline: null, byTime: '07:00', done: false },
+  ];
+  const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-05' });
+  // The time-bound task jumps the queue despite lower priority...
+  assert.equal(plan.slots[0].taskId, 'bt');
+  // ...and finishes at or before 07:00.
+  assert.ok(new Date(plan.slots[0].end) <= new Date('2026-08-05T07:00:00.000Z'));
+});
+
+test('a time-bound task that cannot fit before its bound is flagged at-risk', () => {
+  // 60 min needed but only 06:00–06:30 available before the bound → no slot.
+  const tasks = [{ id: 'bt', title: 'Food', estimatedMinutes: 60, priority: 'high', deadline: null, byTime: '06:30', done: false }];
+  const plan = scheduleTasks(tasks, [], { tzOffsetMinutes: 0 }, { date: '2026-08-05' });
+  assert.equal(plan.slots.length, 0);
+  assert.equal(plan.unscheduled.length, 1);
+  assert.equal(plan.unscheduled[0].atRisk, true);
+});
+
 test('voice: add-task phrasings', () => {
   assert.equal(parseCommand('add a task to review the budget for 30 minutes by Friday', REF).type, 'add_task');
   assert.equal(parseCommand('remember to call the vendor, urgent', REF).priority, 'high');

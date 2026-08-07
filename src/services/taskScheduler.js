@@ -98,6 +98,12 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
     });
   } else {
     pending.sort((a, b) => {
+      // Same-day time-bound tasks ("do by 5pm") lead, soonest deadline first —
+      // they have the tightest window, so they get first pick of the free slots.
+      const abt = a.byTime ? parseHM(a.byTime) : null;
+      const bbt = b.byTime ? parseHM(b.byTime) : null;
+      if ((abt == null) !== (bbt == null)) return abt == null ? 1 : -1;
+      if (abt != null && bbt != null && abt !== bbt) return abt - bbt;
       if (priorityTag) {
         const at = a.tag === priorityTag ? 0 : 1;
         const bt = b.tag === priorityTag ? 0 : 1;
@@ -119,11 +125,14 @@ function scheduleTasks(tasks, events, ruleOverrides = {}, { referenceDate = new 
 
   for (const t of pending) {
     const dur = t.estimatedMinutes || 30;
-    const slot = earliestSlot(floorFor(t), dur, placed, workEnd, rules.bufferMinutes);
+    // A "do by HH:MM" task must finish by that clock time, so cap its slot end.
+    const bound = t.byTime ? Math.min(workEnd, parseHM(t.byTime)) : workEnd;
+    const slot = earliestSlot(floorFor(t), dur, placed, bound, rules.bufferMinutes);
     if (slot == null) {
-      // Couldn't fit today — flag it as at-risk if its deadline is pressing.
+      // Couldn't fit today — flag it as at-risk if its deadline is pressing or
+      // it had a same-day time bound we couldn't honor.
       const urg = taskUrgency(t, dayKey);
-      unscheduled.push({ ...t, atRisk: urg.dueSoon });
+      unscheduled.push({ ...t, atRisk: urg.dueSoon || Boolean(t.byTime) });
       continue;
     }
     slots.push({
