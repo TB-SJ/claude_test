@@ -37,8 +37,13 @@ function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new 
     .filter((e) => isTimed(e) && localParts(e.start, off).dayKey === todayKey)
     .sort((a, b) => new Date(a.start) - new Date(b.start));
 
-  const meetingMinutes = timedToday.reduce((sum, e) => sum + diffMinutes(e.start, e.end), 0);
-  const nextEvent = timedToday.find((e) => new Date(e.start).getTime() > nowMs) || null;
+  // 📋-prefixed events are committed task blocks — they're tasks, not meetings,
+  // so they don't count toward the meeting tally / deep-work intrusions.
+  const isTaskBlock = (e) => /^📋/.test(e.title || '');
+  const meetings = timedToday.filter((e) => !isTaskBlock(e));
+
+  const meetingMinutes = meetings.reduce((sum, e) => sum + diffMinutes(e.start, e.end), 0);
+  const nextEvent = meetings.find((e) => new Date(e.start).getTime() > nowMs) || null;
 
   const freeSlots = freeForDays(events, [todayKey], { tzOffsetMinutes }, { referenceDate }).find((d) => d.dayKey === todayKey);
   const freeMinutes = (freeSlots ? freeSlots.slots : []).reduce((sum, s) => sum + s.minutes, 0);
@@ -49,7 +54,7 @@ function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new 
   if (dw.enabled && dw.days.includes(weekdayOf(todayKey))) {
     const dwS = parseHM(dw.start);
     const dwE = parseHM(dw.end);
-    deepWorkClear = !timedToday.some((e) => {
+    deepWorkClear = !meetings.some((e) => {
       const s = localParts(e.start, off).minute;
       const en = localParts(e.end, off).minute;
       return s < dwE && en > dwS;
@@ -69,8 +74,8 @@ function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new 
 
   const lines = [];
   lines.push(
-    timedToday.length
-      ? `🗓 ${timedToday.length} meeting${timedToday.length === 1 ? '' : 's'} · ${fmtDur(meetingMinutes)} booked`
+    meetings.length
+      ? `🗓 ${meetings.length} meeting${meetings.length === 1 ? '' : 's'} · ${fmtDur(meetingMinutes)} booked`
       : '🗓 No meetings today'
   );
   lines.push(`🎯 ${fmtDur(freeMinutes)} free${deepWorkClear === true ? ' · deep-work protected ✓' : deepWorkClear === false ? ' · deep-work has a meeting ⚠️' : ''}`);
@@ -80,7 +85,7 @@ function composeBrief(events, tasks, { tzOffsetMinutes = 0, referenceDate = new 
 
   return {
     dayKey: todayKey,
-    meetingCount: timedToday.length,
+    meetingCount: meetings.length,
     meetingMinutes,
     freeMinutes,
     deepWorkClear,

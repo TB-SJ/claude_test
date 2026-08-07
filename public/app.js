@@ -1175,28 +1175,61 @@ function agendaTaskRow(t, todayKey) {
 // Tap an agenda event → open it on the Schedule tab; a task → on the Tasks tab.
 function editAgendaEvent(id) { setTab('schedule'); startEditEvent(id); }
 function editAgendaTask(id) { setTab('tasks'); startEditTask(id); }
+
+// A committed plan block (📋-titled calendar event) shown under Tasks.
+function agendaBlockRow(e) {
+  const title = (e.title || '').replace(/^📋\s*/, '');
+  return `<div class="agenda-item ${e.done ? 'done' : ''} ${e.tag ? `tag-${e.tag}` : ''}">
+      <input type="checkbox" class="ev-check" data-id="${escapeHtml(e.id)}" ${e.done ? 'checked' : ''} />
+      <span class="ag-time">${fmtTime(e.start)}</span>
+      <span class="ag-title" data-edit-ev="${escapeHtml(e.id)}">📋 ${escapeHtml(title)}</span>
+    </div>`;
+}
+
+// A task is "assigned for today" if it's due today or a habit due today —
+// overdue-from-earlier and undated tasks are NOT shown on the Today dashboard.
+function assignedToday(t, todayKey, dow) {
+  return isRecurring(t) ? t.repeat.includes(dow) : t.deadline === todayKey;
+}
+function taskCheckedToday(t, todayKey) {
+  return isRecurring(t) ? t.lastDone === todayKey : Boolean(t.done);
+}
+function taskCompletedToday(t, todayKey) {
+  if (isRecurring(t)) return t.lastDone === todayKey;
+  if (!t.done) return false;
+  return t.completedAt ? String(t.completedAt).slice(0, 10) === todayKey : true;
+}
+
+let todayView = 'todo'; // 'todo' (incomplete) | 'done' (completed)
+
 function renderTodayAgenda() {
   const el = $('todayAgenda');
   if (!el) return;
   const todayKey = localTodayKey();
   const dow = new Date().getDay();
-  const events = ((lastBrief && lastBrief.events) || [])
-    .filter((e) => e.start && e.start.includes('T') && passTag(e))
-    .sort((a, b) => new Date(a.start) - new Date(b.start));
-  const due = (lastTasks || [])
-    .filter((t) => !t.deferred && passTag(t) && isPendingToday(t, todayKey, dow))
-    .sort((a, b) => (isOverdue(b, todayKey) - isOverdue(a, todayKey)) || ((PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1)));
+  const done = todayView === 'done';
+  const isBlock = (e) => /^📋/.test(e.title || '');
+  const byTime = (a, b) => new Date(a.start) - new Date(b.start);
+
+  const allEv = ((lastBrief && lastBrief.events) || []).filter((e) => e.start && e.start.includes('T') && passTag(e));
+  const meetings = allEv.filter((e) => !isBlock(e) && (done ? e.done : !e.done)).sort(byTime);
+  const blocks = allEv.filter((e) => isBlock(e) && (done ? e.done : !e.done)).sort(byTime);
+
+  const tasks = (lastTasks || []).filter((t) => !t.deferred && passTag(t) && (
+    done ? taskCompletedToday(t, todayKey) : (assignedToday(t, todayKey, dow) && !taskCheckedToday(t, todayKey))
+  )).sort((a, b) => (PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1));
 
   let html = '';
-  if (events.length) {
+  if (meetings.length) {
     html += `<div class="agenda-h"><span class="stat-ico" style="color:var(--accent)">${svgIcon('calendar', 15)}</span> Schedule</div>`;
-    html += events.map(agendaEventRow).join('');
+    html += meetings.map(agendaEventRow).join('');
   }
-  if (due.length) {
+  const taskItems = [...blocks.map(agendaBlockRow), ...tasks.map((t) => agendaTaskRow(t, todayKey))];
+  if (taskItems.length) {
     html += `<div class="agenda-h"><span class="stat-ico" style="color:var(--green)">${svgIcon('check', 15)}</span> Tasks</div>`;
-    html += due.map((t) => agendaTaskRow(t, todayKey)).join('');
+    html += taskItems.join('');
   }
-  el.innerHTML = html || '<p class="muted center" style="margin:10px 0 4px">Nothing due today — enjoy it 🎉</p>';
+  el.innerHTML = html || `<p class="muted center" style="margin:10px 0 4px">${done ? 'Nothing completed yet today.' : 'Nothing left for today — enjoy it 🎉'}</p>`;
   for (const c of el.querySelectorAll('.ev-check')) c.addEventListener('change', () => toggleEventDone(c.dataset.id, c.checked));
   for (const c of el.querySelectorAll('.t-check')) c.addEventListener('change', () => toggleTask(c.dataset.id, c.checked));
   for (const s of el.querySelectorAll('[data-edit-ev]')) s.addEventListener('click', () => editAgendaEvent(s.dataset.editEv));
@@ -2562,6 +2595,13 @@ function init() {
   for (const b of document.querySelectorAll('.med-dur')) {
     b.addEventListener('click', () => startMeditation(parseInt(b.dataset.min, 10) || 5));
   }
+  $('todayViewToggle').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tv]');
+    if (!b) return;
+    todayView = b.dataset.tv;
+    for (const x of $('todayViewToggle').querySelectorAll('button')) x.classList.toggle('active', x === b);
+    renderTodayAgenda();
+  });
   $('todayQuickAddInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') quickAddToday(); });
   $('todayQuickAddBar').querySelector('.qa-plus').addEventListener('click', quickAddToday);
   $('cdAddToggle').addEventListener('click', () => $('cdForm').classList.toggle('hidden'));
