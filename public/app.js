@@ -372,8 +372,53 @@ function setTagFilter(v) {
 }
 function renderScheduleView() {
   const evs = (currentEvents || []).filter(passTag);
-  if (scope === 'week') renderWeekGrid($('eventList'), evs);
+  if (scope === 'month') renderMonthGrid($('eventList'), evs);
+  else if (scope === 'week') renderWeekGrid($('eventList'), evs);
   else renderSchedule($('eventList'), evs, null, { editable: true });
+}
+
+// Month grid: 6 weeks of day cells with event + task-due chips. Tap a day to
+// jump to its Day view; ‹ › navigate months.
+function renderMonthGrid(container, events) {
+  const { gs, first } = monthGridRange(monthAnchor || new Date());
+  const monthName = first.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  const todayKey = dateInputValue(new Date());
+
+  const byDay = new Map();
+  const push = (key, item) => { if (!byDay.has(key)) byDay.set(key, []); byDay.get(key).push(item); };
+  for (const e of events) if (e.start.includes('T')) push(dateInputValue(new Date(e.start)), { kind: 'event', title: e.title || '', tag: e.tag, done: e.done });
+  for (const t of lastTasks || []) if (!t.deferred && !t.done && t.deadline && passTag(t)) push(t.deadline, { kind: 'task', title: t.title || '', tag: t.tag });
+
+  let cells = '';
+  for (let i = 0; i < 42; i += 1) {
+    const d = new Date(gs);
+    d.setDate(gs.getDate() + i);
+    const key = dateInputValue(d);
+    const all = byDay.get(key) || [];
+    const items = all.slice(0, 3);
+    const more = all.length - items.length;
+    cells += `<button class="mo-cell${d.getMonth() === first.getMonth() ? '' : ' out'}${key === todayKey ? ' today' : ''}" data-date="${key}">
+        <span class="mo-day">${d.getDate()}</span>
+        ${items.map((it) => `<span class="mo-chip ${it.kind === 'task' ? 'task' : ''} ${it.tag ? `tag-${it.tag}` : ''}${it.done ? ' done' : ''}">${escapeHtml(it.title)}</span>`).join('')}
+        ${more > 0 ? `<span class="mo-more">+${more}</span>` : ''}
+      </button>`;
+  }
+  const dows = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<span>${d}</span>`).join('');
+  container.innerHTML = `
+    <div class="mo-head">
+      <button class="mo-nav" data-mo="-1" aria-label="previous month">‹</button>
+      <span class="mo-title">${escapeHtml(monthName)}</span>
+      <button class="mo-nav" data-mo="1" aria-label="next month">›</button>
+    </div>
+    <div class="mo-dows">${dows}</div>
+    <div class="mo-grid">${cells}</div>
+    <p class="muted center" style="font-size:.78rem;margin:8px 0 0">Tap a day to open it.</p>`;
+  for (const b of container.querySelectorAll('.mo-nav')) {
+    b.addEventListener('click', () => { const a = new Date(first); a.setMonth(first.getMonth() + Number(b.dataset.mo)); monthAnchor = a; loadEvents(); });
+  }
+  for (const c of container.querySelectorAll('.mo-cell')) {
+    c.addEventListener('click', () => { viewDate = c.dataset.date; setScope('day'); });
+  }
 }
 
 // --- Visual week grid (7 day columns with proportional event blocks) --------
@@ -531,14 +576,34 @@ async function refreshConnection() {
 
 let currentEvents = []; // last-loaded events, for the inline edit form
 
+let viewDate = null; // when set (YYYY-MM-DD), day/week anchors here instead of today
+let monthAnchor = null; // a Date within the month shown by the month grid
+
+// The 6-week (42-day) grid window covering a month, starting on a Sunday.
+function monthGridRange(anchor) {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const gs = new Date(first);
+  gs.setDate(1 - first.getDay());
+  const ge = new Date(gs);
+  ge.setDate(gs.getDate() + 42);
+  return { gs, ge, first };
+}
+
 async function loadEvents() {
   setLoading(true);
   try {
-    // Anchor the range on the browser's LOCAL date (noon UTC of it), so "day"
-    // and the rolling "week" match the user's calendar day regardless of tz.
-    const now = new Date();
-    const localAnchor = `${dateInputValue(now)}T12:00:00Z`;
-    const data = await api(`/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}&tzOffsetMinutes=${TZ_OFFSET}`);
+    let url;
+    if (scope === 'month') {
+      const { gs, ge } = monthGridRange(monthAnchor || new Date());
+      url = `/calendar/${activeProvider}/events?start=${encodeURIComponent(gs.toISOString())}&end=${encodeURIComponent(ge.toISOString())}&tzOffsetMinutes=${TZ_OFFSET}`;
+    } else {
+      // Anchor on the browser's LOCAL date (noon UTC), so "day"/"week" match the
+      // user's calendar day regardless of tz. `viewDate` jumps to a chosen day.
+      const anchorDate = viewDate ? new Date(`${viewDate}T12:00:00`) : new Date();
+      const localAnchor = `${dateInputValue(anchorDate)}T12:00:00Z`;
+      url = `/calendar/${activeProvider}/events?range=${scope}&date=${encodeURIComponent(localAnchor)}&tzOffsetMinutes=${TZ_OFFSET}`;
+    }
+    const data = await api(url);
     currentEvents = data.events || [];
     renderScheduleView();
   } catch (err) {
@@ -2163,7 +2228,13 @@ function init() {
   if (params.get('auth_error')) toast(`Connection failed: ${params.get('auth_error')}`, 'err');
   if (params.toString()) history.replaceState({}, '', '/');
 
-  for (const b of $('scopeToggle').children) b.addEventListener('click', () => setScope(b.dataset.scope));
+  for (const b of $('scopeToggle').children) {
+    b.addEventListener('click', () => {
+      viewDate = null; // manual scope pick returns to today
+      if (b.dataset.scope === 'month') monthAnchor = new Date();
+      setScope(b.dataset.scope);
+    });
+  }
   $('refreshBtn').addEventListener('click', loadEvents);
   $('addEventToggle').addEventListener('click', () => {
     const form = $('eventForm');
