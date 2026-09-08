@@ -65,11 +65,12 @@ function isAuthed(req) {
   return validToken(parseCookies(req)[COOKIE]);
 }
 
-/** Verifies a submitted password in constant time. */
+/** Verifies a submitted password in constant time. Both sides are trimmed so a
+ *  stray leading/trailing space (paste artifact) doesn't cause a false reject. */
 function checkPassword(input) {
   if (!enabled()) return true;
-  const a = Buffer.from(String(input || ''));
-  const b = Buffer.from(config.app.password);
+  const a = Buffer.from(String(input || '').trim());
+  const b = Buffer.from(config.app.password); // already trimmed at config load
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 

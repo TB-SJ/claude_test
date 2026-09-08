@@ -52,7 +52,9 @@ const config = {
   // Web dashboard single-user gate. Leave APP_PASSWORD empty to disable the
   // login gate (fine for localhost); set it before hosting.
   app: {
-    password: process.env.APP_PASSWORD || '',
+    // Trimmed so a stray trailing space/newline in the hosted env var (a common
+    // copy-paste artifact) doesn't silently break the exact password check.
+    password: (process.env.APP_PASSWORD || '').trim(),
     sessionSecret: process.env.APP_SESSION_SECRET || '',
   },
 
